@@ -96,8 +96,6 @@ Files needed for software development using gnutls.
 
 %prep
 %setup -q
-%patch1 -p1
-%patch2 -p1
 echo %{_includedir}/%{name}/abstract.h
 
 %build
