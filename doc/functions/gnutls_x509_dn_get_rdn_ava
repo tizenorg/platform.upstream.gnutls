@@ -1,0 +1,22 @@
+
+
+
+
+@deftypefun {int} {gnutls_x509_dn_get_rdn_ava} (gnutls_x509_dn_t @var{dn}, int @var{irdn}, int @var{iava}, gnutls_x509_ava_st * @var{ava})
+@var{dn}: input variable with uint8_t DN pointer
+
+@var{irdn}: index of RDN
+
+@var{iava}: index of AVA.
+
+@var{ava}: Pointer to structure which will hold output information.
+
+Get pointers to data within the DN.
+
+Note that  @code{ava} will contain pointers into the  @code{dn} structure, so you
+should not modify any data or deallocate it.  Note also that the DN
+in turn points into the original certificate structure, and thus
+you may not deallocate the certificate and continue to access  @code{dn} .
+
+@strong{Returns:} Returns 0 on success, or an error code.
+@end deftypefun

@@ -1,0 +1,17 @@
+
+
+
+
+@deftypefun {int} {gnutls_x509_crt_get_subject} (gnutls_x509_crt_t @var{cert}, gnutls_x509_dn_t * @var{dn})
+@var{cert}: should contain a @code{gnutls_x509_crt_t}  structure
+
+@var{dn}: output variable with pointer to uint8_t DN.
+
+Return the Certificate's Subject DN as an uint8_t data type.  You
+may use @code{gnutls_x509_dn_get_rdn_ava()}  to decode the DN. 
+
+Note that  @code{dn} should be treated as constant. Because points 
+into the  @code{cert} object, you may not deallocate  @code{cert} and continue to access  @code{dn} .
+
+@strong{Returns:} Returns 0 on success, or an error code.
+@end deftypefun
