@@ -1,79 +1,200 @@
-#sbs-git:slp/pkgs/l/libgnutls26 gnutls 2.12.0 334e00aa49812702098c8de319a48e4a1bac6f02
-Name:           gnutls
-Version:        2.12.0
-Release:        1
-License:        LGPL-2.0+
-Summary:        A TLS protocol implementation
-Url:            http://www.gnutls.org/
-Group:          System/Libraries
-Source0:        %{name}-%{version}.tar.gz
-BuildRequires:  autoconf
-BuildRequires:  automake,
-BuildRequires:  gettext-tools
-BuildRequires:  libgcrypt-devel >= 1.2.2
-BuildRequires:  libtasn1-devel
-BuildRequires:  libtool,
-BuildRequires:  lzo-devel,
-BuildRequires:  readline-devel,
-BuildRequires:  zlib-devel,
+%define gnutls_sover 28
+%define gnutlsxx_sover 28
+%define gnutls_ossl_sover 27
 
-Requires:       libgcrypt >= 1.2.2
+Name:           gnutls
+Version:        3.0.21
+Release:        0
+Summary:        The GNU Transport Layer Security Library
+License:        LGPL-3.0+ and GPL-3.0+
+Group:          Productivity/Networking/Security
+Url:            http://www.gnutls.org/
+Source0:        http://ftp.gnu.org/gnu/gnutls/%{name}-%{version}.tar.xz
+Source1:        baselibs.conf
+BuildRequires:  automake
+BuildRequires:  gcc-c++
+BuildRequires:  libidn-devel
+BuildRequires:  libnettle-devel >= 2.2
+BuildRequires:  libtasn1-devel
+BuildRequires:  libtool
+BuildRequires:  p11-kit-devel >= 0.11
+BuildRequires:  pkg-config
+BuildRequires:  xz
+BuildRequires:  zlib-devel
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
-%package devel
-Summary:        Development files for the %{name} package
-Group:          Development/Libraries
-Requires:       %{name} = %{version}
-Requires:       libgcrypt-devel
-Requires:       pkgconfig
-Requires(post): /sbin/install-info
-Requires(preun): /sbin/install-info
-
 %description
-GnuTLS is a project that aims to develop a library which provides a secure
-layer, over a reliable transport layer. Currently the GnuTLS library implements
-the proposed standards by the IETF's TLS working group.
+The GnuTLS project aims to develop a library that provides a secure
+layer over a reliable transport layer. Currently the GnuTLS library
+implements the proposed standards of the IETF's TLS working group.
 
-%description devel
-GnuTLS is a project that aims to develop a library which provides a secure
-layer, over a reliable transport layer. Currently the GnuTLS library implements
-the proposed standards by the IETF's TLS working group.
-This package contains files needed for developing applications with
-the GnuTLS library.
+%package -n libgnutls
+Summary:        The GNU Transport Layer Security Library
+License:        LGPL-3.0+
+Group:          Productivity/Networking/Security
+
+%description -n libgnutls
+The GnuTLS project aims to develop a library that provides a secure
+layer over a reliable transport layer. Currently the GnuTLS library
+implements the proposed standards of the IETF's TLS working group.
+
+%package -n libgnutlsxx
+Summary:        The GNU Transport Layer Security Library
+License:        LGPL-3.0+
+Group:          Productivity/Networking/Security
+
+%description -n libgnutlsxx
+The GnuTLS project aims to develop a library that provides a secure
+layer over a reliable transport layer. Currently the GnuTLS library
+implements the proposed standards of the IETF's TLS working group.
+
+
+%package -n libgnutls-openssl
+Summary:        The GNU Transport Layer Security Library
+License:        GPL-3.0+
+Group:          Productivity/Networking/Security
+
+%description -n libgnutls-openssl
+The GnuTLS project aims to develop a library that provides a secure
+layer over a reliable transport layer. Currently the GnuTLS library
+implements the proposed standards of the IETF's TLS working group.
+
+
+%package -n libgnutls-devel
+Summary:        Development package for gnutls
+License:        LGPL-3.0+
+Group:          Development/Libraries/C and C++
+Requires:       glibc-devel
+Requires:       libgnutls = %{version}
+Provides:       gnutls-devel = %{version}-%{release}
+
+%description -n libgnutls-devel
+Files needed for software development using gnutls.
+
+%package -n libgnutlsxx-devel
+Summary:        Development package for gnutls
+License:        LGPL-3.0+
+Group:          Development/Libraries/C and C++
+Requires:       libgnutls-devel = %{version}
+Requires:       libgnutlsxx = %{version}
+Requires:       libstdc++-devel
+
+%description -n libgnutlsxx-devel
+Files needed for software development using gnutls.
+
+
+%package -n libgnutls-openssl-devel
+Summary:        Development package for gnutls
+License:        GPL-3.0+
+Group:          Development/Libraries/C and C++
+Requires:       libgnutls-devel = %{version}
+Requires:       libgnutls-openssl = %{version}
+
+%description -n libgnutls-openssl-devel
+Files needed for software development using gnutls.
+
 
 %prep
 %setup -q
+%patch1 -p1
+%patch2 -p1
+echo %{_includedir}/%{name}/abstract.h
 
 %build
+autoreconf -if
+%configure \
+        --disable-static \
+        --with-pic \
+        --disable-rpath \
+        --disable-silent-rules \
+	--with-default-trust-store-dir=/etc/ssl/certs \
+        --with-sysroot=/%{?_sysroot}
+make %{?_smp_mflags}
 
-rm -f doc/*.info* lib/po/libgnutls26.pot
-if [ -e doc/gnutls.pdf.debbackup ] && [ ! -e doc/gnutls.pdf ] ; then
-	mv doc/gnutls.pdf.debbackup doc/gnutls.pdf ;
-fi
-
-%configure  --enable-ld-version-script --disable-cxx --without-lzo \
-            --cache-file=config.cache --with-libgcrypt \
-            --with-included-libtasn1
-make
+# 17-ago-2011, Test suite passes in factory, just not
+#in the build system due to some broken code requiring both networking
+#and fixes.
+#make check
 
 %install
-rm -fr %{buildroot}
 %make_install
+rm -rf doc/examples/.deps doc/examples/.libs doc/examples/*.{o,lo,la} doc/examples/Makefile{,.in}
+find doc/examples -perm -111 -exec rm {} \;
+rm -rf %{buildroot}%{_datadir}/locale/en@{,bold}quot
+# Do not package static libs and libtool files
+rm -f %{buildroot}%{_libdir}/*.la
+%find_lang libgnutls --all-name
 
+%clean
+rm -rf %{buildroot}
 
+%post -n libgnutls -p /sbin/ldconfig
 
-%remove_docs
+%postun -n libgnutls -p /sbin/ldconfig
 
-%post -p /sbin/ldconfig
+%post -n libgnutlsxx -p /sbin/ldconfig
 
-%postun -p /sbin/ldconfig
+%postun -n libgnutlsxx -p /sbin/ldconfig
 
+%post -n libgnutls-openssl -p /sbin/ldconfig
 
-%files
-%{_libdir}/libgnutls*.so.*
-%{_datadir}/locale/*/LC_MESSAGES/libgnutls26.mo
+%postun -n libgnutls-openssl -p /sbin/ldconfig
 
-%files devel
-%{_includedir}/*
-%{_libdir}/libgnutls*.so
-%{_libdir}/pkgconfig/*.pc
+%files -f libgnutls.lang
+%defattr(-, root, root)
+%doc COPYING
+%{_bindir}/certtool
+%{_bindir}/crywrap
+%{_bindir}/gnutls-cli
+%{_bindir}/gnutls-cli-debug
+%{_bindir}/gnutls-serv
+%{_bindir}/ocsptool
+%{_bindir}/psktool
+%{_bindir}/p11tool
+%{_bindir}/srptool
+%{_mandir}/man1/*
+
+%files -n libgnutls
+%defattr(-,root,root)
+%{_libdir}/libgnutls.so.*
+
+%files -n libgnutls-openssl
+%defattr(-,root,root)
+%{_libdir}/libgnutls-openssl.so.*
+
+%files -n libgnutlsxx
+%defattr(-,root,root)
+%{_libdir}/libgnutlsxx.so.*
+
+%files -n libgnutls-devel
+%defattr(-, root, root)
+%dir %{_includedir}/%{name}
+%{_includedir}/%{name}/abstract.h
+%{_includedir}/%{name}/crypto.h
+%{_includedir}/%{name}/compat.h
+%{_includedir}/%{name}/dtls.h
+%{_includedir}/%{name}/gnutls.h
+%{_includedir}/%{name}/openpgp.h
+%{_includedir}/%{name}/ocsp.h
+%{_includedir}/%{name}/pkcs11.h
+%{_includedir}/%{name}/pkcs12.h
+%{_includedir}/%{name}/x509.h
+%{_libdir}/libgnutls.so
+%{_libdir}/pkgconfig/gnutls.pc
+%{_mandir}/man3/*
+%{_infodir}/*.*
+%doc doc/examples doc/gnutls.html doc/*.png doc/gnutls.pdf doc/reference/html/*
+
+%files -n libgnutlsxx-devel
+%defattr(-, root, root)
+%{_libdir}/libgnutlsxx.so
+%dir %{_includedir}/%{name}
+%{_includedir}/%{name}/gnutlsxx.h
+
+%files -n libgnutls-openssl-devel
+%defattr(-, root, root)
+%{_libdir}/libgnutls-openssl.so
+%dir %{_includedir}/%{name}
+%{_includedir}/%{name}/openssl.h
+
+%changelog
