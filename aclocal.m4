@@ -821,7 +821,7 @@ fi
 # AM_PROG_MKDIR_P
 # ---------------
 # Check for 'mkdir -p'.
-AC_DEFUN([AM_PROG_MKDIR_P],
+AC_DEFUN([AC_PROG_MKDIR_P],
 [AC_PREREQ([2.60])dnl
 AC_REQUIRE([AC_PROG_MKDIR_P])dnl
 dnl FIXME we are no longer going to remove this! adjust warning
