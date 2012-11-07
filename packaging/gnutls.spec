@@ -14,7 +14,7 @@ Source1:        baselibs.conf
 BuildRequires:  automake
 BuildRequires:  gcc-c++
 BuildRequires:  libidn-devel
-BuildRequires:  libnettle-devel >= 2.2
+BuildRequires:  pkgconfig(nettle) 
 BuildRequires:  libtasn1-devel
 BuildRequires:  libtool
 BuildRequires:  p11-kit-devel >= 0.11
