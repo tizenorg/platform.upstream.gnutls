@@ -37,6 +37,7 @@ dnl Checks for programs.
 AC_PROG_CC
 AM_PROG_AS
 AC_PROG_CXX
+AM_PROG_AR
 gl_EARLY
 
 # For includes/gnutls/gnutls.h.in.

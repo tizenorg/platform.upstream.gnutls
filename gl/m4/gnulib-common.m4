@@ -301,7 +301,7 @@ m4_ifdef([AC_PROG_MKDIR_P], [
     AC_SUBST([MKDIR_P])])], [
   dnl For autoconf < 2.60: Backport of AC_PROG_MKDIR_P.
   AC_DEFUN_ONCE([AC_PROG_MKDIR_P],
-    [AC_REQUIRE([AM_PROG_MKDIR_P])dnl defined by automake
+    [AC_REQUIRE([AC_PROG_MKDIR_P])dnl defined by automake
      MKDIR_P='$(mkdir_p)'
      AC_SUBST([MKDIR_P])])])
 
