@@ -7,7 +7,7 @@ Version:        3.0.21
 Release:        0
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-3.0+ and GPL-3.0+
-Group:          Productivity/Networking/Security
+Group:          Security/Crypto Libraries
 Url:            http://www.gnutls.org/
 Source0:        http://ftp.gnu.org/gnu/gnutls/%{name}-%{version}.tar.xz
 Source1:        baselibs.conf
@@ -22,7 +22,6 @@ BuildRequires:  p11-kit-devel >= 0.11
 BuildRequires:  pkg-config
 BuildRequires:  xz
 BuildRequires:  zlib-devel
-BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
 %description
 The GnuTLS project aims to develop a library that provides a secure
@@ -32,7 +31,7 @@ implements the proposed standards of the IETF's TLS working group.
 %package -n libgnutls
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-3.0+
-Group:          Productivity/Networking/Security
+Group:          Security/Crypto Libraries
 
 %description -n libgnutls
 The GnuTLS project aims to develop a library that provides a secure
@@ -42,7 +41,7 @@ implements the proposed standards of the IETF's TLS working group.
 %package -n libgnutlsxx
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-3.0+
-Group:          Productivity/Networking/Security
+Group:          Security/Crypto Libraries
 
 %description -n libgnutlsxx
 The GnuTLS project aims to develop a library that provides a secure
@@ -53,7 +52,7 @@ implements the proposed standards of the IETF's TLS working group.
 %package -n libgnutls-openssl
 Summary:        The GNU Transport Layer Security Library
 License:        GPL-3.0+
-Group:          Productivity/Networking/Security
+Group:          Security/Crypto Libraries
 
 %description -n libgnutls-openssl
 The GnuTLS project aims to develop a library that provides a secure
@@ -64,7 +63,7 @@ implements the proposed standards of the IETF's TLS working group.
 %package -n libgnutls-devel
 Summary:        Development package for gnutls
 License:        LGPL-3.0+
-Group:          Development/Libraries/C and C++
+Group:          Development/Libraries
 Requires:       glibc-devel
 Requires:       libgnutls = %{version}
 Provides:       gnutls-devel = %{version}-%{release}
@@ -75,7 +74,7 @@ Files needed for software development using gnutls.
 %package -n libgnutlsxx-devel
 Summary:        Development package for gnutls
 License:        LGPL-3.0+
-Group:          Development/Libraries/C and C++
+Group:          Development/Libraries
 Requires:       libgnutls-devel = %{version}
 Requires:       libgnutlsxx = %{version}
 Requires:       libstdc++-devel
@@ -87,7 +86,7 @@ Files needed for software development using gnutls.
 %package -n libgnutls-openssl-devel
 Summary:        Development package for gnutls
 License:        GPL-3.0+
-Group:          Development/Libraries/C and C++
+Group:          Development/Libraries
 Requires:       libgnutls-devel = %{version}
 Requires:       libgnutls-openssl = %{version}
 
@@ -124,9 +123,6 @@ rm -rf %{buildroot}%{_datadir}/locale/en@{,bold}quot
 rm -f %{buildroot}%{_libdir}/*.la
 %find_lang libgnutls --all-name
 
-%clean
-rm -rf %{buildroot}
-
 %post -n libgnutls -p /sbin/ldconfig
 
 %postun -n libgnutls -p /sbin/ldconfig
@@ -141,7 +137,7 @@ rm -rf %{buildroot}
 
 %files -f libgnutls.lang
 %defattr(-, root, root)
-%doc COPYING
+%license COPYING
 %{_bindir}/certtool
 %{_bindir}/crywrap
 %{_bindir}/gnutls-cli
