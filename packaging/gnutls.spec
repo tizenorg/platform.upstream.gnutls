@@ -11,6 +11,7 @@ Group:          Security/Crypto Libraries
 Url:            http://www.gnutls.org/
 Source0:        http://ftp.gnu.org/gnu/gnutls/%{name}-%{version}.tar.xz
 Source1:        baselibs.conf
+Source1001: 	gnutls.manifest
 BuildRequires:  automake
 BuildRequires:  gcc-c++
 BuildRequires:  libidn-devel
@@ -96,6 +97,7 @@ Files needed for software development using gnutls.
 
 %prep
 %setup -q
+cp %{SOURCE1001} .
 echo %{_includedir}/%{name}/abstract.h
 
 %build
@@ -136,6 +138,7 @@ rm -f %{buildroot}%{_libdir}/*.la
 %postun -n libgnutls-openssl -p /sbin/ldconfig
 
 %files -f libgnutls.lang
+%manifest %{name}.manifest
 %defattr(-, root, root)
 %license COPYING
 %{_bindir}/certtool
@@ -150,18 +153,22 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_mandir}/man1/*
 
 %files -n libgnutls
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/libgnutls.so.*
 
 %files -n libgnutls-openssl
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/libgnutls-openssl.so.*
 
 %files -n libgnutlsxx
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/libgnutlsxx.so.*
 
 %files -n libgnutls-devel
+%manifest %{name}.manifest
 %defattr(-, root, root)
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/abstract.h
@@ -181,12 +188,14 @@ rm -f %{buildroot}%{_libdir}/*.la
 %doc doc/examples doc/gnutls.html doc/*.png doc/gnutls.pdf doc/reference/html/*
 
 %files -n libgnutlsxx-devel
+%manifest %{name}.manifest
 %defattr(-, root, root)
 %{_libdir}/libgnutlsxx.so
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/gnutlsxx.h
 
 %files -n libgnutls-openssl-devel
+%manifest %{name}.manifest
 %defattr(-, root, root)
 %{_libdir}/libgnutls-openssl.so
 %dir %{_includedir}/%{name}
