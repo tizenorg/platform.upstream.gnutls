@@ -1,0 +1,8 @@
+Change-Id: I9b3631a70bbdf652a70cf04ce1dedb3a560309dd
+Code-Review+2: Ryan Ware <ware@linux.intel.com>
+Verified+1: Ryan Ware <ware@linux.intel.com>
+Submitted-by: Ryan Ware <ware@linux.intel.com>
+Submitted-at: Mon, 08 Jul 2013 09:40:50 -0700
+Reviewed-on: https://review.tizen.org/gerrit/4728
+Project: platform/upstream/gnutls
+Branch: refs/heads/tizen
