@@ -299,6 +299,12 @@ should not be trusted.
 The certificate is not yet activated.
 @item GNUTLS_@-CERT_@-EXPIRED
 The certificate has expired.
+@item GNUTLS_@-CERT_@-SIGNATURE_@-FAILURE
+-- undescribed --
+@item GNUTLS_@-CERT_@-REVOCATION_@-DATA_@-SUPERSEDED
+The revocation data are old and have been superseded.
+@item GNUTLS_@-CERT_@-REVOCATION_@-DATA_@-ISSUED_@-IN_@-FUTURE
+The revocation data have a future issue date.
 @end table
 
 @c gnutls_certificate_request_t
@@ -579,6 +585,9 @@ to deprecate all certificates of version 1.
 @item GNUTLS_@-VERIFY_@-DISABLE_@-CRL_@-CHECKS
 Disable checking for validity
 using certificate revocation lists.
+@item GNUTLS_@-VERIFY_@-ALLOW_@-UNSORTED_@-CHAIN
+A certificate chain is tolerated
+if unsorted (the case with many TLS servers out there).
 @end table
 
 @c gnutls_pkcs_encrypt_flags_t
@@ -675,6 +684,8 @@ Specify all public keys.
 Specify all private keys.
 @item GNUTLS_@-PKCS11_@-OBJ_@-ATTR_@-ALL
 Specify all objects.
+@item GNUTLS_@-PKCS11_@-OBJ_@-ATTR_@-CRT_@-TRUSTED_@-CA
+Specify all certificates marked as trusted and are CAs.
 @end table
 
 @c gnutls_pkcs11_token_info_t

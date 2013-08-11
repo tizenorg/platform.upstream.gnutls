@@ -157,15 +157,6 @@ static int drop_usage_count(gnutls_session_t session, mbuffer_head_st *const sen
   return 0;
 }
 
-/* This function is to be called from record layer once
- * a handshake replay is detected. It will make sure
- * it transmits only once per few seconds. Otherwise
- * it is the same as _dtls_transmit().
- */
-int _dtls_retransmit(gnutls_session_t session)
-{
-  return _dtls_transmit(session);
-}
 
 /* Checks whether the received packet contains a handshake
  * packet with sequence higher that the previously received.
@@ -606,11 +597,9 @@ int total = 0, ret, iv_size;
   if (ret < 0)
     return gnutls_assert_val(ret);
 
-  /* requires padding */
-  iv_size = _gnutls_cipher_get_iv_size(params->cipher_algorithm);
-
   if (_gnutls_cipher_is_block (params->cipher_algorithm) == CIPHER_BLOCK)
     {
+      iv_size = _gnutls_cipher_get_iv_size(params->cipher_algorithm);
       *blocksize = iv_size;
 
       total += iv_size; /* iv_size == block_size in DTLS */
@@ -624,7 +613,12 @@ int total = 0, ret, iv_size;
     }
   
   if (params->mac_algorithm == GNUTLS_MAC_AEAD)
-    total += _gnutls_cipher_get_tag_size(params->cipher_algorithm);
+    {
+      total += AEAD_IMPLICIT_DATA_SIZE;
+
+      /* tag happens to be the same */
+      total += gnutls_cipher_get_block_size(params->cipher_algorithm);
+    }
   else
     {
       ret = _gnutls_hmac_get_algo_len(params->mac_algorithm);

@@ -8,7 +8,7 @@
 @var{start}: will hold the starting point of the DN
 
 This function will return a pointer to the DER encoded DN structure and
-the length.
+the length. This points to allocated data that must be free'd using @code{gnutls_free()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value. or a negative error code on error.

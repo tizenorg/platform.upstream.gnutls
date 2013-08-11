@@ -15,7 +15,7 @@ be free'd by calling @code{gnutls_deinit()} .  Returns @code{GNUTLS_E_SUCCESS}  
  @code{flags} can be one of @code{GNUTLS_CLIENT}  and @code{GNUTLS_SERVER} . For a DTLS
 entity, the flags @code{GNUTLS_DATAGRAM}  and  @code{GNUTLS_NONBLOCK}  are
 also available. The latter flag will enable a non-blocking
-operation of the DTLS timers.
+operation of the DTLS timers. 
 
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  on success, or an error code.
 @end deftypefun

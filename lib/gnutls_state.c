@@ -291,7 +291,7 @@ _gnutls_handshake_internal_state_clear (gnutls_session_t session)
  * @flags can be one of %GNUTLS_CLIENT and %GNUTLS_SERVER. For a DTLS
  * entity, the flags %GNUTLS_DATAGRAM and  %GNUTLS_NONBLOCK are
  * also available. The latter flag will enable a non-blocking
- * operation of the DTLS timers.
+ * operation of the DTLS timers. 
  *
  * Returns: %GNUTLS_E_SUCCESS on success, or an error code.
  **/

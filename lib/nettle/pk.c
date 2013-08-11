@@ -140,6 +140,7 @@ static int _wrap_nettle_pk_derive(gnutls_pk_algorithm_t algo, gnutls_datum_t * o
 
         _ecc_params_to_pubkey(pub, &ecc_pub);
         _ecc_params_to_privkey(priv, &ecc_priv);
+        sz = ECC_BUF_SIZE;
         
         if (ecc_projective_check_point(&ecc_pub.pubkey, pub->params[ECC_B], pub->params[ECC_PRIME]) != 0)
           {
@@ -147,7 +148,6 @@ static int _wrap_nettle_pk_derive(gnutls_pk_algorithm_t algo, gnutls_datum_t * o
             goto ecc_cleanup;
           }
 
-        sz = ECC_BUF_SIZE;
         out->data = gnutls_malloc(sz);
         if (out->data == NULL)
           {
@@ -208,7 +208,7 @@ _wrap_nettle_pk_encrypt (gnutls_pk_algorithm_t algo,
         mpz_powm (p, p, TOMPZ (pk_params->params[1]) /*e */ ,
                   TOMPZ (pk_params->params[0] /*m */ ));
 
-        ret = _gnutls_mpi_dprint_size (p, ciphertext, plaintext->size);
+        ret = _gnutls_mpi_dprint_size (p, ciphertext, nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])));
         _gnutls_mpi_release (&p);
 
         if (ret < 0)
@@ -312,6 +312,12 @@ _wrap_nettle_pk_decrypt (gnutls_pk_algorithm_t algo,
       {
         struct rsa_private_key priv;
         bigint_t c, ri, nc;
+        
+        if (ciphertext->size != nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])))
+          {
+            gnutls_assert ();
+            return GNUTLS_E_DECRYPTION_FAILED;
+          }
 
         if (_gnutls_mpi_scan_nz (&c, ciphertext->data, ciphertext->size) != 0)
           {
@@ -487,7 +493,7 @@ _wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
 
         rsa_unblind (nc, ri, pk_params->params[0] /*m */ );
 
-        ret = _gnutls_mpi_dprint (nc, signature);
+        ret = _gnutls_mpi_dprint_size (nc, signature, nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])));
 
 rsa_fail:
         _gnutls_mpi_release (&nc);
@@ -627,12 +633,18 @@ _wrap_nettle_pk_verify (gnutls_pk_algorithm_t algo,
       {
         bigint_t hash;
 
+        if (signature->size != nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])))
+          {
+            gnutls_assert ();
+            return GNUTLS_E_PK_SIG_VERIFY_FAILED;
+          }
+
         if (_gnutls_mpi_scan_nz (&hash, vdata->data, vdata->size) != 0)
           {
             gnutls_assert ();
             return GNUTLS_E_MPI_SCAN_FAILED;
           }
-
+        
         ret = _gnutls_mpi_scan_nz (&tmp[0], signature->data, signature->size);
         if (ret < 0)
           {

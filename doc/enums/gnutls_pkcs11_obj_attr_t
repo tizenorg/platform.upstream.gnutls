@@ -14,4 +14,6 @@ Specify all public keys.
 Specify all private keys.
 @item GNUTLS_@-PKCS11_@-OBJ_@-ATTR_@-ALL
 Specify all objects.
+@item GNUTLS_@-PKCS11_@-OBJ_@-ATTR_@-CRT_@-TRUSTED_@-CA
+Specify all certificates marked as trusted and are CAs.
 @end table

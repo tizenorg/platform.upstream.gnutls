@@ -41,4 +41,7 @@ to deprecate all certificates of version 1.
 @item GNUTLS_@-VERIFY_@-DISABLE_@-CRL_@-CHECKS
 Disable checking for validity
 using certificate revocation lists.
+@item GNUTLS_@-VERIFY_@-ALLOW_@-UNSORTED_@-CHAIN
+A certificate chain is tolerated
+if unsorted (the case with many TLS servers out there).
 @end table

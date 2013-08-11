@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libgnutls 3.0.12\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
 "PO-Revision-Date: 2012-01-20 18:50+0200\n"
 "Last-Translator: Yuri Chornoivan <yurchor@ukr.net>\n"
 "Language-Team: Ukrainian <translation-team-uk@lists.sourceforge.net>\n"
@@ -704,7 +704,12 @@ msgstr ""
 "Наданий список сертифікатів X.509 не впорядковано (за призначенням, потім "
 "видавцем)"
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+#, fuzzy
+msgid "The OCSP response is invalid"
+msgstr "Некоректний запит."
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(невідомий код помилки)"
 
@@ -940,7 +945,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tПідпис:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 msgid "OCSP Response Information:\n"
 msgstr "Дані відповіді OCSP:\n"
 

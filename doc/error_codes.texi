@@ -136,4 +136,5 @@
 @item -326 @tab GNUTLS_@-E_@-NO_@-PRIORITIES_@-WERE_@-SET @tab No or insufficient priorities were set.
 @item -327 @tab GNUTLS_@-E_@-X509_@-UNSUPPORTED_@-EXTENSION @tab Unsupported extension in X.509 certificate.
 @item -328 @tab GNUTLS_@-E_@-SESSION_@-EOF @tab Peer has terminated the connection
+@item -341 @tab GNUTLS_@-E_@-OCSP_@-RESPONSE_@-ERROR @tab The OCSP response is invalid
 @end multitable

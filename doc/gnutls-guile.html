@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <!-- This manual is last updated 10 May 2012 for version
-3.0.21 of GnuTLS.
+3.0.30 of GnuTLS.
 
 Copyright (C) 2001-2012 Free Software Foundation, Inc.
 
@@ -13,10 +13,10 @@ copy of the license is included in the section entitled "GNU Free
 Documentation License". -->
 <!-- Created by GNU Texinfo 4.13.90, http://www.gnu.org/software/texinfo/ -->
 <head>
-<title>GnuTLS-Guile 3.0.21</title>
+<title>GnuTLS-Guile 3.0.30</title>
 
-<meta name="description" content="GnuTLS-Guile 3.0.21">
-<meta name="keywords" content="GnuTLS-Guile 3.0.21">
+<meta name="description" content="GnuTLS-Guile 3.0.30">
+<meta name="keywords" content="GnuTLS-Guile 3.0.30">
 <meta name="resource-type" content="document">
 <meta name="distribution" content="global">
 <meta name="Generator" content="makeinfo">
@@ -30,20 +30,23 @@ a.summary-letter {text-decoration: none}
 blockquote.smallquotation {font-size: smaller}
 div.display {margin-left: 3.2em}
 div.example {margin-left: 3.2em}
+div.indentedblock {margin-left: 3.2em}
 div.lisp {margin-left: 3.2em}
 div.smalldisplay {margin-left: 3.2em}
 div.smallexample {margin-left: 3.2em}
+div.smallindentedblock {margin-left: 3.2em; font-size: smaller}
 div.smalllisp {margin-left: 3.2em}
-pre.display {font-family: serif}
-pre.format {font-family: serif}
+kbd {font-style:oblique}
+pre.display {font-family: inherit}
+pre.format {font-family: inherit}
 pre.menu-comment {font-family: serif}
 pre.menu-preformatted {font-family: serif}
-pre.smalldisplay {font-family: serif; font-size: smaller}
+pre.smalldisplay {font-family: inherit; font-size: smaller}
 pre.smallexample {font-size: smaller}
-pre.smallformat {font-family: serif; font-size: smaller}
+pre.smallformat {font-family: inherit; font-size: smaller}
 pre.smalllisp {font-size: smaller}
-span.nocodebreak {white-space:pre}
-span.nolinebreak {white-space:pre}
+span.nocodebreak {white-space:nowrap}
+span.nolinebreak {white-space:nowrap}
 span.roman {font-family:serif; font-weight:normal}
 span.sansserif {font-family:sans-serif; font-weight:normal}
 ul.no-bullet {list-style: none}
@@ -148,7 +151,7 @@ dl {
 </head>
 
 <body lang="en" bgcolor="#FFFFFF" text="#000000" link="#0000FF" vlink="#800080" alink="#FF0000">
-<h1 class="settitle" align="center">GnuTLS-Guile 3.0.21</h1>
+<h1 class="settitle" align="center">GnuTLS-Guile 3.0.30</h1>
 
 
 
@@ -193,7 +196,7 @@ Next: <a href="#Preface" accesskey="n" rel="next">Preface</a>, Up: <a href="dir.
 <h1 class="top">GnuTLS-Guile</h1>
 
 <p>This manual is last updated 10 May 2012 for version
-3.0.21 of GnuTLS.
+3.0.30 of GnuTLS.
 </p>
 <p>Copyright &copy; 2001-2012 Free Software Foundation, Inc.
 </p>
@@ -252,7 +255,7 @@ Next: <a href="#Guile-API-Conventions" accesskey="n" rel="next">Guile API Conven
 series of Guile.
 </p>
 <p>By default they are installed under the GnuTLS installation directory,
-typically &lsquo;<tt>/usr/local/share/guile/site/</tt>&rsquo;).  Normally Guile
+typically <samp>/usr/local/share/guile/site/</samp>).  Normally Guile
 will not find the module there without help.  You may experience
 something like this:
 </p>
@@ -306,7 +309,7 @@ guile&gt;
 Reference Manual</cite>).
 </p>
 <p>At this point, you might get an error regarding
-&lsquo;<tt>libguile-gnutls-v-0</tt>&rsquo; similar to:
+<samp>libguile-gnutls-v-0</samp> similar to:
 </p>
 <div class="example">
 <pre class="example">gnutls.scm:361:1: In procedure dynamic-link in expression (load-extension &quot;libguile-gnutls-v-0&quot; &quot;scm_init_gnutls&quot;):
@@ -329,7 +332,7 @@ print the version number of the loaded library as follows:
 <pre class="example">$ guile
 guile&gt; (use-modules (gnutls))
 guile&gt; (gnutls-version)
-&quot;3.0.21&quot;
+&quot;3.0.30&quot;
 guile&gt; 
 </pre></div>
 
@@ -504,8 +507,7 @@ format can be done as follows:
   (uniform-vector-write raw-data (open-output-file &quot;some-file.pem&quot;)))
 </pre></div>
 
-<p>For an example of OpenPGP key import from a file, see <a href="#Importing-OpenPGP-Keys-Guile-Example">Importing
-OpenPGP Keys Guile Example</a>.
+<p>For an example of OpenPGP key import from a file, see <a href="#Importing-OpenPGP-Keys-Guile-Example">Importing OpenPGP Keys Guile Example</a>.
 </p>
 
 <hr>

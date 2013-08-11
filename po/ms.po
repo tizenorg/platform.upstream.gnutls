@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnutls 2.5.7\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
 "PO-Revision-Date: 2008-11-01 00:39+0800\n"
 "Last-Translator: Sharuzzaman Ahmat Raslan <sharuzzaman@myrealbox.com>\n"
 "Language-Team: Malay <translation-team-ms@lists.sourceforge.net>\n"
@@ -708,7 +708,12 @@ msgid ""
 "order)"
 msgstr ""
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+#, fuzzy
+msgid "The OCSP response is invalid"
+msgstr "Permintaan tidak sah."
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(kod ralat tidak diketahui)"
 
@@ -948,7 +953,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tTandatangan:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 #, fuzzy
 msgid "OCSP Response Information:\n"
 msgstr "Maklumat Lain:\n"

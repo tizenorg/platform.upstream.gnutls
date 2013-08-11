@@ -502,7 +502,8 @@ indicates error and the handshake will be terminated.
 
 This function will set the flags to be used at verification of the
 certificates.  Flags must be OR of the
-@code{gnutls_certificate_verify_flags}  enumerations.
+@code{gnutls_certificate_verify_flags}  enumerations. The default
+for TLS sessions is GNUTLS_VERIFY_ALLOW_UNSORTED_CHAIN.
 @end deftypefun
 
 @subheading gnutls_certificate_set_verify_function
@@ -1904,7 +1905,7 @@ be free'd by calling @code{gnutls_deinit()} .  Returns @code{GNUTLS_E_SUCCESS}  
  @code{flags} can be one of @code{GNUTLS_CLIENT}  and @code{GNUTLS_SERVER} . For a DTLS
 entity, the flags @code{GNUTLS_DATAGRAM}  and  @code{GNUTLS_NONBLOCK}  are
 also available. The latter flag will enable a non-blocking
-operation of the DTLS timers.
+operation of the DTLS timers. 
 
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  on success, or an error code.
 @end deftypefun

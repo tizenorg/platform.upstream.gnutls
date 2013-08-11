@@ -1,7 +1,8 @@
 This is gnutls.info, produced by makeinfo version 4.13.90 from
 gnutls.texi.
 
-This manual is last updated 10 May 2012 for version 3.0.21 of GnuTLS.
+This manual is last updated 2 September 2012 for version 3.0.30 of
+GnuTLS.
 
 Copyright (C) 2001-2012 Free Software Foundation, Inc.
 
@@ -2095,7 +2096,8 @@ gnutls_x509_crt_check_issuer
      ISSUER: is the certificate of a possible issuer
 
      This function will check if the given certificate was issued by the
-     given issuer.
+     given issuer.  It checks the DN fields and the authority key
+     identifier and subject key identifier fields match.
 
      *Returns:* It will return true (1) if the given certificate is
      issued by the given issuer, and false (0) if not.  A negative error
@@ -3100,7 +3102,8 @@ gnutls_x509_crt_get_raw_dn
      START: will hold the starting point of the DN
 
      This function will return a pointer to the DER encoded DN structure
-     and the length.
+     and the length.  This points to allocated data that must be free'd
+     using 'gnutls_free()' .
 
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error value.  or a negative error code on
@@ -3116,7 +3119,8 @@ gnutls_x509_crt_get_raw_issuer_dn
      START: will hold the starting point of the DN
 
      This function will return a pointer to the DER encoded DN structure
-     and the length.
+     and the length.  This points to allocated data that must be free'd
+     using 'gnutls_free()' .
 
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error value.or a negative error code on error.
@@ -3448,7 +3452,7 @@ gnutls_x509_crt_list_import2
 
      This function will convert the given PEM encoded certificate list
      to the native gnutls_x509_crt_t format.  The output will be stored
-     in 'certs' which will be initialized.
+     in 'certs' .  They will be automatically initialized.
 
      If the Certificate is PEM encoded it should have a header of "X509
      CERTIFICATE", or "CERTIFICATE".
@@ -3933,28 +3937,6 @@ gnutls_x509_crt_set_serial
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error value.
 
-gnutls_x509_crt_set_subject_alternative_name
---------------------------------------------
-
- -- Function: int gnutls_x509_crt_set_subject_alternative_name
-          (gnutls_x509_crt_t CRT, gnutls_x509_subject_alt_name_t TYPE,
-          const char * DATA_STRING)
-     CRT: a certificate of type 'gnutls_x509_crt_t'
-
-     TYPE: is one of the gnutls_x509_subject_alt_name_t enumerations
-
-     DATA_STRING: The data to be set, a (0) terminated string
-
-     This function will set the subject alternative name certificate
-     extension.  This function assumes that data can be expressed as a
-     null terminated string.
-
-     The name of the function is unfortunate since it is incosistent
-     with 'gnutls_x509_crt_get_subject_alt_name()' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
 gnutls_x509_crt_set_subject_alt_name
 ------------------------------------
 
@@ -3979,6 +3961,28 @@ gnutls_x509_crt_set_subject_alt_name
      otherwise a negative error value.
 
      *Since:* 2.6.0
+
+gnutls_x509_crt_set_subject_alternative_name
+--------------------------------------------
+
+ -- Function: int gnutls_x509_crt_set_subject_alternative_name
+          (gnutls_x509_crt_t CRT, gnutls_x509_subject_alt_name_t TYPE,
+          const char * DATA_STRING)
+     CRT: a certificate of type 'gnutls_x509_crt_t'
+
+     TYPE: is one of the gnutls_x509_subject_alt_name_t enumerations
+
+     DATA_STRING: The data to be set, a (0) terminated string
+
+     This function will set the subject alternative name certificate
+     extension.  This function assumes that data can be expressed as a
+     null terminated string.
+
+     The name of the function is unfortunate since it is incosistent
+     with 'gnutls_x509_crt_get_subject_alt_name()' .
+
+     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
+     otherwise a negative error value.
 
 gnutls_x509_crt_set_subject_key_id
 ----------------------------------
@@ -4509,8 +4513,9 @@ gnutls_x509_privkey_import
      native 'gnutls_x509_privkey_t' format.  The output will be stored
      in 'key' .
 
-     If the key is PEM encoded it should have a header of "RSA PRIVATE
-     KEY", or "DSA PRIVATE KEY".
+     If the key is PEM encoded it should have a header that contains
+     "PRIVATE KEY". Note that this function falls back to PKCS '8'
+     decoding without password, if the default format fails to import.
 
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error value.
@@ -4858,81 +4863,6 @@ gnutls_x509_trust_list_add_named_crt
      otherwise a negative error value.
 
      *Since:* 3.0
-
-gnutls_x509_trust_list_add_system_trust
----------------------------------------
-
- -- Function: int gnutls_x509_trust_list_add_system_trust
-          (gnutls_x509_trust_list_t LIST, unsigned int TL_FLAGS,
-          unsigned int TL_VFLAGS)
-     LIST: The structure of the list
-
-     TL_FLAGS: GNUTLS_TL_*
-
-     TL_VFLAGS: gnutls_certificate_verify_flags if flags specifies
-     GNUTLS_TL_VERIFY_CRL
-
-     This function adds the system's default trusted certificate
-     authorities to the trusted list.
-
-     *Returns:* The number of added elements is returned.
-
-     *Since:* 3.1
-
-gnutls_x509_trust_list_add_trust_file
--------------------------------------
-
- -- Function: int gnutls_x509_trust_list_add_trust_file
-          (gnutls_x509_trust_list_t LIST, const char* CA_FILE, const
-          char* CRL_FILE, gnutls_x509_crt_fmt_t TYPE, unsigned int
-          TL_FLAGS, unsigned int TL_VFLAGS)
-     LIST: The structure of the list
-
-     CA_FILE: A file containing a list of CAs (optional)
-
-     CRL_FILE: A file containing a list of CRLs (optional)
-
-     TYPE: The format of the certificates
-
-     TL_FLAGS: GNUTLS_TL_*
-
-     TL_VFLAGS: gnutls_certificate_verify_flags if flags specifies
-     GNUTLS_TL_VERIFY_CRL
-
-     This function will add the given certificate authorities to the
-     trusted list.  pkcs11 URLs are also accepted, instead of files, by
-     this function.
-
-     *Returns:* The number of added elements is returned.
-
-     *Since:* 3.1
-
-gnutls_x509_trust_list_add_trust_mem
-------------------------------------
-
- -- Function: int gnutls_x509_trust_list_add_trust_mem
-          (gnutls_x509_trust_list_t LIST, const gnutls_datum_t * CAS,
-          const gnutls_datum_t * CRLS, gnutls_x509_crt_fmt_t TYPE,
-          unsigned int TL_FLAGS, unsigned int TL_VFLAGS)
-     LIST: The structure of the list
-
-     CAS: - undescribed -
-
-     CRLS: - undescribed -
-
-     TYPE: The format of the certificates
-
-     TL_FLAGS: GNUTLS_TL_*
-
-     TL_VFLAGS: gnutls_certificate_verify_flags if flags specifies
-     GNUTLS_TL_VERIFY_CRL
-
-     This function will add the given certificate authorities to the
-     trusted list.
-
-     *Returns:* The number of added elements is returned.
-
-     *Since:* 3.1
 
 gnutls_x509_trust_list_deinit
 -----------------------------
@@ -5344,6 +5274,24 @@ gnutls_ocsp_req_set_nonce
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error code is returned.
 
+gnutls_ocsp_resp_check_crt
+--------------------------
+
+ -- Function: int gnutls_ocsp_resp_check_crt (gnutls_ocsp_resp_t RESP,
+          unsigned int INDX, gnutls_x509_crt_t CRT)
+     RESP: should contain a 'gnutls_ocsp_resp_t' structure
+
+     INDX: Specifies response number to get.  Use (0) to get the first
+     one.
+
+     CRT: The certificate to check
+
+     This function will check whether the OCSP response is about the
+     provided certificate.
+
+     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
+     otherwise a negative error code is returned.
+
 gnutls_ocsp_resp_deinit
 -----------------------
 
@@ -5545,8 +5493,8 @@ gnutls_ocsp_resp_get_single
           time_t * REVOCATION_TIME, unsigned int * REVOCATION_REASON)
      RESP: should contain a 'gnutls_ocsp_resp_t' structure
 
-     INDX: Specifies which extension OID to get.  Use (0) to get the
-     first one.
+     INDX: Specifies response number to get.  Use (0) to get the first
+     one.
 
      DIGEST: output variable with 'gnutls_digest_algorithm_t' hash
      algorithm
@@ -5958,7 +5906,7 @@ gnutls_openpgp_crt_export
 
      FORMAT: One of gnutls_openpgp_crt_fmt_t elements.
 
-     OUTPUT_DATA: will contain the key base64 encoded or raw
+     OUTPUT_DATA: will contain the raw or base64 encoded key
 
      OUTPUT_DATA_SIZE: holds the size of output_data (and will be
      replaced by the actual size of parameters)
@@ -5979,15 +5927,12 @@ gnutls_openpgp_crt_get_auth_subkey
 
      KEYID: the struct to save the keyid.
 
-     FLAG: Non (0) indicates that a valid subkey is always returned.
+     FLAG: Non-zero indicates that a valid subkey is always returned.
 
      Returns the 64-bit keyID of the first valid OpenPGP subkey marked
-     for authentication.  If flag is non (0) and no authentication
+     for authentication.  If flag is non-zero and no authentication
      subkey exists, then a valid subkey will be returned even if it is
-     not marked for authentication.  Returns the 64-bit keyID of the
-     first valid OpenPGP subkey marked for authentication.  If flag is
-     non (0) and no authentication subkey exists, then a valid subkey
-     will be returned even if it is not marked for authentication.
+     not marked for authentication.
 
      *Returns:* 'GNUTLS_E_SUCCESS' on success, or an error code.
 
@@ -6460,6 +6405,9 @@ gnutls_openpgp_crt_set_preferred_key_id
 
      This allows setting a preferred key id for the given certificate.
      This key will be used by functions that involve key handling.
+
+     If the provided 'keyid' is 'NULL' then the master key is set as
+     preferred.
 
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error code is returned.
@@ -7024,7 +6972,11 @@ gnutls_openpgp_privkey_set_preferred_key_id
      This allows setting a preferred key id for the given certificate.
      This key will be used by functions that involve key handling.
 
-     *Returns:* On success, 0 is returned, or an error code.
+     If the provided 'keyid' is 'NULL' then the master key is set as
+     preferred.
+
+     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
+     otherwise a negative error code is returned.
 
 gnutls_openpgp_set_recv_key_function
 ------------------------------------
@@ -7038,6 +6990,8 @@ gnutls_openpgp_set_recv_key_function
      This funtion will set a key retrieval function for OpenPGP keys.
      This callback is only useful in server side, and will be used if
      the peer sent a key fingerprint instead of a full key.
+
+     The retrieved key must be allocated using 'gnutls_malloc()' .
 
 
 File: gnutls.info,  Node: PKCS 12 API,  Next: PKCS 11 API,  Prev: OpenPGP API,  Up: API reference
@@ -7711,33 +7665,6 @@ gnutls_pkcs11_obj_list_import_url
 
      *Since:* 2.12.0
 
-gnutls_pkcs11_obj_list_import_url2
-----------------------------------
-
- -- Function: int gnutls_pkcs11_obj_list_import_url2
-          (gnutls_pkcs11_obj_t ** P_LIST, unsigned int * N_LIST, const
-          char * URL, gnutls_pkcs11_obj_attr_t ATTRS, unsigned int
-          FLAGS)
-     P_LIST: An uninitialized object list (may be NULL)
-
-     N_LIST: It will contain the size of the list.
-
-     URL: A PKCS 11 url identifying a set of objects
-
-     ATTRS: Attributes of type 'gnutls_pkcs11_obj_attr_t' that can be
-     used to limit output
-
-     FLAGS: One of GNUTLS_PKCS11_OBJ_* flags
-
-     This function will initialize and set values to an object list by
-     using all objects identified by the PKCS 11 URL. The output is
-     stored in 'p_list' , which will be initialized.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.1
-
 gnutls_pkcs11_privkey_deinit
 ----------------------------
 
@@ -8092,1218 +8019,6 @@ gnutls_x509_crt_list_import_pkcs11
 
      This function will import a PKCS 11 certificate list to a list of
      'gnutls_x509_crt_t' structure.  These must not be initialized.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-
-File: gnutls.info,  Node: Abstract key API,  Next: Cryptographic API,  Prev: PKCS 11 API,  Up: API reference
-
-E.8 Abstract key API
-====================
-
-The following functions are to be used for abstract key handling.  Their
-prototypes lie in 'gnutls/abstract.h'.
-
-gnutls_certificate_set_key
---------------------------
-
- -- Function: int gnutls_certificate_set_key
-          (gnutls_certificate_credentials_t RES, const char** NAMES, int
-          NAMES_SIZE, gnutls_pcert_st * PCERT_LIST, int PCERT_LIST_SIZE,
-          gnutls_privkey_t KEY)
-     RES: is a 'gnutls_certificate_credentials_t' structure.
-
-     NAMES: is an array of DNS name of the certificate (NULL if none)
-
-     NAMES_SIZE: holds the size of the names list
-
-     PCERT_LIST: contains a certificate list (path) for the specified
-     private key
-
-     PCERT_LIST_SIZE: holds the size of the certificate list
-
-     KEY: is a gnutls_x509_privkey_t key
-
-     This function sets a certificate/private key pair in the
-     gnutls_certificate_credentials_t structure.  This function may be
-     called more than once, in case multiple keys/certificates exist for
-     the server.  For clients that wants to send more than its own end
-     entity certificate (e.g., also an intermediate CA cert) then put
-     the certificate chain in 'pcert_list' .  The 'pcert_list' and 'key'
-     will become part of the credentials structure and must not be
-     deallocated.  They will be automatically deallocated when 'res' is
-     deinitialized.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' (0) on success, or a negative error
-     code.
-
-     *Since:* 3.0
-
-gnutls_certificate_set_retrieve_function2
------------------------------------------
-
- -- Function: void gnutls_certificate_set_retrieve_function2
-          (gnutls_certificate_credentials_t CRED,
-          gnutls_certificate_retrieve_function2 * FUNC)
-     CRED: is a 'gnutls_certificate_credentials_t' structure.
-
-     FUNC: is the callback function
-
-     This function sets a callback to be called in order to retrieve the
-     certificate to be used in the handshake.
-
-     The callback's function prototype is: int
-     (*callback)(gnutls_session_t, const gnutls_datum_t* req_ca_dn, int
-     nreqs, const gnutls_pk_algorithm_t* pk_algos, int pk_algos_length,
-     gnutls_pcert_st** pcert, unsigned int *pcert_length,
-     gnutls_privkey_t * pkey);
-
-     'req_ca_cert' is only used in X.509 certificates.  Contains a list
-     with the CA names that the server considers trusted.  Normally we
-     should send a certificate that is signed by one of these CAs.
-     These names are DER encoded.  To get a more meaningful value use
-     the function 'gnutls_x509_rdn_get()' .
-
-     'pk_algos' contains a list with server's acceptable signature
-     algorithms.  The certificate returned should support the server's
-     given algorithms.
-
-     'pcert' should contain a single certificate and public or a list of
-     them.
-
-     'pcert_length' is the size of the previous list.
-
-     'pkey' is the private key.
-
-     If the callback function is provided then gnutls will call it, in
-     the handshake, after the certificate request message has been
-     received.
-
-     In server side pk_algos and req_ca_dn are NULL.
-
-     The callback function should set the certificate list to be sent,
-     and return 0 on success.  If no certificate was selected then the
-     number of certificates should be set to zero.  The value (-1)
-     indicates error and the handshake will be terminated.
-
-     *Since:* 3.0
-
-gnutls_pcert_deinit
--------------------
-
- -- Function: void gnutls_pcert_deinit (gnutls_pcert_st * PCERT)
-     PCERT: The structure to be deinitialized
-
-     This function will deinitialize a pcert structure.
-
-     *Since:* 3.0
-
-gnutls_pcert_import_openpgp
----------------------------
-
- -- Function: int gnutls_pcert_import_openpgp (gnutls_pcert_st* PCERT,
-          gnutls_openpgp_crt_t CRT, unsigned int FLAGS)
-     PCERT: The pcert structure
-
-     CRT: The raw certificate to be imported
-
-     FLAGS: zero for now
-
-     This convenience function will import the given certificate to a
-     'gnutls_pcert_st' structure.  The structure must be deinitialized
-     afterwards using 'gnutls_pcert_deinit()' ;
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pcert_import_openpgp_raw
--------------------------------
-
- -- Function: int gnutls_pcert_import_openpgp_raw (gnutls_pcert_st *
-          PCERT, const gnutls_datum_t* CERT, gnutls_openpgp_crt_fmt_t
-          FORMAT, gnutls_openpgp_keyid_t KEYID, unsigned int FLAGS)
-     PCERT: The pcert structure
-
-     CERT: The raw certificate to be imported
-
-     FORMAT: The format of the certificate
-
-     KEYID: The key ID to use (NULL for the master key)
-
-     FLAGS: zero for now
-
-     This convenience function will import the given certificate to a
-     'gnutls_pcert_st' structure.  The structure must be deinitialized
-     afterwards using 'gnutls_pcert_deinit()' ;
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pcert_import_x509
-------------------------
-
- -- Function: int gnutls_pcert_import_x509 (gnutls_pcert_st* PCERT,
-          gnutls_x509_crt_t CRT, unsigned int FLAGS)
-     PCERT: The pcert structure
-
-     CRT: The raw certificate to be imported
-
-     FLAGS: zero for now
-
-     This convenience function will import the given certificate to a
-     'gnutls_pcert_st' structure.  The structure must be deinitialized
-     afterwards using 'gnutls_pcert_deinit()' ;
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pcert_import_x509_raw
-----------------------------
-
- -- Function: int gnutls_pcert_import_x509_raw (gnutls_pcert_st * PCERT,
-          const gnutls_datum_t* CERT, gnutls_x509_crt_fmt_t FORMAT,
-          unsigned int FLAGS)
-     PCERT: The pcert structure
-
-     CERT: The raw certificate to be imported
-
-     FORMAT: The format of the certificate
-
-     FLAGS: zero for now
-
-     This convenience function will import the given certificate to a
-     'gnutls_pcert_st' structure.  The structure must be deinitialized
-     afterwards using 'gnutls_pcert_deinit()' ;
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pcert_list_import_x509_raw
----------------------------------
-
- -- Function: int gnutls_pcert_list_import_x509_raw (gnutls_pcert_st *
-          PCERTS, unsigned int * PCERT_MAX, const gnutls_datum_t * DATA,
-          gnutls_x509_crt_fmt_t FORMAT, unsigned int FLAGS)
-     PCERTS: The structures to store the parsed certificate.  Must not
-     be initialized.
-
-     PCERT_MAX: Initially must hold the maximum number of certs.  It
-     will be updated with the number of certs available.
-
-     DATA: The certificates.
-
-     FORMAT: One of DER or PEM.
-
-     FLAGS: must be (0) or an OR'd sequence of
-     gnutls_certificate_import_flags.
-
-     This function will convert the given PEM encoded certificate list
-     to the native gnutls_x509_crt_t format.  The output will be stored
-     in 'certs' .  They will be automatically initialized.
-
-     If the Certificate is PEM encoded it should have a header of "X509
-     CERTIFICATE", or "CERTIFICATE".
-
-     *Returns:* the number of certificates read or a negative error
-     value.
-
-     *Since:* 3.0
-
-gnutls_privkey_decrypt_data
----------------------------
-
- -- Function: int gnutls_privkey_decrypt_data (gnutls_privkey_t KEY,
-          unsigned int FLAGS, const gnutls_datum_t * CIPHERTEXT,
-          gnutls_datum_t * PLAINTEXT)
-     KEY: Holds the key
-
-     FLAGS: zero for now
-
-     CIPHERTEXT: holds the data to be decrypted
-
-     PLAINTEXT: will contain the decrypted data, allocated with
-     'gnutls_malloc()'
-
-     This function will decrypt the given data using the algorithm
-     supported by the private key.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_deinit
----------------------
-
- -- Function: void gnutls_privkey_deinit (gnutls_privkey_t KEY)
-     KEY: The structure to be deinitialized
-
-     This function will deinitialize a private key structure.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_get_pk_algorithm
--------------------------------
-
- -- Function: int gnutls_privkey_get_pk_algorithm (gnutls_privkey_t KEY,
-          unsigned int * BITS)
-     KEY: should contain a 'gnutls_privkey_t' structure
-
-     BITS: If set will return the number of bits of the parameters (may
-     be NULL)
-
-     This function will return the public key algorithm of a private key
-     and if possible will return a number of bits that indicates the
-     security parameter of the key.
-
-     *Returns:* a member of the 'gnutls_pk_algorithm_t' enumeration on
-     success, or a negative error code on error.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_get_type
------------------------
-
- -- Function: gnutls_privkey_type_t gnutls_privkey_get_type
-          (gnutls_privkey_t KEY)
-     KEY: should contain a 'gnutls_privkey_t' structure
-
-     This function will return the type of the private key.  This is
-     actually the type of the subsystem used to set this private key.
-
-     *Returns:* a member of the 'gnutls_privkey_type_t' enumeration on
-     success, or a negative error code on error.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_import_ext
--------------------------
-
- -- Function: int gnutls_privkey_import_ext (gnutls_privkey_t PKEY,
-          gnutls_pk_algorithm_t PK, void* USERDATA,
-          gnutls_privkey_sign_func SIGN_FUNC,
-          gnutls_privkey_decrypt_func DECRYPT_FUNC, unsigned int FLAGS)
-     PKEY: The private key
-
-     PK: The public key algorithm
-
-     USERDATA: private data to be provided to the callbacks
-
-     SIGN_FUNC: callback for signature operations
-
-     DECRYPT_FUNC: callback for decryption operations
-
-     FLAGS: Flags for the import
-
-     This function will associate the given callbacks with the
-     'gnutls_privkey_t' structure.  At least one of the two callbacks
-     must be non-null.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_privkey_import_openpgp
------------------------------
-
- -- Function: int gnutls_privkey_import_openpgp (gnutls_privkey_t PKEY,
-          gnutls_openpgp_privkey_t KEY, unsigned int FLAGS)
-     PKEY: The private key
-
-     KEY: The private key to be imported
-
-     FLAGS: Flags for the import
-
-     This function will import the given private key to the abstract
-     'gnutls_privkey_t' structure.
-
-     The 'gnutls_openpgp_privkey_t' object must not be deallocated
-     during the lifetime of this structure.  The subkey set as preferred
-     will be used, or the master key otherwise.
-
-     'flags' might be zero or one of
-     'GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE' and
-     'GNUTLS_PRIVKEY_IMPORT_COPY' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_import_pkcs11
-----------------------------
-
- -- Function: int gnutls_privkey_import_pkcs11 (gnutls_privkey_t PKEY,
-          gnutls_pkcs11_privkey_t KEY, unsigned int FLAGS)
-     PKEY: The private key
-
-     KEY: The private key to be imported
-
-     FLAGS: Flags for the import
-
-     This function will import the given private key to the abstract
-     'gnutls_privkey_t' structure.
-
-     The 'gnutls_pkcs11_privkey_t' object must not be deallocated during
-     the lifetime of this structure.
-
-     'flags' might be zero or one of
-     'GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE' and
-     'GNUTLS_PRIVKEY_IMPORT_COPY' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_import_x509
---------------------------
-
- -- Function: int gnutls_privkey_import_x509 (gnutls_privkey_t PKEY,
-          gnutls_x509_privkey_t KEY, unsigned int FLAGS)
-     PKEY: The private key
-
-     KEY: The private key to be imported
-
-     FLAGS: Flags for the import
-
-     This function will import the given private key to the abstract
-     'gnutls_privkey_t' structure.
-
-     The 'gnutls_x509_privkey_t' object must not be deallocated during
-     the lifetime of this structure.
-
-     'flags' might be zero or one of
-     'GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE' and
-     'GNUTLS_PRIVKEY_IMPORT_COPY' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_init
--------------------
-
- -- Function: int gnutls_privkey_init (gnutls_privkey_t * KEY)
-     KEY: The structure to be initialized
-
-     This function will initialize an private key structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_sign_data
-------------------------
-
- -- Function: int gnutls_privkey_sign_data (gnutls_privkey_t SIGNER,
-          gnutls_digest_algorithm_t HASH, unsigned int FLAGS, const
-          gnutls_datum_t * DATA, gnutls_datum_t * SIGNATURE)
-     SIGNER: Holds the key
-
-     HASH: should be a digest algorithm
-
-     FLAGS: should be 0 for now
-
-     DATA: holds the data to be signed
-
-     SIGNATURE: will contain the signature allocate with
-     'gnutls_malloc()'
-
-     This function will sign the given data using a signature algorithm
-     supported by the private key.  Signature algorithms are always used
-     together with a hash functions.  Different hash functions may be
-     used for the RSA algorithm, but only the SHA family for the DSA
-     keys.
-
-     Use 'gnutls_pubkey_get_preferred_hash_algorithm()' to determine the
-     hash algorithm.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_privkey_sign_hash
-------------------------
-
- -- Function: int gnutls_privkey_sign_hash (gnutls_privkey_t SIGNER,
-          gnutls_digest_algorithm_t HASH_ALGO, unsigned int FLAGS, const
-          gnutls_datum_t * HASH_DATA, gnutls_datum_t * SIGNATURE)
-     SIGNER: Holds the signer's key
-
-     HASH_ALGO: The hash algorithm used
-
-     FLAGS: zero for now
-
-     HASH_DATA: holds the data to be signed
-
-     SIGNATURE: will contain newly allocated signature
-
-     This function will sign the given hashed data using a signature
-     algorithm supported by the private key.  Signature algorithms are
-     always used together with a hash functions.  Different hash
-     functions may be used for the RSA algorithm, but only SHA-XXX for
-     the DSA keys.
-
-     Use 'gnutls_pubkey_get_preferred_hash_algorithm()' to determine the
-     hash algorithm.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_deinit
---------------------
-
- -- Function: void gnutls_pubkey_deinit (gnutls_pubkey_t KEY)
-     KEY: The structure to be deinitialized
-
-     This function will deinitialize a public key structure.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_encrypt_data
---------------------------
-
- -- Function: int gnutls_pubkey_encrypt_data (gnutls_pubkey_t KEY,
-          unsigned int FLAGS, const gnutls_datum_t * PLAINTEXT,
-          gnutls_datum_t * CIPHERTEXT)
-     KEY: Holds the public key
-
-     FLAGS: should be 0 for now
-
-     PLAINTEXT: The data to be encrypted
-
-     CIPHERTEXT: contains the encrypted data
-
-     This function will encrypt the given data, using the public key.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pubkey_export
---------------------
-
- -- Function: int gnutls_pubkey_export (gnutls_pubkey_t KEY,
-          gnutls_x509_crt_fmt_t FORMAT, void * OUTPUT_DATA, size_t *
-          OUTPUT_DATA_SIZE)
-     KEY: Holds the certificate
-
-     FORMAT: the format of output params.  One of PEM or DER.
-
-     OUTPUT_DATA: will contain a certificate PEM or DER encoded
-
-     OUTPUT_DATA_SIZE: holds the size of output_data (and will be
-     replaced by the actual size of parameters)
-
-     This function will export the public key to DER or PEM format.  The
-     contents of the exported data is the SubjectPublicKeyInfo X.509
-     structure.
-
-     If the buffer provided is not long enough to hold the output, then
-     *output_data_size is updated and 'GNUTLS_E_SHORT_MEMORY_BUFFER'
-     will be returned.
-
-     If the structure is PEM encoded, it will have a header of "BEGIN
-     CERTIFICATE".
-
-     *Returns:* In case of failure a negative error code will be
-     returned, and 0 on success.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_key_id
-------------------------
-
- -- Function: int gnutls_pubkey_get_key_id (gnutls_pubkey_t KEY,
-          unsigned int FLAGS, unsigned char * OUTPUT_DATA, size_t *
-          OUTPUT_DATA_SIZE)
-     KEY: Holds the public key
-
-     FLAGS: should be 0 for now
-
-     OUTPUT_DATA: will contain the key ID
-
-     OUTPUT_DATA_SIZE: holds the size of output_data (and will be
-     replaced by the actual size of parameters)
-
-     This function will return a unique ID the depends on the public key
-     parameters.  This ID can be used in checking whether a certificate
-     corresponds to the given public key.
-
-     If the buffer provided is not long enough to hold the output, then
-     *output_data_size is updated and 'GNUTLS_E_SHORT_MEMORY_BUFFER'
-     will be returned.  The output will normally be a SHA-1 hash output,
-     which is 20 bytes.
-
-     *Returns:* In case of failure a negative error code will be
-     returned, and 0 on success.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_key_usage
----------------------------
-
- -- Function: int gnutls_pubkey_get_key_usage (gnutls_pubkey_t KEY,
-          unsigned int * USAGE)
-     KEY: should contain a 'gnutls_pubkey_t' structure
-
-     USAGE: If set will return the number of bits of the parameters (may
-     be NULL)
-
-     This function will return the key usage of the public key.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_openpgp_key_id
---------------------------------
-
- -- Function: int gnutls_pubkey_get_openpgp_key_id (gnutls_pubkey_t KEY,
-          unsigned int FLAGS, unsigned char * OUTPUT_DATA, size_t *
-          OUTPUT_DATA_SIZE, unsigned int * SUBKEY)
-     KEY: Holds the public key
-
-     FLAGS: should be 0 for now
-
-     OUTPUT_DATA: will contain the key ID
-
-     OUTPUT_DATA_SIZE: holds the size of output_data (and will be
-     replaced by the actual size of parameters)
-
-     SUBKEY: Will be non zero if the key ID corresponds to a subkey
-
-     This function will return a unique ID the depends on the public key
-     parameters.  This ID can be used in checking whether a certificate
-     corresponds to the given public key.
-
-     If the buffer provided is not long enough to hold the output, then
-     *output_data_size is updated and 'GNUTLS_E_SHORT_MEMORY_BUFFER'
-     will be returned.  The output will normally be a SHA-1 hash output,
-     which is 20 bytes.
-
-     *Returns:* In case of failure a negative error code will be
-     returned, and 0 on success.
-
-     *Since:* 3.0
-
-gnutls_pubkey_get_pk_algorithm
-------------------------------
-
- -- Function: int gnutls_pubkey_get_pk_algorithm (gnutls_pubkey_t KEY,
-          unsigned int * BITS)
-     KEY: should contain a 'gnutls_pubkey_t' structure
-
-     BITS: If set will return the number of bits of the parameters (may
-     be NULL)
-
-     This function will return the public key algorithm of a public key
-     and if possible will return a number of bits that indicates the
-     security parameter of the key.
-
-     *Returns:* a member of the 'gnutls_pk_algorithm_t' enumeration on
-     success, or a negative error code on error.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_pk_dsa_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_get_pk_dsa_raw (gnutls_pubkey_t KEY,
-          gnutls_datum_t * P, gnutls_datum_t * Q, gnutls_datum_t * G,
-          gnutls_datum_t * Y)
-     KEY: Holds the public key
-
-     P: will hold the p
-
-     Q: will hold the q
-
-     G: will hold the g
-
-     Y: will hold the y
-
-     This function will export the DSA public key's parameters found in
-     the given certificate.  The new parameters will be allocated using
-     'gnutls_malloc()' and will be stored in the appropriate datum.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, otherwise a negative
-     error code.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_pk_ecc_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_get_pk_ecc_raw (gnutls_pubkey_t KEY,
-          gnutls_ecc_curve_t * CURVE, gnutls_datum_t * X, gnutls_datum_t
-          * Y)
-     KEY: Holds the public key
-
-     CURVE: will hold the curve
-
-     X: will hold x
-
-     Y: will hold y
-
-     This function will export the ECC public key's parameters found in
-     the given certificate.  The new parameters will be allocated using
-     'gnutls_malloc()' and will be stored in the appropriate datum.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, otherwise a negative
-     error code.
-
-     *Since:* 3.0
-
-gnutls_pubkey_get_pk_ecc_x962
------------------------------
-
- -- Function: int gnutls_pubkey_get_pk_ecc_x962 (gnutls_pubkey_t KEY,
-          gnutls_datum_t* PARAMETERS, gnutls_datum_t * ECPOINT)
-     KEY: Holds the public key
-
-     PARAMETERS: DER encoding of an ANSI X9.62 parameters
-
-     ECPOINT: DER encoding of ANSI X9.62 ECPoint
-
-     This function will export the ECC public key's parameters found in
-     the given certificate.  The new parameters will be allocated using
-     'gnutls_malloc()' and will be stored in the appropriate datum.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, otherwise a negative
-     error code.
-
-     *Since:* 3.0
-
-gnutls_pubkey_get_pk_rsa_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_get_pk_rsa_raw (gnutls_pubkey_t KEY,
-          gnutls_datum_t * M, gnutls_datum_t * E)
-     KEY: Holds the certificate
-
-     M: will hold the modulus
-
-     E: will hold the public exponent
-
-     This function will export the RSA public key's parameters found in
-     the given structure.  The new parameters will be allocated using
-     'gnutls_malloc()' and will be stored in the appropriate datum.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, otherwise a negative
-     error code.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_preferred_hash_algorithm
-------------------------------------------
-
- -- Function: int gnutls_pubkey_get_preferred_hash_algorithm
-          (gnutls_pubkey_t KEY, gnutls_digest_algorithm_t * HASH,
-          unsigned int * MAND)
-     KEY: Holds the certificate
-
-     HASH: The result of the call with the hash algorithm used for
-     signature
-
-     MAND: If non zero it means that the algorithm MUST use this hash.
-     May be NULL.
-
-     This function will read the certifcate and return the appropriate
-     digest algorithm to use for signing with this certificate.  Some
-     certificates (i.e.  DSA might not be able to sign without the
-     preferred algorithm).
-
-     *Returns:* the 0 if the hash algorithm is found.  A negative error
-     code is returned on error.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_get_verify_algorithm
-----------------------------------
-
- -- Function: int gnutls_pubkey_get_verify_algorithm (gnutls_pubkey_t
-          KEY, const gnutls_datum_t * SIGNATURE,
-          gnutls_digest_algorithm_t * HASH)
-     KEY: Holds the certificate
-
-     SIGNATURE: contains the signature
-
-     HASH: The result of the call with the hash algorithm used for
-     signature
-
-     This function will read the certifcate and the signed data to
-     determine the hash algorithm used to generate the signature.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import
---------------------
-
- -- Function: int gnutls_pubkey_import (gnutls_pubkey_t KEY, const
-          gnutls_datum_t * DATA, gnutls_x509_crt_fmt_t FORMAT)
-     KEY: The structure to store the parsed public key.
-
-     DATA: The DER or PEM encoded certificate.
-
-     FORMAT: One of DER or PEM
-
-     This function will import the provided public key in a
-     SubjectPublicKeyInfo X.509 structure to a native 'gnutls_pubkey_t'
-     structure.  The output will be stored in 'key' .  If the public key
-     is PEM encoded it should have a header of "PUBLIC KEY".
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_dsa_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_import_dsa_raw (gnutls_pubkey_t KEY,
-          const gnutls_datum_t * P, const gnutls_datum_t * Q, const
-          gnutls_datum_t * G, const gnutls_datum_t * Y)
-     KEY: The structure to store the parsed key
-
-     P: holds the p
-
-     Q: holds the q
-
-     G: holds the g
-
-     Y: holds the y
-
-     This function will convert the given DSA raw parameters to the
-     native 'gnutls_pubkey_t' format.  The output will be stored in
-     'key' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_ecc_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_import_ecc_raw (gnutls_pubkey_t KEY,
-          gnutls_ecc_curve_t CURVE, const gnutls_datum_t * X, const
-          gnutls_datum_t * Y)
-     KEY: The structure to store the parsed key
-
-     CURVE: holds the curve
-
-     X: holds the x
-
-     Y: holds the y
-
-     This function will convert the given elliptic curve parameters to a
-     'gnutls_pubkey_t' .  The output will be stored in 'key' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pubkey_import_ecc_x962
------------------------------
-
- -- Function: int gnutls_pubkey_import_ecc_x962 (gnutls_pubkey_t KEY,
-          const gnutls_datum_t * PARAMETERS, const gnutls_datum_t *
-          ECPOINT)
-     KEY: The structure to store the parsed key
-
-     PARAMETERS: DER encoding of an ANSI X9.62 parameters
-
-     ECPOINT: DER encoding of ANSI X9.62 ECPoint
-
-     This function will convert the given elliptic curve parameters to a
-     'gnutls_pubkey_t' .  The output will be stored in 'key' .
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 3.0
-
-gnutls_pubkey_import_openpgp
-----------------------------
-
- -- Function: int gnutls_pubkey_import_openpgp (gnutls_pubkey_t KEY,
-          gnutls_openpgp_crt_t CRT, unsigned int FLAGS)
-     KEY: The public key
-
-     CRT: The certificate to be imported
-
-     FLAGS: should be zero
-
-     Imports a public key from an openpgp key.  This function will
-     import the given public key to the abstract 'gnutls_pubkey_t'
-     structure.  The subkey set as preferred will be imported or the
-     master key otherwise.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_pkcs11
----------------------------
-
- -- Function: int gnutls_pubkey_import_pkcs11 (gnutls_pubkey_t KEY,
-          gnutls_pkcs11_obj_t OBJ, unsigned int FLAGS)
-     KEY: The public key
-
-     OBJ: The parameters to be imported
-
-     FLAGS: should be zero
-
-     Imports a public key from a pkcs11 key.  This function will import
-     the given public key to the abstract 'gnutls_pubkey_t' structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_pkcs11_url
--------------------------------
-
- -- Function: int gnutls_pubkey_import_pkcs11_url (gnutls_pubkey_t KEY,
-          const char * URL, unsigned int FLAGS)
-     KEY: A key of type 'gnutls_pubkey_t'
-
-     URL: A PKCS 11 url
-
-     FLAGS: One of GNUTLS_PKCS11_OBJ_* flags
-
-     This function will import a PKCS 11 certificate to a
-     'gnutls_pubkey_t' structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_privkey
-----------------------------
-
- -- Function: int gnutls_pubkey_import_privkey (gnutls_pubkey_t KEY,
-          gnutls_privkey_t PKEY, unsigned int USAGE, unsigned int FLAGS)
-     KEY: The public key
-
-     PKEY: The private key
-
-     USAGE: GNUTLS_KEY_* key usage flags.
-
-     FLAGS: should be zero
-
-     Imports the public key from a private.  This function will import
-     the given public key to the abstract 'gnutls_pubkey_t' structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_rsa_raw
-----------------------------
-
- -- Function: int gnutls_pubkey_import_rsa_raw (gnutls_pubkey_t KEY,
-          const gnutls_datum_t * M, const gnutls_datum_t * E)
-     KEY: Is a structure will hold the parameters
-
-     M: holds the modulus
-
-     E: holds the public exponent
-
-     This function will replace the parameters in the given structure.
-     The new parameters should be stored in the appropriate
-     gnutls_datum.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, or an negative error
-     code.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_import_x509
--------------------------
-
- -- Function: int gnutls_pubkey_import_x509 (gnutls_pubkey_t KEY,
-          gnutls_x509_crt_t CRT, unsigned int FLAGS)
-     KEY: The public key
-
-     CRT: The certificate to be imported
-
-     FLAGS: should be zero
-
-     This function will import the given public key to the abstract
-     'gnutls_pubkey_t' structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_init
-------------------
-
- -- Function: int gnutls_pubkey_init (gnutls_pubkey_t * KEY)
-     KEY: The structure to be initialized
-
-     This function will initialize an public key structure.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_set_key_usage
----------------------------
-
- -- Function: int gnutls_pubkey_set_key_usage (gnutls_pubkey_t KEY,
-          unsigned int USAGE)
-     KEY: a certificate of type 'gnutls_x509_crt_t'
-
-     USAGE: an ORed sequence of the GNUTLS_KEY_* elements.
-
-     This function will set the key usage flags of the public key.  This
-     is only useful if the key is to be exported to a certificate or
-     certificate request.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_verify_data
--------------------------
-
- -- Function: int gnutls_pubkey_verify_data (gnutls_pubkey_t PUBKEY,
-          unsigned int FLAGS, const gnutls_datum_t * DATA, const
-          gnutls_datum_t * SIGNATURE)
-     PUBKEY: Holds the public key
-
-     FLAGS: should be 0 for now
-
-     DATA: holds the signed data
-
-     SIGNATURE: contains the signature
-
-     This function will verify the given signed data, using the
-     parameters from the certificate.
-
-     *Returns:* In case of a verification failure
-     'GNUTLS_E_PK_SIG_VERIFY_FAILED' is returned, and zero or positive
-     code on success.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_verify_data2
---------------------------
-
- -- Function: int gnutls_pubkey_verify_data2 (gnutls_pubkey_t PUBKEY,
-          gnutls_sign_algorithm_t ALGO, unsigned int FLAGS, const
-          gnutls_datum_t * DATA, const gnutls_datum_t * SIGNATURE)
-     PUBKEY: Holds the public key
-
-     ALGO: The signature algorithm used
-
-     FLAGS: should be 0 for now
-
-     DATA: holds the signed data
-
-     SIGNATURE: contains the signature
-
-     This function will verify the given signed data, using the
-     parameters from the certificate.
-
-     *Returns:* In case of a verification failure
-     'GNUTLS_E_PK_SIG_VERIFY_FAILED' is returned, and zero or positive
-     code on success.
-
-     *Since:* 3.0
-
-gnutls_pubkey_verify_hash
--------------------------
-
- -- Function: int gnutls_pubkey_verify_hash (gnutls_pubkey_t KEY,
-          unsigned int FLAGS, const gnutls_datum_t * HASH, const
-          gnutls_datum_t * SIGNATURE)
-     KEY: Holds the public key
-
-     FLAGS: should be 0 for now
-
-     HASH: holds the hash digest to be verified
-
-     SIGNATURE: contains the signature
-
-     This function will verify the given signed digest, using the
-     parameters from the public key.  Use 'gnutls_pubkey_verify_hash2()'
-     instead of this function.
-
-     *Returns:* In case of a verification failure
-     'GNUTLS_E_PK_SIG_VERIFY_FAILED' is returned, and zero or positive
-     code on success.
-
-     *Since:* 2.12.0
-
-gnutls_pubkey_verify_hash2
---------------------------
-
- -- Function: int gnutls_pubkey_verify_hash2 (gnutls_pubkey_t KEY,
-          gnutls_sign_algorithm_t ALGO, unsigned int FLAGS, const
-          gnutls_datum_t * HASH, const gnutls_datum_t * SIGNATURE)
-     KEY: Holds the public key
-
-     ALGO: The signature algorithm used
-
-     FLAGS: should be 0 for now
-
-     HASH: holds the hash digest to be verified
-
-     SIGNATURE: contains the signature
-
-     This function will verify the given signed digest, using the
-     parameters from the public key.
-
-     *Returns:* In case of a verification failure
-     'GNUTLS_E_PK_SIG_VERIFY_FAILED' is returned, and zero or positive
-     code on success.
-
-     *Since:* 3.0
-
-gnutls_x509_crl_privkey_sign
-----------------------------
-
- -- Function: int gnutls_x509_crl_privkey_sign (gnutls_x509_crl_t CRL,
-          gnutls_x509_crt_t ISSUER, gnutls_privkey_t ISSUER_KEY,
-          gnutls_digest_algorithm_t DIG, unsigned int FLAGS)
-     CRL: should contain a gnutls_x509_crl_t structure
-
-     ISSUER: is the certificate of the certificate issuer
-
-     ISSUER_KEY: holds the issuer's private key
-
-     DIG: The message digest to use.  GNUTLS_DIG_SHA1 is the safe choice
-     unless you know what you're doing.
-
-     FLAGS: must be 0
-
-     This function will sign the CRL with the issuer's private key, and
-     will copy the issuer's information into the CRL.
-
-     This must be the last step in a certificate CRL since all the
-     previously set parameters are now signed.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     Since 2.12.0
-
-gnutls_x509_crq_privkey_sign
-----------------------------
-
- -- Function: int gnutls_x509_crq_privkey_sign (gnutls_x509_crq_t CRQ,
-          gnutls_privkey_t KEY, gnutls_digest_algorithm_t DIG, unsigned
-          int FLAGS)
-     CRQ: should contain a 'gnutls_x509_crq_t' structure
-
-     KEY: holds a private key
-
-     DIG: The message digest to use, i.e., 'GNUTLS_DIG_SHA1'
-
-     FLAGS: must be 0
-
-     This function will sign the certificate request with a private key.
-     This must be the same key as the one used in
-     'gnutls_x509_crt_set_key()' since a certificate request is self
-     signed.
-
-     This must be the last step in a certificate request generation
-     since all the previously set parameters are now signed.
-
-     *Returns:* 'GNUTLS_E_SUCCESS' on success, otherwise a negative
-     error code.  'GNUTLS_E_ASN1_VALUE_NOT_FOUND' is returned if you
-     didn't set all information in the certificate request (e.g., the
-     version using 'gnutls_x509_crq_set_version()' ).
-
-     *Since:* 2.12.0
-
-gnutls_x509_crq_set_pubkey
---------------------------
-
- -- Function: int gnutls_x509_crq_set_pubkey (gnutls_x509_crq_t CRQ,
-          gnutls_pubkey_t KEY)
-     CRQ: should contain a 'gnutls_x509_crq_t' structure
-
-     KEY: holds a public key
-
-     This function will set the public parameters from the given public
-     key to the request.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-     *Since:* 2.12.0
-
-gnutls_x509_crt_privkey_sign
-----------------------------
-
- -- Function: int gnutls_x509_crt_privkey_sign (gnutls_x509_crt_t CRT,
-          gnutls_x509_crt_t ISSUER, gnutls_privkey_t ISSUER_KEY,
-          gnutls_digest_algorithm_t DIG, unsigned int FLAGS)
-     CRT: a certificate of type 'gnutls_x509_crt_t'
-
-     ISSUER: is the certificate of the certificate issuer
-
-     ISSUER_KEY: holds the issuer's private key
-
-     DIG: The message digest to use, 'GNUTLS_DIG_SHA1' is a safe choice
-
-     FLAGS: must be 0
-
-     This function will sign the certificate with the issuer's private
-     key, and will copy the issuer's information into the certificate.
-
-     This must be the last step in a certificate generation since all
-     the previously set parameters are now signed.
-
-     *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
-     otherwise a negative error value.
-
-gnutls_x509_crt_set_pubkey
---------------------------
-
- -- Function: int gnutls_x509_crt_set_pubkey (gnutls_x509_crt_t CRT,
-          gnutls_pubkey_t KEY)
-     CRT: should contain a 'gnutls_x509_crt_t' structure
-
-     KEY: holds a public key
-
-     This function will set the public parameters from the given public
-     key to the request.
 
      *Returns:* On success, 'GNUTLS_E_SUCCESS' (0) is returned,
      otherwise a negative error value.

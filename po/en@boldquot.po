@@ -1,7 +1,7 @@
 # English translations for gnutls package.
-# Copyright (C) 2012 Free Software Foundation, Inc.
+# Copyright (C) 2013 Free Software Foundation, Inc.
 # This file is distributed under the same license as the gnutls package.
-# Automatically generated, 2012.
+# Automatically generated, 2013.
 #
 # All this catalog "translates" are quotation characters.
 # The msgids must be ASCII and therefore cannot contain real quotation
@@ -30,10 +30,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: gnutls 3.0.21\n"
+"Project-Id-Version: gnutls 3.0.30\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
-"PO-Revision-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
+"PO-Revision-Date: 2013-06-01 12:47+0200\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "Language: en@boldquot\n"
@@ -720,7 +720,11 @@ msgstr ""
 "The provided X.509 certificate list is not sorted (in subject to issuer "
 "order)"
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+msgid "The OCSP response is invalid"
+msgstr "The OCSP response is invalid"
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(unknown error code)"
 
@@ -955,7 +959,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tSignature:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 msgid "OCSP Response Information:\n"
 msgstr "OCSP Response Information:\n"
 

@@ -1,4 +1,4 @@
-# generated automatically by aclocal 1.11.3 -*- Autoconf -*-
+# generated automatically by aclocal 1.11.6 -*- Autoconf -*-
 
 # Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 # 2005, 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation,
@@ -38,7 +38,7 @@ AC_DEFUN([AM_AUTOMAKE_VERSION],
 [am__api_version='1.11'
 dnl Some users find AM_AUTOMAKE_VERSION and mistake it for a way to
 dnl require some minimum version.  Point them to the right macro.
-m4_if([$1], [1.11.3], [],
+m4_if([$1], [1.11.6], [],
       [AC_FATAL([Do not call $0, use AM_INIT_AUTOMAKE([$1]).])])dnl
 ])
 
@@ -54,7 +54,7 @@ m4_define([_AM_AUTOCONF_VERSION], [])
 # Call AM_AUTOMAKE_VERSION and AM_AUTOMAKE_VERSION so they can be traced.
 # This function is AC_REQUIREd by AM_INIT_AUTOMAKE.
 AC_DEFUN([AM_SET_CURRENT_AUTOMAKE_VERSION],
-[AM_AUTOMAKE_VERSION([1.11.3])dnl
+[AM_AUTOMAKE_VERSION([1.11.6])dnl
 m4_ifndef([AC_AUTOCONF_VERSION],
   [m4_copy([m4_PACKAGE_VERSION], [AC_AUTOCONF_VERSION])])dnl
 _AM_AUTOCONF_VERSION(m4_defn([AC_AUTOCONF_VERSION]))])
@@ -438,18 +438,6 @@ AC_DEFUN([AM_OUTPUT_DEPENDENCY_COMMANDS],
      [AMDEP_TRUE="$AMDEP_TRUE" ac_aux_dir="$ac_aux_dir"])
 ])
 
-# Copyright (C) 1996, 1997, 2000, 2001, 2003, 2005
-# Free Software Foundation, Inc.
-#
-# This file is free software; the Free Software Foundation
-# gives unlimited permission to copy and/or distribute it,
-# with or without modifications, as long as this notice is preserved.
-
-# serial 8
-
-# AM_CONFIG_HEADER is obsolete.  It has been replaced by AC_CONFIG_HEADERS.
-AU_DEFUN([AM_CONFIG_HEADER], [AC_CONFIG_HEADERS($@)])
-
 # Do all the work for Automake.                             -*- Autoconf -*-
 
 # Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
@@ -529,7 +517,7 @@ AM_MISSING_PROG(AUTOHEADER, autoheader)
 AM_MISSING_PROG(MAKEINFO, makeinfo)
 AC_REQUIRE([AM_PROG_INSTALL_SH])dnl
 AC_REQUIRE([AM_PROG_INSTALL_STRIP])dnl
-AC_REQUIRE([AC_PROG_MKDIR_P])dnl
+AC_REQUIRE([AM_PROG_MKDIR_P])dnl
 # We need awk for the "check" target.  The system "awk" is bad on
 # some platforms.
 AC_REQUIRE([AC_PROG_AWK])dnl
@@ -773,10 +761,10 @@ fi
 
 # serial 1
 
-# AC_PROG_MKDIR_P
+# AM_PROG_MKDIR_P
 # ---------------
 # Check for `mkdir -p'.
-AC_DEFUN([AC_PROG_MKDIR_P],
+AC_DEFUN([AM_PROG_MKDIR_P],
 [AC_PREREQ([2.60])dnl
 AC_REQUIRE([AC_PROG_MKDIR_P])dnl
 dnl Automake 1.8 to 1.9.6 used to define mkdir_p.  We now use MKDIR_P,
@@ -1118,6 +1106,7 @@ m4_include([gl/m4/exponentd.m4])
 m4_include([gl/m4/exponentf.m4])
 m4_include([gl/m4/exponentl.m4])
 m4_include([gl/m4/extensions.m4])
+m4_include([gl/m4/extern-inline.m4])
 m4_include([gl/m4/fcntl_h.m4])
 m4_include([gl/m4/fdopen.m4])
 m4_include([gl/m4/float_h.m4])
@@ -1126,6 +1115,7 @@ m4_include([gl/m4/frexp.m4])
 m4_include([gl/m4/frexpl.m4])
 m4_include([gl/m4/fseek.m4])
 m4_include([gl/m4/fseeko.m4])
+m4_include([gl/m4/fseterr.m4])
 m4_include([gl/m4/fstat.m4])
 m4_include([gl/m4/ftell.m4])
 m4_include([gl/m4/ftello.m4])
@@ -1134,6 +1124,7 @@ m4_include([gl/m4/func.m4])
 m4_include([gl/m4/getaddrinfo.m4])
 m4_include([gl/m4/getcwd.m4])
 m4_include([gl/m4/getdelim.m4])
+m4_include([gl/m4/getdtablesize.m4])
 m4_include([gl/m4/getline.m4])
 m4_include([gl/m4/getopt.m4])
 m4_include([gl/m4/getpagesize.m4])

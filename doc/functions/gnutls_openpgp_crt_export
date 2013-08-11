@@ -7,7 +7,7 @@
 
 @var{format}: One of gnutls_openpgp_crt_fmt_t elements.
 
-@var{output_data}: will contain the key base64 encoded or raw
+@var{output_data}: will contain the raw or base64 encoded key
 
 @var{output_data_size}: holds the size of output_data (and will
 be replaced by the actual size of parameters)

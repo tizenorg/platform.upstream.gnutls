@@ -12,8 +12,10 @@
 @var{signature}: contains the signature
 
 This function will verify the given signed digest, using the
-parameters from the public key. Use @code{gnutls_pubkey_verify_hash2()} 
-instead of this function.
+parameters from the public key. 
+
+Deprecated. This function cannot be easily used securely. 
+Use @code{gnutls_pubkey_verify_hash2()}  instead.
 
 @strong{Returns:} In case of a verification failure @code{GNUTLS_E_PK_SIG_VERIFY_FAILED}  
 is returned, and zero or positive code on success.

@@ -1703,7 +1703,8 @@ and the DNSName/IPAddress subject alternative name PKIX extension.
 @var{issuer}: is the certificate of a possible issuer
 
 This function will check if the given certificate was issued by the
-given issuer.
+given issuer. It checks the DN fields and the authority
+key identifier and subject key identifier fields match.
 
 @strong{Returns:} It will return true (1) if the given certificate is issued
 by the given issuer, and false (0) if not.  A negative error code is
@@ -2615,7 +2616,7 @@ otherwise a negative error code is returned.
 @var{start}: will hold the starting point of the DN
 
 This function will return a pointer to the DER encoded DN structure and
-the length.
+the length. This points to allocated data that must be free'd using @code{gnutls_free()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value. or a negative error code on error.
@@ -2629,7 +2630,7 @@ negative error value. or a negative error code on error.
 @var{start}: will hold the starting point of the DN
 
 This function will return a pointer to the DER encoded DN structure
-and the length.
+and the length. This points to allocated data that must be free'd using @code{gnutls_free()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.or a negative error code on error.
@@ -2922,7 +2923,7 @@ CERTIFICATE", or "CERTIFICATE".
 
 This function will convert the given PEM encoded certificate list
 to the native gnutls_x509_crt_t format. The output will be stored
-in  @code{certs} which will be initialized.
+in  @code{certs} .  They will be automatically initialized.
 
 If the Certificate is PEM encoded it should have a header of "X509
 CERTIFICATE", or "CERTIFICATE".
@@ -3363,26 +3364,6 @@ uint8_t.
 negative error value.
 @end deftypefun
 
-@subheading gnutls_x509_crt_set_subject_alternative_name
-@anchor{gnutls_x509_crt_set_subject_alternative_name}
-@deftypefun {int} {gnutls_x509_crt_set_subject_alternative_name} (gnutls_x509_crt_t @var{crt}, gnutls_x509_subject_alt_name_t                                               @var{type}, const char * @var{data_string})
-@var{crt}: a certificate of type @code{gnutls_x509_crt_t} 
-
-@var{type}: is one of the gnutls_x509_subject_alt_name_t enumerations
-
-@var{data_string}: The data to be set, a (0) terminated string
-
-This function will set the subject alternative name certificate
-extension. This function assumes that data can be expressed as a null
-terminated string.
-
-The name of the function is unfortunate since it is incosistent with
-@code{gnutls_x509_crt_get_subject_alt_name()} .
-
-@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
-negative error value.
-@end deftypefun
-
 @subheading gnutls_x509_crt_set_subject_alt_name
 @anchor{gnutls_x509_crt_set_subject_alt_name}
 @deftypefun {int} {gnutls_x509_crt_set_subject_alt_name} (gnutls_x509_crt_t @var{crt}, gnutls_x509_subject_alt_name_t @var{type}, const void * @var{data}, unsigned int @var{data_size}, unsigned int @var{flags})
@@ -3403,6 +3384,26 @@ extension. It can set the following types:
 negative error value.
 
 @strong{Since:} 2.6.0
+@end deftypefun
+
+@subheading gnutls_x509_crt_set_subject_alternative_name
+@anchor{gnutls_x509_crt_set_subject_alternative_name}
+@deftypefun {int} {gnutls_x509_crt_set_subject_alternative_name} (gnutls_x509_crt_t @var{crt}, gnutls_x509_subject_alt_name_t                                               @var{type}, const char * @var{data_string})
+@var{crt}: a certificate of type @code{gnutls_x509_crt_t} 
+
+@var{type}: is one of the gnutls_x509_subject_alt_name_t enumerations
+
+@var{data_string}: The data to be set, a (0) terminated string
+
+This function will set the subject alternative name certificate
+extension. This function assumes that data can be expressed as a null
+terminated string.
+
+The name of the function is unfortunate since it is incosistent with
+@code{gnutls_x509_crt_get_subject_alt_name()} .
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
+negative error value.
 @end deftypefun
 
 @subheading gnutls_x509_crt_set_subject_key_id
@@ -3893,8 +3894,9 @@ This function will convert the given DER or PEM encoded key to the
 native @code{gnutls_x509_privkey_t}  format. The output will be stored in
  @code{key} .
 
-If the key is PEM encoded it should have a header of "RSA PRIVATE
-KEY", or "DSA PRIVATE KEY".
+If the key is PEM encoded it should have a header that contains "PRIVATE
+KEY". Note that this function falls back to PKCS @code{8}  decoding without
+password, if the default format fails to import.
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
@@ -4208,70 +4210,6 @@ of the trusted list.
 negative error value.
 
 @strong{Since:} 3.0
-@end deftypefun
-
-@subheading gnutls_x509_trust_list_add_system_trust
-@anchor{gnutls_x509_trust_list_add_system_trust}
-@deftypefun {int} {gnutls_x509_trust_list_add_system_trust} (gnutls_x509_trust_list_t @var{list}, unsigned int @var{tl_flags}, unsigned int @var{tl_vflags})
-@var{list}: The structure of the list
-
-@var{tl_flags}: GNUTLS_TL_*
-
-@var{tl_vflags}: gnutls_certificate_verify_flags if flags specifies GNUTLS_TL_VERIFY_CRL
-
-This function adds the system's default trusted certificate
-authorities to the trusted list.
-
-@strong{Returns:} The number of added elements is returned.
-
-@strong{Since:} 3.1
-@end deftypefun
-
-@subheading gnutls_x509_trust_list_add_trust_file
-@anchor{gnutls_x509_trust_list_add_trust_file}
-@deftypefun {int} {gnutls_x509_trust_list_add_trust_file} (gnutls_x509_trust_list_t @var{list}, const char* @var{ca_file}, const char* @var{crl_file}, gnutls_x509_crt_fmt_t @var{type}, unsigned int @var{tl_flags}, unsigned int @var{tl_vflags})
-@var{list}: The structure of the list
-
-@var{ca_file}: A file containing a list of CAs (optional)
-
-@var{crl_file}: A file containing a list of CRLs (optional)
-
-@var{type}: The format of the certificates
-
-@var{tl_flags}: GNUTLS_TL_*
-
-@var{tl_vflags}: gnutls_certificate_verify_flags if flags specifies GNUTLS_TL_VERIFY_CRL
-
-This function will add the given certificate authorities
-to the trusted list. pkcs11 URLs are also accepted, instead
-of files, by this function.
-
-@strong{Returns:} The number of added elements is returned.
-
-@strong{Since:} 3.1
-@end deftypefun
-
-@subheading gnutls_x509_trust_list_add_trust_mem
-@anchor{gnutls_x509_trust_list_add_trust_mem}
-@deftypefun {int} {gnutls_x509_trust_list_add_trust_mem} (gnutls_x509_trust_list_t @var{list}, const gnutls_datum_t * @var{cas}, const gnutls_datum_t * @var{crls}, gnutls_x509_crt_fmt_t @var{type}, unsigned int @var{tl_flags}, unsigned int @var{tl_vflags})
-@var{list}: The structure of the list
-
-@var{cas}: -- undescribed --
-
-@var{crls}: -- undescribed --
-
-@var{type}: The format of the certificates
-
-@var{tl_flags}: GNUTLS_TL_*
-
-@var{tl_vflags}: gnutls_certificate_verify_flags if flags specifies GNUTLS_TL_VERIFY_CRL
-
-This function will add the given certificate authorities
-to the trusted list. 
-
-@strong{Returns:} The number of added elements is returned.
-
-@strong{Since:} 3.1
 @end deftypefun
 
 @subheading gnutls_x509_trust_list_deinit
