@@ -57,8 +57,13 @@ struct gnutls_pubkey_st
    */
   gnutls_pk_params_st params;
 
+#ifdef ENABLE_OPENPGP
   uint8_t openpgp_key_id[GNUTLS_OPENPGP_KEYID_SIZE];
-  int openpgp_key_id_set;
+  unsigned int openpgp_key_id_set;
+
+  uint8_t openpgp_key_fpr[20];
+  unsigned int openpgp_key_fpr_set:1;
+#endif
 
   unsigned int key_usage;       /* bits from GNUTLS_KEY_* */
 };
@@ -349,6 +354,13 @@ gnutls_pubkey_import_openpgp (gnutls_pubkey_t key,
   uint32_t kid32[2];
   uint32_t *k;
   uint8_t keyid[GNUTLS_OPENPGP_KEYID_SIZE];
+  size_t len;
+
+  len = sizeof(key->openpgp_key_fpr);
+  ret = gnutls_openpgp_crt_get_fingerprint(crt, key->openpgp_key_fpr, &len);
+  if (ret < 0)
+    return gnutls_assert_val(ret);
+  key->openpgp_key_fpr_set = 1;
 
   ret = gnutls_openpgp_crt_get_preferred_key_id (crt, keyid);
   if (ret == GNUTLS_E_OPENPGP_PREFERRED_KEY_ERROR)
@@ -402,20 +414,22 @@ gnutls_pubkey_import_openpgp (gnutls_pubkey_t key,
 /**
  * gnutls_pubkey_get_openpgp_key_id:
  * @key: Holds the public key
- * @flags: should be 0 for now
+ * @flags: should be 0 or %GNUTLS_PUBKEY_GET_OPENPGP_FINGERPRINT
  * @output_data: will contain the key ID
  * @output_data_size: holds the size of output_data (and will be
  *   replaced by the actual size of parameters)
  * @subkey: Will be non zero if the key ID corresponds to a subkey
  *
- * This function will return a unique ID the depends on the public
- * key parameters. This ID can be used in checking whether a
- * certificate corresponds to the given public key.
+ * This function returns the OpenPGP key ID of the corresponding key.
+ * The key is a unique ID that depends on the public
+ * key parameters. 
+ *
+ * If the flag %GNUTLS_PUBKEY_GET_OPENPGP_FINGERPRINT is specified
+ * this function returns the fingerprint of the master key.
  *
  * If the buffer provided is not long enough to hold the output, then
  * *output_data_size is updated and %GNUTLS_E_SHORT_MEMORY_BUFFER will
- * be returned.  The output will normally be a SHA-1 hash output,
- * which is 20 bytes.
+ * be returned.  The output is %GNUTLS_OPENPGP_KEYID_SIZE bytes long.
  *
  * Returns: In case of failure a negative error code will be
  *   returned, and 0 on success.
@@ -434,6 +448,24 @@ gnutls_pubkey_get_openpgp_key_id (gnutls_pubkey_t key, unsigned int flags,
       return GNUTLS_E_INVALID_REQUEST;
     }
 
+  if (flags & GNUTLS_PUBKEY_GET_OPENPGP_FINGERPRINT)
+    {
+      if (*output_data_size < sizeof(key->openpgp_key_fpr))
+        {
+          *output_data_size = sizeof(key->openpgp_key_fpr);
+          return gnutls_assert_val(GNUTLS_E_SHORT_MEMORY_BUFFER);
+        }
+
+      if (key->openpgp_key_fpr_set == 0)
+        return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
+      if (output_data)
+        memcpy(output_data, key->openpgp_key_fpr, sizeof(key->openpgp_key_fpr));
+      *output_data_size = sizeof(key->openpgp_key_fpr);
+      
+      return 0;
+    }
+    
   if (*output_data_size < sizeof(key->openpgp_key_id))
     {
       *output_data_size = sizeof(key->openpgp_key_id);
@@ -1315,6 +1347,7 @@ gnutls_pubkey_verify_data (gnutls_pubkey_t pubkey, unsigned int flags,
 			   const gnutls_datum_t * signature)
 {
   int ret;
+  gnutls_digest_algorithm_t hash;
 
   if (pubkey == NULL)
     {
@@ -1322,7 +1355,11 @@ gnutls_pubkey_verify_data (gnutls_pubkey_t pubkey, unsigned int flags,
       return GNUTLS_E_INVALID_REQUEST;
     }
 
-  ret = pubkey_verify_data( pubkey->pk_algorithm, GNUTLS_DIG_UNKNOWN, data, signature,
+  ret = gnutls_pubkey_get_verify_algorithm (pubkey, signature, &hash);
+  if (ret < 0)
+    return gnutls_assert_val(ret);
+
+  ret = pubkey_verify_data( pubkey->pk_algorithm, hash, data, signature,
     &pubkey->params);
   if (ret < 0)
     {
@@ -1381,8 +1418,10 @@ gnutls_pubkey_verify_data2 (gnutls_pubkey_t pubkey,
  * @signature: contains the signature
  *
  * This function will verify the given signed digest, using the
- * parameters from the public key. Use gnutls_pubkey_verify_hash2()
- * instead of this function.
+ * parameters from the public key. 
+ *
+ * Deprecated. This function cannot be easily used securely. 
+ * Use gnutls_pubkey_verify_hash2() instead.
  *
  * Returns: In case of a verification failure %GNUTLS_E_PK_SIG_VERIFY_FAILED 
  * is returned, and zero or positive code on success.
@@ -1506,12 +1545,18 @@ gnutls_pubkey_get_verify_algorithm (gnutls_pubkey_t key,
 
 }
 
-
-int _gnutls_pubkey_compatible_with_sig(gnutls_pubkey_t pubkey, gnutls_protocol_t ver, 
-  gnutls_sign_algorithm_t sign)
+/* Checks whether the public key given is compatible with the
+ * signature algorithm used. The session is only used for audit logging, and
+ * it may be null.
+ */
+int _gnutls_pubkey_compatible_with_sig(gnutls_session_t session,
+                                       gnutls_pubkey_t pubkey, 
+                                       gnutls_protocol_t ver, 
+                                       gnutls_sign_algorithm_t sign)
 {
 unsigned int hash_size;
 unsigned int hash_algo;
+unsigned int sig_hash_size;
 
   if (pubkey->pk_algorithm == GNUTLS_PK_DSA)
     {
@@ -1525,8 +1570,10 @@ unsigned int hash_algo;
         }
       else if (sign != GNUTLS_SIGN_UNKNOWN)
         {
-          if (_gnutls_hash_get_algo_len(_gnutls_sign_get_hash_algorithm(sign)) < hash_size)
-            return GNUTLS_E_UNWANTED_ALGORITHM;
+          sig_hash_size = _gnutls_hash_get_algo_len(_gnutls_sign_get_hash_algorithm(sign));
+
+          if (sig_hash_size < hash_size)
+            _gnutls_audit_log(session, "The hash size used in signature (%u) is less than the expected (%u)\n", sig_hash_size, hash_size);
         }
         
     }
@@ -1535,9 +1582,10 @@ unsigned int hash_algo;
       if (_gnutls_version_has_selectable_sighash (ver) && sign != GNUTLS_SIGN_UNKNOWN)
         {
           hash_algo = _gnutls_dsa_q_to_hash (pubkey->pk_algorithm, &pubkey->params, &hash_size);
+          sig_hash_size = _gnutls_hash_get_algo_len(_gnutls_sign_get_hash_algorithm(sign));
 
-          if (_gnutls_hash_get_algo_len(_gnutls_sign_get_hash_algorithm(sign)) < hash_size)
-            return GNUTLS_E_UNWANTED_ALGORITHM;
+          if (sig_hash_size < hash_size)
+            _gnutls_audit_log(session, "The hash size used in signature (%u) is less than the expected (%u)\n", sig_hash_size, hash_size);
         }
         
     }
@@ -1651,16 +1699,18 @@ _pkcs1_rsa_verify_sig (gnutls_digest_algorithm_t hash_algo,
 /* Hashes input data and verifies a signature.
  */
 static int
-dsa_verify_hashed_data (const gnutls_datum_t * hash,
+dsa_verify_hashed_data (gnutls_pk_algorithm_t pk,
+                gnutls_digest_algorithm_t algo,
+                const gnutls_datum_t * hash,
                 const gnutls_datum_t * signature,
-                gnutls_pk_algorithm_t pk,
                 gnutls_pk_params_st* params)
 {
   gnutls_datum_t digest;
-  unsigned int algo;
   unsigned int hash_len;
 
-  algo = _gnutls_dsa_q_to_hash (pk, params, &hash_len);
+  if (algo == GNUTLS_DIG_UNKNOWN)
+    algo = _gnutls_dsa_q_to_hash (pk, params, &hash_len);
+  else hash_len = _gnutls_hash_get_algo_len(algo);
 
   /* SHA1 or better allowed */
   if (!hash->data || hash->size < hash_len)
@@ -1733,7 +1783,7 @@ pubkey_verify_hashed_data (gnutls_pk_algorithm_t pk,
 
     case GNUTLS_PK_EC:
     case GNUTLS_PK_DSA:
-      if (dsa_verify_hashed_data(hash, signature, pk, issuer_params) != 0)
+      if (dsa_verify_hashed_data(pk, hash_algo, hash, signature, issuer_params) != 0)
         {
           gnutls_assert ();
           return GNUTLS_E_PK_SIG_VERIFY_FAILED;

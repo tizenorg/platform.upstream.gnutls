@@ -289,9 +289,13 @@ static const int kx_priority_secure[] = {
    */
   GNUTLS_KX_ECDHE_ECDSA,
   GNUTLS_KX_ECDHE_RSA,
+  /* KX-RSA is now ahead of DHE-RSA and DHE-DSS due to the compatibility
+   * issues the DHE ciphersuites have. That is, one cannot enforce a specific
+   * security level without dropping the connection. 
+   */
+  GNUTLS_KX_RSA,
   GNUTLS_KX_DHE_RSA,
   GNUTLS_KX_DHE_DSS,
-  GNUTLS_KX_RSA,
   /* GNUTLS_KX_ANON_DH: Man-in-the-middle prone, don't add!
    * GNUTLS_KX_RSA_EXPORT: Deprecated, don't add!
    */
@@ -911,10 +915,15 @@ gnutls_priority_init (gnutls_priority_t * priority_cache,
             {
               (*priority_cache)->no_padding = 1;
               (*priority_cache)->allow_large_records = 1;
+              (*priority_cache)->allow_wrong_pms = 1;
             }
           else if (strcasecmp (&broken_list[i][1], "NO_EXTENSIONS") == 0)
             {
               (*priority_cache)->no_extensions = 1;
+            }
+          else if (strcasecmp (&broken_list[i][1], "STATELESS_COMPRESSION") == 0)
+            {
+              (*priority_cache)->stateless_compression = 1;
             }
           else if (strcasecmp (&broken_list[i][1],
                                "VERIFY_ALLOW_SIGN_RSA_MD5") == 0)

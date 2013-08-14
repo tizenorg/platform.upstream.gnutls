@@ -39,12 +39,11 @@
 
 /* XXX: try to eliminate this */
 #define MAX_CERT_SIZE 8*1024
+#define MAX_SLOTS 48
 
 struct gnutls_pkcs11_provider_s
 {
   struct ck_function_list *module;
-  unsigned long nslots;
-  ck_slot_id_t *slots;
   struct ck_info info;
   unsigned int initialized;
 };
@@ -167,14 +166,19 @@ pkcs11_rv_to_err (ck_rv_t rv)
     }
 }
 
-/* Fake scan */
-void
-pkcs11_rescan_slots (void)
-{
-  unsigned long slots;
 
-  pkcs11_get_slot_list (providers[active_providers - 1].module, 0,
-                          NULL, &slots);
+static int scan_slots(struct gnutls_pkcs11_provider_s * p, ck_slot_id_t *slots,
+	 unsigned long *nslots)
+{
+ck_rv_t rv;
+
+  rv = pkcs11_get_slot_list(p->module, 1, slots, nslots);
+  if (rv != CKR_OK)
+    {
+      gnutls_assert ();
+      return pkcs11_rv_to_err(rv);
+    }
+  return 0;
 }
 
 static int
@@ -205,44 +209,11 @@ pkcs11_add_module (const char *name, struct ck_function_list *module)
   active_providers++;
   providers[active_providers - 1].module = module;
 
-  /* cache the number of slots in this module */
-  if (pkcs11_get_slot_list
-      (providers[active_providers - 1].module, 0, NULL,
-       &providers[active_providers - 1].nslots) != CKR_OK)
-    {
-      gnutls_assert ();
-      goto fail;
-    }
-
-  providers[active_providers - 1].slots =
-    gnutls_malloc (sizeof (*providers[active_providers - 1].slots) *
-                   providers[active_providers - 1].nslots);
-  if (providers[active_providers - 1].slots == NULL)
-    {
-      gnutls_assert ();
-      goto fail;
-    }
-
-  if (pkcs11_get_slot_list
-      (providers[active_providers - 1].module, 0,
-       providers[active_providers - 1].slots,
-       &providers[active_providers - 1].nslots) != CKR_OK)
-    {
-      gnutls_assert ();
-      gnutls_free (providers[active_providers - 1].slots);
-      goto fail;
-    }
-
   memcpy (&providers[active_providers - 1].info, &info, sizeof(info));
 
-  _gnutls_debug_log ("p11: loaded provider '%s' with %d slots\n",
-                     name, (int) providers[active_providers - 1].nslots);
+  _gnutls_debug_log ("p11: loaded provider '%s'\n", name);
 
   return 0;
-
-fail:
-  active_providers--;
-  return GNUTLS_E_PKCS11_LOAD_ERROR;
 }
 
 
@@ -266,12 +237,10 @@ gnutls_pkcs11_add_provider (const char *name, const char *params)
   struct ck_function_list *module;
   int ret;
 
-  active_providers++;
   if (p11_kit_load_initialize_module (name, &module) != CKR_OK)
     {
       gnutls_assert ();
       _gnutls_debug_log ("p11: Cannot load provider %s\n", name);
-      active_providers--;
       return GNUTLS_E_PKCS11_LOAD_ERROR;
     }
 
@@ -503,7 +472,7 @@ initialize_automatic_p11_kit (void)
       gnutls_assert ();
       _gnutls_debug_log ("Cannot initialize registered module: %s\n",
                          p11_kit_strerror (rv));
-      return GNUTLS_E_INTERNAL_ERROR;
+      return pkcs11_rv_to_err(rv);
     }
 
   initialized_registered = 1;
@@ -589,15 +558,18 @@ gnutls_pkcs11_init (unsigned int flags, const char *deprecated_config_file)
  **/
 int gnutls_pkcs11_reinit (void)
 {
+  unsigned i;
   int rv;
 
-  rv = p11_kit_initialize_registered ();
-  if (rv != CKR_OK)
+  for (i = 0; i < active_providers; i++)
     {
-      gnutls_assert ();
-      _gnutls_debug_log ("Cannot initialize registered module: %s\n",
-                         p11_kit_strerror (rv));
-      return GNUTLS_E_INTERNAL_ERROR;
+      if (providers[i].module != NULL) 
+        {
+          rv = p11_kit_initialize_module(providers[i].module);
+          if (rv != CKR_OK)
+            _gnutls_debug_log ("Cannot initialize registered module '%s': %s\n", 
+              providers[i].info.library_description, p11_kit_strerror (rv));
+        }
     }
 
   return 0;
@@ -884,24 +856,34 @@ pkcs11_find_slot (struct ck_function_list ** module, ck_slot_id_t * slot,
                   struct p11_kit_uri *info, struct token_info *_tinfo)
 {
   unsigned int x, z;
+  int ret;
+  unsigned long nslots;
+  ck_slot_id_t slots[MAX_SLOTS];
 
   for (x = 0; x < active_providers; x++)
     {
-      for (z = 0; z < providers[x].nslots; z++)
+      nslots = sizeof(slots)/sizeof(slots[0]);
+      ret = scan_slots(&providers[x], slots, &nslots);
+      if (ret < 0)
+        {
+          gnutls_assert();
+          continue;
+        }
+
+      for (z = 0; z < nslots; z++)
         {
           struct token_info tinfo;
 
           if (pkcs11_get_token_info
-              (providers[x].module, providers[x].slots[z],
-               &tinfo.tinfo) != CKR_OK)
+              (providers[x].module, slots[z], &tinfo.tinfo) != CKR_OK)
             {
               continue;
             }
-          tinfo.sid = providers[x].slots[z];
+          tinfo.sid = slots[z];
           tinfo.prov = &providers[x];
 
           if (pkcs11_get_slot_info
-              (providers[x].module, providers[x].slots[z],
+              (providers[x].module, slots[z],
                &tinfo.sinfo) != CKR_OK)
             {
               continue;
@@ -915,7 +897,7 @@ pkcs11_find_slot (struct ck_function_list ** module, ck_slot_id_t * slot,
 
           /* ok found */
           *module = providers[x].module;
-          *slot = providers[x].slots[z];
+          *slot = slots[z];
 
           if (_tinfo != NULL)
             memcpy (_tinfo, &tinfo, sizeof (tinfo));
@@ -983,31 +965,39 @@ _pkcs11_traverse_tokens (find_func_t find_func, void *input,
   int ret;
   ck_session_handle_t pks = 0;
   struct ck_function_list *module = NULL;
+  unsigned long nslots;
+  ck_slot_id_t slots[MAX_SLOTS];
 
   for (x = 0; x < active_providers; x++)
     {
+      nslots = sizeof(slots)/sizeof(slots[0]);
+      ret = scan_slots(&providers[x], slots, &nslots);
+      if (ret < 0)
+        {
+          gnutls_assert();
+          continue;
+        }
+
       module = providers[x].module;
-      for (z = 0; z < providers[x].nslots; z++)
+      for (z = 0; z < nslots; z++)
         {
           struct token_info tinfo;
 
-          ret = GNUTLS_E_PKCS11_ERROR;
-
-          if (pkcs11_get_token_info (module, providers[x].slots[z],
+          if (pkcs11_get_token_info (module, slots[z],
                &tinfo.tinfo) != CKR_OK)
             {
               continue;
             }
-          tinfo.sid = providers[x].slots[z];
+          tinfo.sid = slots[z];
           tinfo.prov = &providers[x];
 
-          if (pkcs11_get_slot_info (module, providers[x].slots[z],
+          if (pkcs11_get_slot_info (module, slots[z],
                &tinfo.sinfo) != CKR_OK)
             {
               continue;
             }
 
-          rv = (module)->C_OpenSession (providers[x].slots[z],
+          rv = (module)->C_OpenSession (slots[z],
                                         ((flags & SESSION_WRITE)
                                           ? CKF_RW_SESSION : 0) |
                                         CKF_SERIAL_SESSION, NULL, NULL, &pks);
@@ -2201,11 +2191,12 @@ find_objs (struct ck_function_list * module, ck_session_handle_t pks,
            struct token_info *info, struct ck_info *lib_info, void *input)
 {
   struct crt_find_data_st *find_data = input;
-  struct ck_attribute a[4];
+  struct ck_attribute a[6];
   struct ck_attribute *attr;
   ck_object_class_t class = (ck_object_class_t)-1;
   ck_certificate_type_t type = (ck_certificate_type_t)-1;
   unsigned int trusted;
+  unsigned long category;
   ck_rv_t rv;
   ck_object_handle_t obj;
   unsigned long count;
@@ -2300,6 +2291,28 @@ find_objs (struct ck_function_list * module, ck_session_handle_t pks,
       a[tot_values].value_len = sizeof trusted;
       tot_values++;
 
+    }
+  else if (find_data->flags == GNUTLS_PKCS11_OBJ_ATTR_CRT_TRUSTED_CA)
+    {
+      class = CKO_CERTIFICATE;
+      type = CKC_X_509;
+      trusted = 1;
+
+      a[tot_values].type = CKA_CLASS;
+      a[tot_values].value = &class;
+      a[tot_values].value_len = sizeof class;
+      tot_values++;
+
+      a[tot_values].type = CKA_TRUSTED;
+      a[tot_values].value = &trusted;
+      a[tot_values].value_len = sizeof trusted;
+      tot_values++;
+
+      category = 2;
+      a[tot_values].type = CKA_CERTIFICATE_CATEGORY;
+      a[tot_values].value = &category;
+      a[tot_values].value_len = sizeof category;
+      tot_values++;
     }
   else if (find_data->flags == GNUTLS_PKCS11_OBJ_ATTR_PUBKEY)
     {
@@ -2548,6 +2561,11 @@ gnutls_pkcs11_obj_list_import_url (gnutls_pkcs11_obj_t * p_list,
   if (ret < 0)
     {
       gnutls_assert ();
+      if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE)
+        {
+          *n_list = 0;
+          ret = 0;
+        }
       return ret;
     }
 

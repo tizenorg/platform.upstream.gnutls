@@ -23,4 +23,10 @@ should not be trusted.
 The certificate is not yet activated.
 @item GNUTLS_@-CERT_@-EXPIRED
 The certificate has expired.
+@item GNUTLS_@-CERT_@-SIGNATURE_@-FAILURE
+-- undescribed --
+@item GNUTLS_@-CERT_@-REVOCATION_@-DATA_@-SUPERSEDED
+The revocation data are old and have been superseded.
+@item GNUTLS_@-CERT_@-REVOCATION_@-DATA_@-ISSUED_@-IN_@-FUTURE
+The revocation data have a future issue date.
 @end table

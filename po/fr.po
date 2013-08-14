@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libgnutls 2.8.5\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
 "PO-Revision-Date: 2009-12-29 21:15+0100\n"
 "Last-Translator: Nicolas Provost <nprovost@quadriv.com>\n"
 "Language-Team: French <traduc@traduc.org>\n"
@@ -730,7 +730,12 @@ msgid ""
 "order)"
 msgstr ""
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+#, fuzzy
+msgid "The OCSP response is invalid"
+msgstr "Requête incorrecte."
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(code d'erreur inconnu)"
 
@@ -967,7 +972,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tSignature:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 #, fuzzy
 msgid "OCSP Response Information:\n"
 msgstr "Autres informations :\n"

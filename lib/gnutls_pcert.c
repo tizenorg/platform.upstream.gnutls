@@ -336,14 +336,11 @@ gnutls_openpgp_crt_t crt;
       goto cleanup;
     }
 
-  if (keyid != NULL)
+  ret = gnutls_openpgp_crt_set_preferred_key_id(crt, keyid);
+  if (ret < 0)
     {
-      ret = gnutls_openpgp_crt_set_preferred_key_id(crt, keyid);
-      if (ret < 0)
-        {
-          ret = gnutls_assert_val(ret);
-          goto cleanup;
-        }
+      ret = gnutls_assert_val(ret);
+      goto cleanup;
     }
 
   ret = gnutls_pcert_import_openpgp(pcert, crt, flags);
@@ -396,8 +393,7 @@ _gnutls_get_auth_info_pcert (gnutls_pcert_st* pcert,
       return gnutls_pcert_import_openpgp_raw(pcert,
                                                &info->raw_certificate_list[0],
                                                GNUTLS_OPENPGP_FMT_RAW,
-                                               info->use_subkey ? info->
-                                               subkey_id : NULL, GNUTLS_PCERT_NO_CERT);
+                                               info->subkey_id, GNUTLS_PCERT_NO_CERT);
 #endif
     default:
       gnutls_assert ();

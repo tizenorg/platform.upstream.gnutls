@@ -39,9 +39,9 @@ AC_DEFUN([LIBGNUTLS_HOOKS],
   # Interfaces changed/added/removed:   CURRENT++       REVISION=0
   # Interfaces added:                             AGE++
   # Interfaces removed:                           AGE=0
-  AC_SUBST(LT_CURRENT, 38)
-  AC_SUBST(LT_REVISION, 0)
-  AC_SUBST(LT_AGE, 10)
+  AC_SUBST(LT_CURRENT, 39)
+  AC_SUBST(LT_REVISION, 5)
+  AC_SUBST(LT_AGE, 11)
 
   AC_SUBST(LT_SSL_CURRENT, 27)
   AC_SUBST(LT_SSL_REVISION, 2)
@@ -99,10 +99,8 @@ fi
       included_libtasn1=$withval,
       included_libtasn1=no)
   if test "$included_libtasn1" = "no"; then
-    AC_LIB_HAVE_LINKFLAGS(tasn1,, [#include <libtasn1.h>],
-                          [asn1_check_version (NULL)])
-    if test "$ac_cv_libtasn1" != yes; then
-      included_libtasn1=yes
+    PKG_CHECK_MODULES(LIBTASN1, [libtasn1 >= 2.14], [], [included_libtasn1=yes])
+    if test "$included_libtasn1" = yes; then
       AC_MSG_WARN([[
   *** 
   *** Libtasn1 was not found. Will use the included one.

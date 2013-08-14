@@ -660,7 +660,7 @@ function implies to restoring the same function that was interrupted, in
 the DTLS protocol this requirement isn't true.
 There are cases where a retransmission is required, which are indicated by
 a received message and thus @funcref{gnutls_record_get_direction} must be called 
-to decide which operation to restore, i.e., send or receive.
+to decide which direction to check prior to restoring a function call.
 @showfuncdesc{gnutls_record_get_direction}
 
 Moreover, to prevent blocking from DTLS' retransmission timers to block a
@@ -947,6 +947,11 @@ over the maximum allowed TLS record.
 will prevent the sending of any TLS extensions in client side. Note
 that TLS 1.2 requires extensions to be used, as well as safe
 renegotiation thus this option must be used with care.
+
+@item %STATELESS_COMPRESSION @tab
+will disable keeping state across records when compressing. This may
+help to mitigate attacks when compression is used but an attacker
+is in control of input data.
 
 @item %SERVER_PRECEDENCE @tab
 The ciphersuite will be selected according to server priorities

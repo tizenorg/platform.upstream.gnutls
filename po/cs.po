@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libgnutls 3.0.12\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
 "PO-Revision-Date: 2012-01-21 20:05+0100\n"
 "Last-Translator: Petr Pisar <petr.pisar@atlas.cz>\n"
 "Language-Team: Czech <translation-team-cs@lists.sourceforge.net>\n"
@@ -701,7 +701,12 @@ msgid ""
 msgstr ""
 "Poskytnutý seznam certifikátů X.509 není seřazen (od předmětu po vydavatele)"
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+#, fuzzy
+msgid "The OCSP response is invalid"
+msgstr "Požadavek je neplatný."
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(neznámý chybový kód)"
 
@@ -938,7 +943,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tPodpis:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 msgid "OCSP Response Information:\n"
 msgstr "Údaje odpovědi OCSP:\n"
 

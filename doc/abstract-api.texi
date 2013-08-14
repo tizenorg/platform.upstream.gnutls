@@ -521,7 +521,7 @@ negative error value.
 @deftypefun {int} {gnutls_pubkey_get_openpgp_key_id} (gnutls_pubkey_t @var{key}, unsigned int @var{flags}, unsigned char * @var{output_data}, size_t * @var{output_data_size}, unsigned int * @var{subkey})
 @var{key}: Holds the public key
 
-@var{flags}: should be 0 for now
+@var{flags}: should be 0 or @code{GNUTLS_PUBKEY_GET_OPENPGP_FINGERPRINT} 
 
 @var{output_data}: will contain the key ID
 
@@ -530,14 +530,16 @@ replaced by the actual size of parameters)
 
 @var{subkey}: Will be non zero if the key ID corresponds to a subkey
 
-This function will return a unique ID the depends on the public
-key parameters. This ID can be used in checking whether a
-certificate corresponds to the given public key.
+This function returns the OpenPGP key ID of the corresponding key.
+The key is a unique ID that depends on the public
+key parameters. 
+
+If the flag @code{GNUTLS_PUBKEY_GET_OPENPGP_FINGERPRINT}  is specified
+this function returns the fingerprint of the master key.
 
 If the buffer provided is not long enough to hold the output, then
 *output_data_size is updated and @code{GNUTLS_E_SHORT_MEMORY_BUFFER}  will
-be returned.  The output will normally be a SHA-1 hash output,
-which is 20 bytes.
+be returned.  The output is @code{GNUTLS_OPENPGP_KEYID_SIZE}  bytes long.
 
 @strong{Returns:} In case of failure a negative error code will be
 returned, and 0 on success.
@@ -955,8 +957,10 @@ is returned, and zero or positive code on success.
 @var{signature}: contains the signature
 
 This function will verify the given signed digest, using the
-parameters from the public key. Use @code{gnutls_pubkey_verify_hash2()} 
-instead of this function.
+parameters from the public key. 
+
+Deprecated. This function cannot be easily used securely. 
+Use @code{gnutls_pubkey_verify_hash2()}  instead.
 
 @strong{Returns:} In case of a verification failure @code{GNUTLS_E_PK_SIG_VERIFY_FAILED}  
 is returned, and zero or positive code on success.

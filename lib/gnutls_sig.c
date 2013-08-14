@@ -221,7 +221,7 @@ sign_tls_hash (gnutls_session_t session, gnutls_digest_algorithm_t hash_algo,
         if (!(key_usage & GNUTLS_KEY_DIGITAL_SIGNATURE))
           {
             gnutls_assert ();
-            return GNUTLS_E_KEY_USAGE_VIOLATION;
+            _gnutls_audit_log(session, "Peer's certificate does not allow digital signatures. Key usage violation detected (ignored).\n");
           }
 
       /* External signing. Deprecated. To be removed. */
@@ -244,7 +244,7 @@ sign_tls_hash (gnutls_session_t session, gnutls_digest_algorithm_t hash_algo,
               if (ret < 0)
                 return gnutls_assert_val(ret);
               
-              ret = pk_prepare_hash (gnutls_privkey_get_pk_algorithm(pkey, NULL), hash_algo, &digest);
+              ret = pk_prepare_hash (gnutls_pubkey_get_pk_algorithm(cert->pubkey, NULL), hash_algo, &digest);
               if (ret < 0)
                 {
                   gnutls_assert ();
@@ -269,7 +269,7 @@ es_cleanup:
 }
 
 static int
-verify_tls_hash (gnutls_protocol_t ver, gnutls_pcert_st* cert,
+verify_tls_hash (gnutls_session_t session, gnutls_protocol_t ver, gnutls_pcert_st* cert,
                     const gnutls_datum_t * hash_concat,
                     gnutls_datum_t * signature, size_t sha1pos,
                     gnutls_sign_algorithm_t sign_algo,
@@ -293,7 +293,7 @@ verify_tls_hash (gnutls_protocol_t ver, gnutls_pcert_st* cert,
     if (!(key_usage & GNUTLS_KEY_DIGITAL_SIGNATURE))
       {
         gnutls_assert ();
-        return GNUTLS_E_KEY_USAGE_VIOLATION;
+        _gnutls_audit_log(session, "Peer's certificate does not allow digital signatures. Key usage violation detected (ignored).\n");
       }
 
   if (pk_algo == GNUTLS_PK_UNKNOWN)
@@ -360,7 +360,7 @@ _gnutls_handshake_verify_data (gnutls_session_t session, gnutls_pcert_st* cert,
       _gnutls_handshake_log ("HSK[%p]: verify handshake data: using %s\n",
                     session, gnutls_sign_algorithm_get_name (sign_algo));
 
-      ret = _gnutls_pubkey_compatible_with_sig(cert->pubkey, ver, sign_algo);
+      ret = _gnutls_pubkey_compatible_with_sig(session, cert->pubkey, ver, sign_algo);
       if (ret < 0)
         return gnutls_assert_val(ret);
 
@@ -418,7 +418,7 @@ _gnutls_handshake_verify_data (gnutls_session_t session, gnutls_pcert_st* cert,
       dconcat.size = _gnutls_hash_get_algo_len (hash_algo);
     }
 
-  ret = verify_tls_hash (ver, cert, &dconcat, signature,
+  ret = verify_tls_hash (session, ver, cert, &dconcat, signature,
                             dconcat.size -
                             _gnutls_hash_get_algo_len (hash_algo),
                             sign_algo,
@@ -467,7 +467,7 @@ _gnutls_handshake_verify_crt_vrfy12 (gnutls_session_t session,
   dconcat.size = _gnutls_hash_get_algo_len (hash_algo);
 
   ret =
-    verify_tls_hash (ver, cert, &dconcat, signature, 0, sign_algo, pk);
+    verify_tls_hash (session, ver, cert, &dconcat, signature, 0, sign_algo, pk);
   if (ret < 0)
     {
       gnutls_assert ();
@@ -561,7 +561,7 @@ _gnutls_handshake_verify_crt_vrfy (gnutls_session_t session,
   dconcat.size = 20 + 16;       /* md5+ sha */
 
   ret =
-    verify_tls_hash (ver, cert, &dconcat, signature, 16,
+    verify_tls_hash (session, ver, cert, &dconcat, signature, 16,
                         GNUTLS_SIGN_UNKNOWN,
                         gnutls_pubkey_get_pk_algorithm(cert->pubkey, NULL));
   if (ret < 0)
@@ -677,7 +677,7 @@ _gnutls_handshake_sign_crt_vrfy (gnutls_session_t session,
     _gnutls_hash_deinit (&td_sha, &concat[16]);
 
   /* ensure 1024 bit DSA keys are used */
-  ret = _gnutls_pubkey_compatible_with_sig(cert->pubkey, ver, GNUTLS_SIGN_UNKNOWN);
+  ret = _gnutls_pubkey_compatible_with_sig(session, cert->pubkey, ver, GNUTLS_SIGN_UNKNOWN);
   if (ret < 0)
     return gnutls_assert_val(ret);
 

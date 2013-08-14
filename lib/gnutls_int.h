@@ -223,12 +223,19 @@ typedef struct
 
 typedef enum handshake_state_t
 { STATE0 = 0, STATE1, STATE2,
-  STATE3, STATE4, STATE5,
-  STATE6, STATE7, STATE8, STATE9, STATE11 = 11,
+  STATE3, STATE4, STATE5, STATE6, STATE7, STATE8, 
+  STATE9, STATE10, STATE11, STATE12, STATE13, STATE14,
+  STATE15, STATE16, STATE17,
   STATE20 = 20, STATE21, STATE22,
   STATE30 = 30, STATE31, STATE40 = 40, STATE41, STATE50 = 50,
   STATE60 = 60, STATE61, STATE62, STATE70, STATE71
 } handshake_state_t;
+
+typedef enum recv_state_t
+{  
+  RECV_STATE_0 = 0, 
+  RECV_STATE_DTLS_RETRANSMIT,
+} recv_state_t;
 
 #include <gnutls_str.h>
 
@@ -578,9 +585,11 @@ struct gnutls_priority_st
   safe_renegotiation_t sr;
   unsigned int ssl3_record_version:1;
   unsigned int server_precedence:1;
+  unsigned int allow_wrong_pms:1;
+  /* Whether stateless compression will be used */
+  unsigned int stateless_compression:1;
   unsigned int additional_verify_flags;
 };
-
 
 /* DH and RSA parameters types.
  */
@@ -664,6 +673,7 @@ typedef struct
                                                  * message */
   unsigned int resumable:1;              /* TRUE or FALSE - if we can resume that session */
   unsigned int ticket_sent:1;            /* whether a session ticket was sent */
+  handshake_state_t handshake_final_state;
   handshake_state_t handshake_state;    /* holds
                                          * a number which indicates where
                                          * the handshake procedure has been
@@ -871,7 +881,9 @@ typedef struct
 
   unsigned int cb_tls_unique_len;
   unsigned char cb_tls_unique[MAX_VERIFY_DATA_SIZE];
-
+  
+  recv_state_t recv_state; /* state of the receive function */
+  
   /* If you add anything here, check _gnutls_handshake_internal_state_clear().
    */
 } internals_st;

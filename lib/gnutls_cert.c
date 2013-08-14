@@ -231,6 +231,7 @@ int ret;
     }
   (*res)->verify_bits = DEFAULT_VERIFY_BITS;
   (*res)->verify_depth = DEFAULT_VERIFY_DEPTH;
+  (*res)->verify_flags = GNUTLS_VERIFY_ALLOW_UNSORTED_CHAIN;
 
   return 0;
 }
@@ -824,5 +825,4 @@ gnutls_sign_callback_get (gnutls_session_t session, void **userdata)
     *userdata = session->internals.sign_func_userdata;
   return session->internals.sign_func;
 }
-
 

@@ -49,8 +49,6 @@
 #include "certtool-args.h"
 #include "certtool-common.h"
 
-#define SIGN_HASH GNUTLS_DIG_SHA256
-
 static void privkey_info_int (common_info_st*, gnutls_x509_privkey_t key);
 static void print_crl_info (gnutls_x509_crl_t crl, FILE * out);
 void pkcs7_info (void);
@@ -225,7 +223,7 @@ cipher_to_flags (const char *cipher)
 {
   if (cipher == NULL)
     {
-      return GNUTLS_PKCS_USE_PBES2_AES_128;
+      return GNUTLS_PKCS_USE_PKCS12_ARCFOUR;
     }
   else if (strcasecmp (cipher, "3des") == 0)
     {
@@ -511,9 +509,8 @@ generate_certificate (gnutls_privkey_t * ret_key,
 
           pk = gnutls_x509_crt_get_pk_algorithm (crt, NULL);
 
-          if (pk != GNUTLS_PK_DSA)
-            {                   /* DSA keys can only sign.
-                                 */
+          if (pk == GNUTLS_PK_RSA)
+            { /* DSA and ECDSA keys can only sign. */
               result = get_sign_status (server);
               if (result)
                 usage |= GNUTLS_KEY_DIGITAL_SIGNATURE;
@@ -727,12 +724,32 @@ generate_crl (gnutls_x509_crt_t ca_crt, common_info_st * cinfo)
 }
 
 static gnutls_digest_algorithm_t
+get_dig_for_pub (gnutls_pubkey_t pubkey)
+{
+  gnutls_digest_algorithm_t dig;
+  int result;
+  unsigned int mand;
+
+  result = gnutls_pubkey_get_preferred_hash_algorithm (pubkey, &dig, &mand);
+  if (result < 0)
+    {
+      error (EXIT_FAILURE, 0, "crt_get_preferred_hash_algorithm: %s",
+             gnutls_strerror (result));
+    }
+
+  /* if algorithm allows alternatives */
+  if (mand == 0 && default_dig != GNUTLS_DIG_UNKNOWN)
+    dig = default_dig;
+
+  return dig;
+}
+
+static gnutls_digest_algorithm_t
 get_dig (gnutls_x509_crt_t crt)
 {
   gnutls_digest_algorithm_t dig;
   gnutls_pubkey_t pubkey;
   int result;
-  unsigned int mand;
 
   gnutls_pubkey_init(&pubkey);
 
@@ -743,18 +760,9 @@ get_dig (gnutls_x509_crt_t crt)
              gnutls_strerror (result));
     }
 
-  result = gnutls_pubkey_get_preferred_hash_algorithm (pubkey, &dig, &mand);
-  if (result < 0)
-    {
-      error (EXIT_FAILURE, 0, "crt_get_preferred_hash_algorithm: %s",
-             gnutls_strerror (result));
-    }
+  dig = get_dig_for_pub (pubkey);
 
   gnutls_pubkey_deinit(pubkey);
-
-  /* if algorithm allows alternatives */
-  if (mand == 0 && default_dig != GNUTLS_DIG_UNKNOWN)
-    dig = default_dig;
 
   return dig;
 }
@@ -899,7 +907,7 @@ generate_signed_crl (common_info_st * cinfo)
   crl = generate_crl (ca_crt, cinfo);
 
   fprintf (stderr, "\n");
-  result = gnutls_x509_crl_privkey_sign(crl, ca_crt, ca_key, SIGN_HASH, 0);
+  result = gnutls_x509_crl_privkey_sign(crl, ca_crt, ca_key, get_dig (ca_crt), 0);
   if (result < 0)
     error (EXIT_FAILURE, 0, "crl_privkey_sign: %s", gnutls_strerror (result));
 
@@ -1819,7 +1827,7 @@ generate_request (common_info_st * cinfo)
   gnutls_x509_privkey_t xkey;
   gnutls_pubkey_t pubkey;
   gnutls_privkey_t pkey;
-  int ret, ca_status, path_len;
+  int ret, ca_status, path_len, pk;
   const char *pass;
   unsigned int usage = 0;
 
@@ -1849,6 +1857,8 @@ generate_request (common_info_st * cinfo)
     }
 
   pubkey = load_public_key_or_import (1, pkey, cinfo);
+
+  pk = gnutls_pubkey_get_pk_algorithm (pubkey, NULL);
 
   /* Set the DN.
    */
@@ -1889,14 +1899,21 @@ generate_request (common_info_st * cinfo)
         error (EXIT_FAILURE, 0, "set_basic_constraints: %s",
                gnutls_strerror (ret));
 
-      ret = get_sign_status (1);
-      if (ret)
-        usage |= GNUTLS_KEY_DIGITAL_SIGNATURE;
+      if (pk == GNUTLS_PK_RSA)
+        {
+          ret = get_sign_status (1);
+          if (ret)
+            usage |= GNUTLS_KEY_DIGITAL_SIGNATURE;
 
-      ret = get_encrypt_status (1);
-      if (ret)
-        usage |= GNUTLS_KEY_KEY_ENCIPHERMENT;
-      else
+          /* Only ask for an encryption certificate
+           * if it is an RSA one */
+          ret = get_encrypt_status (1);
+          if (ret)
+            usage |= GNUTLS_KEY_KEY_ENCIPHERMENT;
+          else
+            usage |= GNUTLS_KEY_DIGITAL_SIGNATURE;
+        }
+      else /* DSA and ECDSA are always signing */
         usage |= GNUTLS_KEY_DIGITAL_SIGNATURE;
 
       if (ca_status)
@@ -1973,7 +1990,7 @@ generate_request (common_info_st * cinfo)
   if (ret < 0)
     error (EXIT_FAILURE, 0, "set_key: %s", gnutls_strerror (ret));
 
-  ret = gnutls_x509_crq_privkey_sign (crq, pkey, SIGN_HASH, 0);
+  ret = gnutls_x509_crq_privkey_sign (crq, pkey, get_dig_for_pub (pubkey), 0);
   if (ret < 0)
     error (EXIT_FAILURE, 0, "sign: %s", gnutls_strerror (ret));
 
@@ -2163,14 +2180,14 @@ print_verification_res (FILE* outfile, unsigned int output)
 {
   int comma = 0;
 
-  if (output & GNUTLS_CERT_INVALID)
+  if (output == 0)
     {
-      fprintf (outfile, "Not verified");
+      fprintf (outfile, "Verified");
       comma = 1;
     }
   else
     {
-      fprintf (outfile, "Verified");
+      fprintf (outfile, "Not verified");
       comma = 1;
     }
 
@@ -2270,7 +2287,6 @@ verify_crl (common_info_st * cinfo)
   int ret;
   gnutls_datum_t pem;
   gnutls_x509_crl_t crl;
-  time_t now = time (0);
   gnutls_x509_crt_t issuer;
 
   issuer = load_ca_cert (cinfo);
@@ -2330,23 +2346,20 @@ verify_crl (common_info_st * cinfo)
       comma = 1;
     }
 
-  /* Check expiration dates.
-   */
-
-  if (gnutls_x509_crl_get_this_update (crl) > now)
+  if (output & GNUTLS_CERT_REVOCATION_DATA_SUPERSEDED)
     {
       if (comma)
         fprintf (outfile, ", ");
+      fprintf (outfile, "CRL is not up to date");
       comma = 1;
-      fprintf (outfile, "Issued in the future!");
     }
 
-  if (gnutls_x509_crl_get_next_update (crl) < now)
+  if (output & GNUTLS_CERT_REVOCATION_DATA_ISSUED_IN_FUTURE)
     {
       if (comma)
         fprintf (outfile, ", ");
+      fprintf (outfile, "Issued in the future!");
       comma = 1;
-      fprintf (outfile, "CRL is not up to date");
     }
 
   fprintf (outfile, "\n");

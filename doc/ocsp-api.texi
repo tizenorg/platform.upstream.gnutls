@@ -262,6 +262,22 @@ earlier calls.
 negative error code is returned.
 @end deftypefun
 
+@subheading gnutls_ocsp_resp_check_crt
+@anchor{gnutls_ocsp_resp_check_crt}
+@deftypefun {int} {gnutls_ocsp_resp_check_crt} (gnutls_ocsp_resp_t @var{resp}, unsigned int @var{indx}, gnutls_x509_crt_t @var{crt})
+@var{resp}: should contain a @code{gnutls_ocsp_resp_t}  structure
+
+@var{indx}: Specifies response number to get. Use (0) to get the first one.
+
+@var{crt}: The certificate to check
+
+This function will check whether the OCSP response
+is about the provided certificate.
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
+negative error code is returned.  
+@end deftypefun
+
 @subheading gnutls_ocsp_resp_deinit
 @anchor{gnutls_ocsp_resp_deinit}
 @deftypefun {void} {gnutls_ocsp_resp_deinit} (gnutls_ocsp_resp_t @var{resp})
@@ -442,7 +458,7 @@ on error.
 @deftypefun {int} {gnutls_ocsp_resp_get_single} (gnutls_ocsp_resp_t @var{resp}, unsigned @var{indx}, gnutls_digest_algorithm_t * @var{digest}, gnutls_datum_t * @var{issuer_name_hash}, gnutls_datum_t * @var{issuer_key_hash}, gnutls_datum_t * @var{serial_number}, unsigned int * @var{cert_status}, time_t * @var{this_update}, time_t * @var{next_update}, time_t * @var{revocation_time}, unsigned int * @var{revocation_reason})
 @var{resp}: should contain a @code{gnutls_ocsp_resp_t}  structure
 
-@var{indx}: Specifies which extension OID to get. Use (0) to get the first one.
+@var{indx}: Specifies response number to get. Use (0) to get the first one.
 
 @var{digest}: output variable with @code{gnutls_digest_algorithm_t}  hash algorithm
 

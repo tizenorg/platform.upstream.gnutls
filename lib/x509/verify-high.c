@@ -35,7 +35,7 @@
 
 struct named_cert_st {
   gnutls_x509_crt_t cert;
-  uint8_t name[MAX_NAME_SIZE];
+  uint8_t name[MAX_SERVER_NAME_SIZE];
   unsigned int name_size;
 };
 
@@ -58,7 +58,7 @@ struct gnutls_x509_trust_list_st {
 };
 
 #define INIT_HASH 0x33a1
-#define DEFAULT_SIZE 503
+#define DEFAULT_SIZE 127
 
 /**
  * gnutls_x509_trust_list_init:
@@ -188,6 +188,45 @@ gnutls_x509_trust_list_add_cas(gnutls_x509_trust_list_t list,
     return i;
 }
 
+int
+_gnutls_x509_trust_list_remove_cas(gnutls_x509_trust_list_t list,
+                               const gnutls_x509_crt_t * clist,
+                               int clist_size)
+{
+    int i, r = 0, ret;
+    unsigned j;
+    uint32_t hash;
+    gnutls_datum_t dn;
+
+    for (i = 0; i < clist_size; i++) 
+      {
+        ret = gnutls_x509_crt_get_raw_dn(clist[i], &dn);
+        if (ret < 0) {
+            gnutls_assert();
+            return i;
+        }
+
+        hash = _gnutls_bhash(dn.data, dn.size, INIT_HASH);
+        hash %= list->size;
+
+        _gnutls_free_datum(&dn);
+
+        for (j=0;j<list->node[hash].trusted_ca_size;j++) 
+          {
+	    if (check_if_same_cert(clist[i], list->node[hash].trusted_cas[j]) == 0)
+	      {
+	        gnutls_x509_crt_deinit(list->node[hash].trusted_cas[j]);
+                list->node[hash].trusted_cas[j] = 
+			list->node[hash].trusted_cas[list->node[hash].trusted_ca_size-1];
+		list->node[hash].trusted_ca_size--;
+		r++;
+              }
+          }
+      }
+
+    return r;
+}
+
 /**
  * gnutls_x509_trust_list_add_named_crt:
  * @list: The structure of the list
@@ -223,7 +262,7 @@ gnutls_x509_trust_list_add_named_crt(gnutls_x509_trust_list_t list,
     int ret;
     uint32_t hash;
 
-    if (name_size >= MAX_NAME_SIZE)
+    if (name_size >= MAX_SERVER_NAME_SIZE)
         return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
     ret = gnutls_x509_crt_get_raw_issuer_dn(cert, &dn);
@@ -350,6 +389,18 @@ static int shorten_clist(gnutls_x509_trust_list_t list,
     uint32_t hash;
     gnutls_datum_t dn;
 
+    /* Start by truncating any disjoint list of certificates. For
+     * example, if the server presented a chain A->B->C->X->Y->Z
+     * where X is *not* actually the issuer of C, truncate at C.
+     */
+    for(i=1;i<clist_size;i++) {
+        if (!gnutls_x509_crt_check_issuer(certificate_list[i-1],
+                                          certificate_list[i])) {
+            gnutls_assert();
+            clist_size = i;
+        }
+    }
+
     if (clist_size > 1) {
         /* Check if the last certificate in the path is self signed.
          * In that case ignore it (a certificate is trusted only if it
@@ -397,6 +448,71 @@ static int shorten_clist(gnutls_x509_trust_list_t list,
     }
 
     return clist_size;
+}
+
+#define MAX_CERTS_TO_SORT 10
+
+/* Takes a certificate list and orders it with subject, issuer order.
+ *
+ * Returns the size of the ordered list (which is always less or
+ * equal to the original).
+ */
+static gnutls_x509_crt_t* sort_clist(gnutls_x509_crt_t sorted[MAX_CERTS_TO_SORT], 
+                                     gnutls_x509_crt_t * clist,
+                                     unsigned int *clist_size)
+{
+  int prev;
+  unsigned int j, i;
+  int issuer[MAX_CERTS_TO_SORT]; /* contain the index of the issuers */
+    
+    /* Do not bother sorting if too many certificates are given.
+     * Prevent any DoS attacks.
+     */
+  if (*clist_size > MAX_CERTS_TO_SORT)
+    return clist;
+
+  for (i=0;i<MAX_CERTS_TO_SORT;i++)
+    issuer[i] = -1;
+
+    /* Start by truncating any disjoint list of certificates. For
+     * example, if the server presented a chain A->B->C->X->Y->Z
+     * where X is *not* actually the issuer of C, truncate at C.
+     */
+  for(i=0;i<*clist_size;i++) 
+    {
+      for (j=1;j<*clist_size;j++) 
+        {
+          if (i==j) continue;
+        
+          if (gnutls_x509_crt_check_issuer(clist[i],
+                                           clist[j])) 
+            {
+              issuer[i] = j;
+              break;
+            }
+        }
+    }
+  
+  if (issuer[0] == -1)
+    {
+      *clist_size = 1;
+      return clist;
+    }
+  
+  prev = 0;
+  sorted[0] = clist[0];
+  for (i=1;i<*clist_size;i++)
+    {
+      prev = issuer[prev];
+      if (prev == -1) /* no issuer */
+        {
+          *clist_size = i;
+          break;
+        }
+      sorted[i] = clist[prev];
+    }
+  
+  return sorted;
 }
 
 /**
@@ -477,9 +593,13 @@ gnutls_x509_trust_list_verify_crt(gnutls_x509_trust_list_t list,
     int ret;
     unsigned int i;
     uint32_t hash;
+    gnutls_x509_crt_t sorted[MAX_CERTS_TO_SORT];
 
     if (cert_list == NULL || cert_list_size < 1)
         return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
+    if (flags & GNUTLS_VERIFY_ALLOW_UNSORTED_CHAIN)
+      cert_list = sort_clist(sorted, cert_list, &cert_list_size);
 
     cert_list_size = shorten_clist(list, cert_list, cert_list_size);
     if (cert_list_size <= 0)

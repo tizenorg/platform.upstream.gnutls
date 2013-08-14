@@ -10,5 +10,9 @@
 This allows setting a preferred key id for the given certificate.
 This key will be used by functions that involve key handling.
 
-@strong{Returns:} On success, 0 is returned, or an error code.
+If the provided  @code{keyid} is @code{NULL}  then the master key is
+set as preferred.
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned,
+otherwise a negative error code is returned.
 @end deftypefun

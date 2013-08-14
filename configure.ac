@@ -21,13 +21,14 @@ dnl Process this file with autoconf to produce a configure script.
 # USA
 
 AC_PREREQ(2.61)
-AC_INIT([GnuTLS], [3.0.21], [bug-gnutls@gnu.org])
+AC_INIT([GnuTLS], [3.0.30], [bug-gnutls@gnu.org])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
+AC_CANONICAL_HOST
 
-AM_INIT_AUTOMAKE([1.11 no-dist-gzip dist-xz dist-lzip -Wall -Werror -Wno-override])
+AM_INIT_AUTOMAKE([1.11 no-dist-gzip dist-xz dist-lzip -Wall -Wno-override])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AM_CONFIG_HEADER(config.h)
+AC_CONFIG_HEADERS([config.h])
 
 AC_MSG_RESULT([***
 *** Checking for compilation programs...
@@ -35,9 +36,10 @@ AC_MSG_RESULT([***
 
 dnl Checks for programs.
 AC_PROG_CC
+gl_EARLY
+
 AM_PROG_AS
 AC_PROG_CXX
-gl_EARLY
 
 # For includes/gnutls/gnutls.h.in.
 AC_SUBST(MAJOR_VERSION, `echo $PACKAGE_VERSION | sed 's/\(.*\)\..*\..*/\1/g'`)
@@ -89,15 +91,12 @@ hw_accel=none
 if test "$use_accel" != "no"; then
 case $host_cpu in
   i?86 | x86_64 | amd64)
-dnl    GCC_FLAG_ADD([-maes -mpclmul],[X86])
-dnl    if test "x$X86" = "xyes";then
       AC_CHECK_HEADERS(cpuid.h)
       if test "$host_cpu" = "x86_64" || test "$host_cpu" = "amd64"; then
         hw_accel="x86-64"
       else
         hw_accel="x86"
       fi
-dnl    fi
   ;;
   *)
   ;;
@@ -224,7 +223,6 @@ AC_ARG_ENABLE([gcc-warnings],
 )
 
 if test "$gl_gcc_warnings" = yes; then
-  gl_WARN_ADD([-Werror], [WERROR_CFLAGS])
   gl_WARN_ADD([-Wframe-larger-than=5120], [WSTACK_CFLAGS])
 
   nw="$nw -Wsystem-headers"         # Don't let system headers trigger warnings
@@ -244,6 +242,7 @@ if test "$gl_gcc_warnings" = yes; then
   nw="$nw -Wconversion"             # Too many warnings for now
   nw="$nw -Wsign-conversion"        # Too many warnings for now
   nw="$nw -Wformat-y2k"             # Too many warnings for now
+  nw="$nw -Woverlength-strings"     # We use some in tests/
   nw="$nw -Wvla"                    # There is no point to avoid C99 variable length arrays
   nw="$nw -Wformat-nonliteral"      # Incompatible with gettext _()
   nw="$nw -Wunsafe-loop-optimizations"
@@ -292,26 +291,32 @@ if test "x$with_default_trust_store_pkcs11" != x; then
     ["$with_default_trust_store_pkcs11"], [use the given pkcs11 uri as default trust store])
 fi
 
-AC_ARG_WITH([default-trust-store-file],
-  [AS_HELP_STRING([--with-default-trust-store-file=FILE],
-    [use the given file default trust store])])
-
 AC_ARG_WITH([default-crl-file],
   [AS_HELP_STRING([--with-default-crl-file=FILE],
     [use the given CRL file as default])])
 
-if test "x$with_default_trust_store_pkcs11" = x -a "x$with_default_trust_store_file" = x; then
-  # auto detect http://lists.gnu.org/archive/html/help-gnutls/2012-05/msg00004.html
+dnl auto detect http://lists.gnu.org/archive/html/help-gnutls/2012-05/msg00004.html
+AC_ARG_WITH([default-trust-store-file],
+  [AS_HELP_STRING([--with-default-trust-store-file=FILE],
+    [use the given file default trust store])], with_default_trust_store_file="$withval",
+  [if test "$build" = "$host";then
   for i in \
+    /etc/ssl/ca-bundle.pem \
     /etc/ssl/certs/ca-certificates.crt \
     /etc/pki/tls/cert.pem \
-    /usr/local/share/certs/ca-root-nss.crt
+    /usr/local/share/certs/ca-root-nss.crt \
+    /etc/ssl/cert.pem
     do
     if test -e $i; then
       with_default_trust_store_file="$i"
       break
     fi
   done
+  fi]
+)
+
+if test "$with_default_trust_store_file" = "no";then
+  with_default_trust_store_file=""
 fi
 
 if test "x$with_default_trust_store_file" != x; then

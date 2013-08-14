@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libgnutls 3.0.12\n"
 "Report-Msgid-Bugs-To: bug-gnutls@gnu.org\n"
-"POT-Creation-Date: 2012-07-03 00:02+0200\n"
+"POT-Creation-Date: 2013-06-01 12:47+0200\n"
 "PO-Revision-Date: 2012-04-11 20:14+0100\n"
 "Last-Translator: Mario Blättermann <mario.blaettermann@gmail.com>\n"
 "Language-Team: German <translation-team-de@lists.sourceforge.net>\n"
@@ -713,7 +713,12 @@ msgstr ""
 "Die bereitgestellte Liste der X.509-Zertifikate ist nicht sortiert (in der "
 "Reihenfolge der Ausgabe)"
 
-#: lib/gnutls_errors.c:422
+#: lib/gnutls_errors.c:337
+#, fuzzy
+msgid "The OCSP response is invalid"
+msgstr "Die Anfrage ist ungültig."
+
+#: lib/gnutls_errors.c:424
 msgid "(unknown error code)"
 msgstr "(Unbekannter Fehlercode)"
 
@@ -947,7 +952,7 @@ msgstr ""
 msgid "\tSignature:\n"
 msgstr "\tSignatur:\n"
 
-#: lib/x509/ocsp_output.c:614
+#: lib/x509/ocsp_output.c:619
 msgid "OCSP Response Information:\n"
 msgstr ""
 
