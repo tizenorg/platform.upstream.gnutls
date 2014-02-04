@@ -24,6 +24,8 @@ BuildRequires:  pkg-config
 BuildRequires:  xz
 BuildRequires:  zlib-devel
 
+Provides: gnutls-utils = %{version}-%{release}
+
 %description
 The GnuTLS project aims to develop a library that provides a secure
 layer over a reliable transport layer. Currently the GnuTLS library
