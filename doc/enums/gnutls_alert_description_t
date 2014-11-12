@@ -62,4 +62,6 @@ recognized.
 @item GNUTLS_@-A_@-UNKNOWN_@-PSK_@-IDENTITY
 The SRP/PSK username is missing
 or not known.
+@item GNUTLS_@-A_@-NO_@-APPLICATION_@-PROTOCOL
+-- undescribed --
 @end table

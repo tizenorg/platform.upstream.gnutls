@@ -7,7 +7,7 @@
 
 @var{key_usage}: where the key usage bits will be stored
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 
 This function will return certificate's key usage, by reading the
 keyUsage X.509 extension (2.5.29.15). The key usage value will ORed

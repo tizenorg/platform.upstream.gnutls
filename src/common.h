@@ -27,18 +27,20 @@
 #include <netdb.h>
 #include <unistd.h>
 #ifndef _WIN32
-# include <netinet/in.h>
+#include <netinet/in.h>
 #endif
 
 #include <signal.h>
 #ifdef _WIN32
 #include <io.h>
 #include <winbase.h>
+#include <sys/select.h>
+#undef OCSP_RESPONSE
 #endif
 
 #ifndef __attribute__
 #if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
-#define __attribute__(Spec)     /* empty */
+#define __attribute__(Spec)	/* empty */
 #endif
 #endif
 
@@ -48,13 +50,63 @@
 
 extern const char str_unknown[];
 
-int print_info (gnutls_session_t state, int print_cert);
-void print_cert_info (gnutls_session_t, int flag, int print_cert);
-void print_cert_info_compact (gnutls_session_t session);
+int print_info(gnutls_session_t state, int verbose, int print_cert);
+void print_cert_info(gnutls_session_t, int flag, int print_cert);
+void print_cert_info_compact(gnutls_session_t session);
 
-void print_list (const char* priorities, int verbose);
-int cert_verify (gnutls_session_t session, const char* hostname);
+void print_list(const char *priorities, int verbose);
+int cert_verify(gnutls_session_t session, const char *hostname, const char *purpose);
 
-const char *raw_to_string (const unsigned char *raw, size_t raw_size);
-void pkcs11_common (void);
-int check_command(gnutls_session_t session, const char* str);
+const char *raw_to_string(const unsigned char *raw, size_t raw_size);
+void pkcs11_common(void);
+int check_command(gnutls_session_t session, const char *str);
+
+int
+pin_callback(void *user, int attempt, const char *token_url,
+	     const char *token_label, unsigned int flags, char *pin,
+	     size_t pin_max);
+
+void pkcs11_common(void);
+
+#ifdef _WIN32
+static int system_recv_timeout(gnutls_transport_ptr_t ptr, unsigned int ms)
+{
+	fd_set rfds;
+	struct timeval tv;
+	int ret, fd = (long)ptr;
+
+	FD_ZERO(&rfds);
+	FD_SET(fd, &rfds);
+
+	tv.tv_sec = 0;
+	tv.tv_usec = ms * 1000;
+	while (tv.tv_usec >= 1000000) {
+		tv.tv_usec -= 1000000;
+		tv.tv_sec++;
+	}
+
+	return select(fd + 1, &rfds, NULL, NULL, &tv);
+}
+
+static ssize_t
+system_write(gnutls_transport_ptr ptr, const void *data, size_t data_size)
+{
+	return send((long)ptr, data, data_size, 0);
+}
+
+static ssize_t
+system_read(gnutls_transport_ptr_t ptr, void *data, size_t data_size)
+{
+	return recv((long)ptr, data, data_size, 0);
+}
+
+static
+void set_read_funcs(gnutls_session_t session)
+{
+	gnutls_transport_set_push_function(session, system_write);
+	gnutls_transport_set_pull_function(session, system_read);
+	gnutls_transport_set_pull_timeout_function(session, system_recv_timeout);
+}
+#else
+# define set_read_funcs(x)
+#endif

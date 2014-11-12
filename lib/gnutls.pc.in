@@ -16,9 +16,9 @@ includedir=@includedir@
 
 Name: GnuTLS
 Description: Transport Security Layer implementation for the GNU system
-URL: http://www.gnu.org/software/gnutls/
+URL: http://www.gnutls.org/
 Version: @VERSION@
 Libs: -L${libdir} -lgnutls
-Libs.private: @LTLIBNETTLE@
+Libs.private: @LTLIBZ@ @LTLIBINTL@ @LIBSOCKET@ @LTLIBPTHREAD@ @LTLIBICONV@ @P11_KIT_LIBS@ @LIB_SELECT@ @TSS_LIBS@ @GMP_LIBS@
 @GNUTLS_REQUIRES_PRIVATE@
 Cflags: -I${includedir}

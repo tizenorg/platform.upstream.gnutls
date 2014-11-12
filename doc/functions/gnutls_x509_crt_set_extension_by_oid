@@ -11,7 +11,7 @@
 
 @var{sizeof_buf}: holds the size of  @code{buf} 
 
-@var{critical}: should be non (0) if the extension is to be marked as critical
+@var{critical}: should be non-zero if the extension is to be marked as critical
 
 This function will set an the extension, by the specified OID, in
 the certificate.  The extension data should be binary data DER

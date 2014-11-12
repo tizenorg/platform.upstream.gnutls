@@ -17,12 +17,12 @@ happens inside the black box.
 
 @node The TLS Protocol
 @section The TLS Protocol
-The main use case for the TLS protocol is shown in @ref{fig:client-server}.
+The main use case for the TLS protocol is shown in @ref{fig-client-server}.
 A user of a library implementing the protocol expects no less than this functionality,
 i.e., to be able to set parameters such as the accepted security level, perform a
 negotiation with the peer and be able to exchange data.
 
-@float Figure,fig:client-server
+@float Figure,fig-client-server
 @image{gnutls-client-server-use-case,9cm}
 @caption{TLS protocol use case.}
 @end float
@@ -31,9 +31,9 @@ negotiation with the peer and be able to exchange data.
 @section TLS Handshake Protocol
 The @acronym{GnuTLS} handshake protocol is implemented as a state
 machine that waits for input or returns immediately when the non-blocking
-transport layer functions are used. The main idea is shown in @ref{fig:gnutls-handshake}.
+transport layer functions are used. The main idea is shown in @ref{fig-gnutls-handshake}.
 
-@float Figure,fig:gnutls-handshake
+@float Figure,fig-gnutls-handshake
 @image{gnutls-handshake-state,9cm}
 @caption{GnuTLS handshake state machine.}
 @end float
@@ -43,9 +43,9 @@ implementations of the internal handlers are available and
 @funcref{gnutls_handshake} only multiplexes the input to the appropriate 
 handler. For example a @acronym{PSK} ciphersuite has a different 
 implementation of the @code{process_client_key_exchange} than a
-certificate ciphersuite. We illustrate the idea in @ref{fig:gnutls-handshake-sequence}.
+certificate ciphersuite. We illustrate the idea in @ref{fig-gnutls-handshake-sequence}.
 
-@float Figure,fig:gnutls-handshake-sequence
+@float Figure,fig-gnutls-handshake-sequence
 @image{gnutls-handshake-sequence,12cm}
 @caption{GnuTLS handshake process sequence.}
 @end float
@@ -151,7 +151,7 @@ fi
 AM_CONDITIONAL(ENABLE_FOOBAR, test "$ac_enable_foobar" != "no")
 @end example
 
-These lines should go in @code{lib/m4/hooks.m4}.
+These lines should go in @code{m4/hooks.m4}.
 
 @subsubheading Add IANA extension value to @code{extensions_t} in @code{gnutls_int.h}.
 
@@ -310,7 +310,7 @@ It might be desirable to allow users of the extension to
 request use of the extension, or set extension specific data.  
 This can be implemented by adding extension specific function calls
 that can be added to @code{includes/@-gnutls/@-gnutls.h},
-as long as the LGPLv3+ applies.
+as long as the LGPLv2.1+ applies.
 The implementation of the function should lie in the @code{ext/@-foobar.c} file.
 
 To make the API available in the shared library you need to add the
@@ -421,6 +421,33 @@ typedef enum
 @} gnutls_supplemental_data_format_type_t;
 @end example
 
+@subsubheading Heartbeat extension.
+
+One such extension is HeartBeat protocol (RFC6520:
+@url{https://tools.ietf.org/html/rfc6520}) implementation. To enable
+it use option --heartbeat with example client and server supplied with
+gnutls:
+
+@example
+./doc/credentials/gnutls-http-serv --priority "NORMAL:-CIPHER-ALL:+NULL" -d 100 \
+    --heartbeat --echo
+./src/gnutls-cli --priority "NORMAL:-CIPHER-ALL:+NULL" -d 100 localhost -p 5556 \
+    --insecure --heartbeat
+@end example
+
+After that pasting
+@example
+**HEARTBEAT**
+@end example
+command into gnutls-cli will trigger corresponding command on the server and it will send HeartBeat Request with random length to client.
+
+Another way is to run capabilities check with:
+
+@example
+./doc/credentials/gnutls-http-serv -d 100 --heartbeat
+./src/gnutls-cli-debug localhost -p 5556
+@end example
+
 @node Cryptographic Backend
 @section Cryptographic Backend
 Today most new processors, either for embedded or desktop systems
@@ -430,9 +457,9 @@ those is a challenging task for every cryptographic  application or
 library. Unfortunately the cryptographic library that GnuTLS is based 
 on takes no advantage of these capabilities. For this reason GnuTLS handles 
 this internally by following a layered approach to accessing
-cryptographic operations as in @ref{fig:crypto-layers}.
+cryptographic operations as in @ref{fig-crypto-layers}.
 
-@float Figure,fig:crypto-layers
+@float Figure,fig-crypto-layers
 @image{gnutls-crypto-layers,12cm}
 @caption{GnuTLS cryptographic back-end design.}
 @end float
@@ -517,7 +544,7 @@ To override the big number number operations back-end.
 
 @item @code{gnutls_crypto_pk_register}:
 To override the public key encryption back-end. This is tied to the
-big number operations so either none or both of them should be overriden.
+big number operations so either none or both of them should be overridden.
 
 @end itemize
 

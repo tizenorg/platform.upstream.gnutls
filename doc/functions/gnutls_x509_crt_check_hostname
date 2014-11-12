@@ -12,5 +12,11 @@ the given hostname.  This is a basic implementation of the matching
 described in RFC2818 (HTTPS), which takes into account wildcards,
 and the DNSName/IPAddress subject alternative name PKIX extension.
 
-@strong{Returns:} non (0) for a successful match, and (0) on failure.
+The comparison may have false-negatives as it is done byte by byte in 
+non-ascii names.
+
+Wildcards are only considered if the domain name consists of three
+components or more, and the wildcard starts at the leftmost position.
+
+@strong{Returns:} non-zero for a successful match, and zero on failure.
 @end deftypefun

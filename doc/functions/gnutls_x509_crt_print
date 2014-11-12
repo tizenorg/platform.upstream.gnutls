@@ -17,7 +17,7 @@ certificate will be output, on multiple lines.  The
 @code{GNUTLS_CRT_PRINT_ONELINE}  format will generate one line with some
 selected fields, which is useful for logging purposes.
 
-The output  @code{out} needs to be deallocate using @code{gnutls_free()} .
+The output  @code{out} needs to be deallocated using @code{gnutls_free()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.

@@ -11,5 +11,5 @@ This function will check if the given key's owner matches the
 given hostname. This is a basic implementation of the matching
 described in RFC2818 (HTTPS), which takes into account wildcards.
 
-@strong{Returns:} @code{GNUTLS_E_SUCCESS}  on success, or an error code.
+@strong{Returns:} non-zero for a successful match, and zero on failure.
 @end deftypefun

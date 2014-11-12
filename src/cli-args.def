@@ -17,7 +17,45 @@ flag = {
     descrip   = "Enable trust on first use authentication";
     disabled;
     disable   = "no";
-    doc       = "This option will, in addition to certificate authentication, perform authentication based on previously seen public keys, a model similar to SSH authentication.";
+    doc       = "This option will, in addition to certificate authentication, perform authentication
+based on previously seen public keys, a model similar to SSH authentication. Note that when tofu 
+is specified (PKI) and DANE authentication will become advisory to assist the public key acceptance
+process.";
+};
+
+flag = {
+    name      = strict-tofu;
+    descrip   = "Fail to connect if a known certificate has changed";
+    disabled;
+    disable   = "no";
+    doc       = "This option will perform authentication as with option --tofu; however, while --tofu asks whether to trust a changed public key, this option will fail in case of public key changes.";
+};
+
+flag = {
+    name      = dane;
+    descrip   = "Enable DANE certificate verification (DNSSEC)";
+    disabled;
+    disable   = "no";
+    doc       = "This option will, in addition to certificate authentication using 
+the trusted CAs, verify the server certificates using on the DANE information
+available via DNSSEC.";
+};
+
+flag = {
+    name      = local-dns;
+    descrip   = "Use the local DNS server for DNSSEC resolving";
+    disabled;
+    disable   = "no";
+    doc       = "This option will use the local DNS server for DNSSEC.
+This is disabled by default due to many servers not allowing DNSSEC.";
+};
+
+flag = {
+    name      = ca-verification;
+    descrip   = "Disable CA certificate verification";
+    enabled;
+    disable   = "no";
+    doc       = "This option will disable CA certificate verification. It is to be used with the --dane or --tofu options.";
 };
 
 flag = {
@@ -43,15 +81,9 @@ flag = {
 };
 
 flag = {
-    name      = noticket;
-    descrip   = "Don't accept session tickets";
-    doc      = "";
-};
-
-flag = {
     name      = starttls;
     value     = s;
-    descrip   = "Connect, establish a plain session and start TLS.";
+    descrip   = "Connect, establish a plain session and start TLS";
     doc       = "The TLS session will be initiated when EOF or a SIGALRM is received.";
 };
 
@@ -90,23 +122,16 @@ flag = {
 };
 
 flag = {
-    name      = disable-extensions;
-    descrip   = "Disable all the TLS extensions";
-    doc      = "";
-};
-
-flag = {
     name      = print-cert;
     descrip   = "Print peer's certificate in PEM format";
     doc      = "";
 };
 
 flag = {
-    name      = recordsize;
+    name      = dh-bits;
     arg-type  = number;
-    arg-range = "0->4096";
-    descrip   = "The maximum record size to advertize";
-    doc      = "";
+    descrip   = "The minimum number of bits allowed for DH";
+    doc      = "This option sets the minimum number of bits allowed for a Diffie-Hellman key exchange. You may want to lower the default value if the peer sends a weak prime and you get an connection error with unacceptable prime.";
 };
 
 flag = {
@@ -115,10 +140,10 @@ flag = {
     descrip   = "Priorities string";
     doc      = "TLS algorithms and protocols to enable. You can
 use predefined sets of ciphersuites such as PERFORMANCE,
-NORMAL, SECURE128, SECURE256.
+NORMAL, PFS, SECURE128, SECURE256. The default is NORMAL.
 
 Check  the  GnuTLS  manual  on  section  ``Priority strings'' for more
-information on allowed keywords";
+information on the allowed keywords";
 };
 
 flag = {
@@ -209,6 +234,7 @@ flag = {
     doc      = "";
 };
 
+
 flag = {
     name      = port;
     value     = p;
@@ -224,20 +250,26 @@ flag = {
 };
 
 flag = {
+    name      = ranges;
+    descrip   = "Use length-hiding padding to prevent traffic analysis";
+    doc      = "When possible (e.g., when using CBC ciphersuites), use length-hiding padding to prevent traffic analysis.";
+};
+
+flag = {
     name      = benchmark-ciphers;
     descrip   = "Benchmark individual ciphers";
     doc      = "";
 };
 
 flag = {
-    name      = benchmark-soft-ciphers;
-    descrip   = "Benchmark individual software ciphers (no hw acceleration)";
+    name      = benchmark-tls-kx;
+    descrip   = "Benchmark TLS key exchange methods";
     doc      = "";
 };
 
 flag = {
-    name      = benchmark-tls;
-    descrip   = "Benchmark ciphers and key exchange methods in TLS";
+    name      = benchmark-tls-ciphers;
+    descrip   = "Benchmark TLS ciphers";
     doc      = "";
 };
 
@@ -248,7 +280,77 @@ flag = {
     doc      = "Print a list of the supported algorithms and modes. If a priority string is given then only the enabled ciphersuites are shown.";
 };
 
+flag = {
+    name      = noticket;
+    descrip   = "Don't allow session tickets";
+    doc      = "";
+};
 
+flag = {
+    name      = srtp_profiles;
+    arg-type  = string;
+    descrip   = "Offer SRTP profiles";
+    doc       = "";
+};
+
+flag = {
+    name      = alpn;
+    arg-type  = string;
+    descrip   = "Application layer protocol";
+    max       = NOLIMIT;  /* occurrence limit (none)     */
+    stack-arg;            /* save opt args in a stack    */
+    doc      = "This option will set and enable the Application Layer Protocol Negotiation  (ALPN) in the TLS protocol.";
+};
+
+flag = {
+    name      = heartbeat;
+    value     = b;
+    descrip   = "Activate heartbeat support";
+    doc      = "";
+};
+
+flag = {
+    name      = recordsize;
+    arg-type  = number;
+    arg-range = "0->4096";
+    descrip   = "The maximum record size to advertize";
+    doc      = "";
+};
+
+flag = {
+    name      = disable-sni;
+    descrip   = "Do not send a Server Name Indication (SNI)";
+    doc      = "";
+};
+
+flag = {
+    name      = disable-extensions;
+    descrip   = "Disable all the TLS extensions";
+    doc      = "This option disables all TLS extensions. Deprecated option. Use the priority string.";
+};
+
+flag = {
+    name      = inline-commands;
+    descrip   = "Inline commands of the form ^<cmd>^";
+    doc       = "Enable inline commands of the form ^<cmd>^. The inline commands are expected to be in a line by themselves. The available commands are: resume and renegotiate.";
+};
+
+flag = {
+    name      = inline-commands-prefix;
+    arg-type  = string;
+    descrip   = "Change the default (^) used as a delimiter for inline commands.
+\t\t\t\tThe value is a single US-ASCII character (octets 0 - 127).";
+    doc       = "Change the default (^) delimiter used for inline commands. The delimiter is expected to be a single US-ASCII character (octets 0 - 127). This option is only relevant if inline commands are enabled via the inline-commands option";
+};
+
+
+flag = {
+    name      = provider;
+    arg-type  = file;
+    file-exists = yes;
+    descrip   = "Specify the PKCS #11 provider library";
+    doc      = "This will override the default options in /etc/gnutls/pkcs11.conf";
+};
 
 doc-section = {
   ds-type   = 'SEE ALSO'; // or anything else
@@ -300,6 +402,36 @@ Compression: COMP-NULL
 Elliptic curves: CURVE-SECP384R1, CURVE-SECP521R1
 PK-signatures: SIGN-RSA-SHA384, SIGN-ECDSA-SHA384, SIGN-RSA-SHA512, SIGN-ECDSA-SHA512
 @end example
+
+@subheading Connecting using a PKCS #11 token
+To connect to a server using a certificate and a private key present in a PKCS #11 token you 
+need to substitute the PKCS 11 URLs in the x509certfile and x509keyfile parameters.
+
+Those can be found using "p11tool --list-tokens" and then listing all the objects in the
+needed token, and using the appropriate.
+@example
+$ p11tool --list-tokens
+
+Token 0:
+	URL: pkcs11:model=PKCS15;manufacturer=MyMan;serial=1234;token=Test
+	Label: Test
+	Manufacturer: EnterSafe
+	Model: PKCS15
+	Serial: 1234
+
+$ p11tool --login --list-certs "pkcs11:model=PKCS15;manufacturer=MyMan;serial=1234;token=Test"
+
+Object 0:
+	URL: pkcs11:model=PKCS15;manufacturer=MyMan;serial=1234;token=Test;object=client;object-type=cert
+	Type: X.509 Certificate
+	Label: client
+	ID: 2a:97:0d:58:d1:51:3c:23:07:ae:4e:0d:72:26:03:7d:99:06:02:6a
+
+$ export MYCERT="pkcs11:model=PKCS15;manufacturer=MyMan;serial=1234;token=Test;object=client;object-type=cert"
+$ export MYKEY="pkcs11:model=PKCS15;manufacturer=MyMan;serial=1234;token=Test;object=client;object-type=private"
+
+$ gnutls-cli www.example.com --x509keyfile $MYKEY --x509certfile MYCERT
+@end example
+Notice that the private key only differs from the certificate in the object-type.
 _EOF_;
 };
-

@@ -15,11 +15,11 @@
 
 @var{q}: holds the second prime (q)
 
-@var{u}: holds the coefficient
+@var{u}: holds the coefficient (optional)
 
-@var{e1}: holds e1 = d mod (p-1)
+@var{e1}: holds e1 = d mod (p-1) (optional)
 
-@var{e2}: holds e2 = d mod (q-1)
+@var{e2}: holds e2 = d mod (q-1) (optional)
 
 This function will convert the given RSA raw parameters to the
 native @code{gnutls_x509_privkey_t}  format.  The output will be stored in

@@ -5,7 +5,7 @@
 @deftypefun {int} {gnutls_pubkey_verify_hash} (gnutls_pubkey_t @var{key}, unsigned int @var{flags}, const gnutls_datum_t * @var{hash}, const gnutls_datum_t * @var{signature})
 @var{key}: Holds the public key
 
-@var{flags}: should be 0 for now
+@var{flags}: Zero or one of @code{gnutls_pubkey_flags_t} 
 
 @var{hash}: holds the hash digest to be verified
 

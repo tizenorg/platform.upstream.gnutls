@@ -3,7 +3,7 @@
 
 
 @deftypefun {int} {gnutls_pkcs11_init} (unsigned int @var{flags}, const char * @var{deprecated_config_file})
-@var{flags}: @code{GNUTLS_PKCS11_FLAG_MANUAL}  or @code{GNUTLS_PKCS11_FLAG_AUTO} 
+@var{flags}: An ORed sequence of @code{GNUTLS_PKCS11_FLAG_} *
 
 @var{deprecated_config_file}: either NULL or the location of a deprecated
 configuration file
@@ -14,8 +14,9 @@ you to independently load PKCS 11 modules using @code{gnutls_pkcs11_add_provider
 if @code{GNUTLS_PKCS11_FLAG_MANUAL}  is specified.
 
 Normally you don't need to call this function since it is being called
-by @code{gnutls_global_init()}  using the @code{GNUTLS_PKCS11_FLAG_AUTO} . If other option
-is required then it must be called before it.
+when the first PKCS 11 operation is requested using the @code{GNUTLS_PKCS11_FLAG_AUTO} 
+flag. If another flags are required then it must be called independently
+prior to any PKCS 11 operation.
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.

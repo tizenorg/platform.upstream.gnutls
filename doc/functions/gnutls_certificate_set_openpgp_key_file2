@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_certificate_set_openpgp_key_file2} (gnutls_certificate_credentials_t                                           @var{res}, const char * @var{certfile}, const char * @var{keyfile}, const char * @var{subkey_id}, gnutls_openpgp_crt_fmt_t @var{format})
+@deftypefun {int} {gnutls_certificate_set_openpgp_key_file2} (gnutls_certificate_credentials_t       @var{res}, const char * @var{certfile}, const char * @var{keyfile}, const char * @var{subkey_id}, gnutls_openpgp_crt_fmt_t @var{format})
 @var{res}: the destination context to save the data.
 
 @var{certfile}: the file that contains the public key.

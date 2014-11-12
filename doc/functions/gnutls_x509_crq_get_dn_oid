@@ -5,7 +5,7 @@
 @deftypefun {int} {gnutls_x509_crq_get_dn_oid} (gnutls_x509_crq_t @var{crq}, int @var{indx}, void * @var{oid}, size_t * @var{sizeof_oid})
 @var{crq}: should contain a gnutls_x509_crq_t structure
 
-@var{indx}: Specifies which DN OID to send. Use (0) to get the first one.
+@var{indx}: Specifies which DN OID to get. Use (0) to get the first one.
 
 @var{oid}: a pointer to a structure to hold the name (may be @code{NULL} )
 

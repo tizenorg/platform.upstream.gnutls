@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -20,6 +20,16 @@
  *
  */
 
-const char *_gnutls_packet2str (content_type_t packet);
-const char *_gnutls_handshake2str (gnutls_handshake_description_t handshake);
-void _gnutls_dump_mpi (const char *prefix, bigint_t a);
+const char *_gnutls_packet2str(content_type_t packet);
+inline static const char *_gnutls_handshake2str(unsigned x)
+{
+	const char *s = gnutls_handshake_description_get_name(x);
+	if (s == NULL)
+		return "Unknown Handshake packet";
+	else
+		return s;
+}
+
+void _gnutls_dump_mpi(const char *prefix, bigint_t a);
+void _gnutls_dump_vector(const char *prefix, const uint8_t * a,
+			 size_t a_size);

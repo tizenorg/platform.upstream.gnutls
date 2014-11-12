@@ -7,7 +7,7 @@
 
 @var{algo}: The signature algorithm used
 
-@var{flags}: should be 0 for now
+@var{flags}: Zero or one of @code{gnutls_pubkey_flags_t} 
 
 @var{data}: holds the signed data
 

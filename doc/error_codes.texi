@@ -108,10 +108,12 @@
 @item -214 @tab GNUTLS_@-E_@-BAD_@-COOKIE @tab The cookie was bad.
 @item -215 @tab GNUTLS_@-E_@-OPENPGP_@-PREFERRED_@-KEY_@-ERROR @tab The OpenPGP key has not a preferred key set.
 @item -216 @tab GNUTLS_@-E_@-INCOMPAT_@-DSA_@-KEY_@-WITH_@-TLS_@-PROTOCOL @tab The given DSA key is incompatible with the selected TLS protocol.
+@item -292 @tab GNUTLS_@-E_@-HEARTBEAT_@-PONG_@-RECEIVED @tab A heartbeat pong message was received.
+@item -293 @tab GNUTLS_@-E_@-HEARTBEAT_@-PING_@-RECEIVED @tab A heartbeat ping message was received.
 @item -300 @tab GNUTLS_@-E_@-PKCS11_@-ERROR @tab PKCS #11 error.
 @item -301 @tab GNUTLS_@-E_@-PKCS11_@-LOAD_@-ERROR @tab PKCS #11 initialization error.
 @item -302 @tab GNUTLS_@-E_@-PARSING_@-ERROR @tab Error in parsing.
-@item -303 @tab GNUTLS_@-E_@-PKCS11_@-PIN_@-ERROR @tab PKCS #11 error in PIN.
+@item -303 @tab GNUTLS_@-E_@-PKCS11_@-PIN_@-ERROR @tab Error in provided PIN.
 @item -305 @tab GNUTLS_@-E_@-PKCS11_@-SLOT_@-ERROR @tab PKCS #11 error in slot
 @item -306 @tab GNUTLS_@-E_@-LOCKING_@-ERROR @tab Thread locking error
 @item -307 @tab GNUTLS_@-E_@-PKCS11_@-ATTRIBUTE_@-ERROR @tab PKCS #11 error in attribute
@@ -136,5 +138,20 @@
 @item -326 @tab GNUTLS_@-E_@-NO_@-PRIORITIES_@-WERE_@-SET @tab No or insufficient priorities were set.
 @item -327 @tab GNUTLS_@-E_@-X509_@-UNSUPPORTED_@-EXTENSION @tab Unsupported extension in X.509 certificate.
 @item -328 @tab GNUTLS_@-E_@-SESSION_@-EOF @tab Peer has terminated the connection
+@item -329 @tab GNUTLS_@-E_@-TPM_@-ERROR @tab TPM error.
+@item -330 @tab GNUTLS_@-E_@-TPM_@-KEY_@-PASSWORD_@-ERROR @tab Error in provided password for key to be loaded in TPM.
+@item -331 @tab GNUTLS_@-E_@-TPM_@-SRK_@-PASSWORD_@-ERROR @tab Error in provided SRK password for TPM.
+@item -332 @tab GNUTLS_@-E_@-TPM_@-SESSION_@-ERROR @tab Cannot initialize a session with the TPM.
+@item -333 @tab GNUTLS_@-E_@-TPM_@-KEY_@-NOT_@-FOUND @tab TPM key was not found in persistent storage.
+@item -334 @tab GNUTLS_@-E_@-TPM_@-UNINITIALIZED @tab TPM is not initialized.
+@item -340 @tab GNUTLS_@-E_@-NO_@-CERTIFICATE_@-STATUS @tab There is no certificate status (OCSP).
 @item -341 @tab GNUTLS_@-E_@-OCSP_@-RESPONSE_@-ERROR @tab The OCSP response is invalid
+@item -342 @tab GNUTLS_@-E_@-RANDOM_@-DEVICE_@-ERROR @tab Error in the system's randomness device.
+@item -343 @tab GNUTLS_@-E_@-AUTH_@-ERROR @tab Could not authenticate peer.
+@item -344 @tab GNUTLS_@-E_@-NO_@-APPLICATION_@-PROTOCOL @tab No common application protocol could be negotiated.
+@item -345 @tab GNUTLS_@-E_@-SOCKETS_@-INIT_@-ERROR @tab Error in sockets initialization.
+@item -400 @tab GNUTLS_@-E_@-SELF_@-TEST_@-ERROR @tab Error while performing self checks.
+@item -401 @tab GNUTLS_@-E_@-NO_@-SELF_@-TEST @tab There is no self test for this algorithm.
+@item -402 @tab GNUTLS_@-E_@-LIB_@-IN_@-ERROR_@-STATE @tab An error has been detected in the library and cannot continue operations.
+@item -403 @tab GNUTLS_@-E_@-PK_@-GENERATION_@-ERROR @tab Error in public key generation.
 @end multitable

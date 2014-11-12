@@ -35,8 +35,7 @@ AM_CPPFLAGS = \
 AM_LDFLAGS = -no-install
 LDADD = ../../lib/libgnutls.la \
 	../../gl/libgnu.la \
-	$(LIBSOCKET) $(INET_NTOP_LIB) $(INET_PTON_LIB) \
-	$(LIB_TIMER_TIME)
+	$(LIBSOCKET) $(INET_NTOP_LIB) $(INET_PTON_LIB) $(LIBRT)
 
 if !WINDOWS
 
@@ -45,4 +44,7 @@ TESTS = dtls
 
 endif
 
-TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT)
+TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT) \
+	LC_ALL="C"						\
+	top_builddir="$(top_builddir)"				\
+	srcdir="$(srcdir)"

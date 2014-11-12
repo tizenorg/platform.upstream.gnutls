@@ -15,7 +15,7 @@ Anon-DH key-exchange algorithm.
 @item GNUTLS_@-KX_@-SRP
 SRP key-exchange algorithm.
 @item GNUTLS_@-KX_@-RSA_@-EXPORT
-RSA-EXPORT key-exchange algorithm.
+RSA-EXPORT key-exchange algorithm (defunc).
 @item GNUTLS_@-KX_@-SRP_@-RSA
 SRP-RSA key-exchange algorithm.
 @item GNUTLS_@-KX_@-SRP_@-DSS
@@ -32,4 +32,6 @@ ECDHE-RSA key-exchange algorithm.
 ECDHE-ECDSA key-exchange algorithm.
 @item GNUTLS_@-KX_@-ECDHE_@-PSK
 ECDHE-PSK key-exchange algorithm.
+@item GNUTLS_@-KX_@-RSA_@-PSK
+RSA-PSK key-exchange algorithm.
 @end table

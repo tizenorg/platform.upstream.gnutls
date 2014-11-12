@@ -17,5 +17,14 @@ entity, the flags @code{GNUTLS_DATAGRAM}  and  @code{GNUTLS_NONBLOCK}  are
 also available. The latter flag will enable a non-blocking
 operation of the DTLS timers. 
 
+The flag @code{GNUTLS_NO_REPLAY_PROTECTION}  will disable any 
+replay protection in DTLS mode. That must only used when 
+replay protection is achieved using other means.
+
+Note that since version 3.1.2 this function enables some common
+TLS extensions such as session tickets and OCSP certificate status
+request in client side by default. To prevent that use the @code{GNUTLS_NO_EXTENSIONS} 
+flag.
+
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  on success, or an error code.
 @end deftypefun

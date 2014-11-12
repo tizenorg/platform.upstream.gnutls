@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_x509_crt_get_authority_key_gn_serial} (gnutls_x509_crt_t @var{cert}, unsigned int @var{seq}, void * @var{alt}, size_t * @var{alt_size}, unsigned int * @var{alt_type}, void* @var{serial}, size_t * @var{serial_size}, unsigned int * @var{critical})
+@deftypefun {int} {gnutls_x509_crt_get_authority_key_gn_serial} (gnutls_x509_crt_t @var{cert}, unsigned int @var{seq}, void * @var{alt}, size_t * @var{alt_size}, unsigned int * @var{alt_type}, void * @var{serial}, size_t * @var{serial_size}, unsigned int * @var{critical})
 @var{cert}: should contain a @code{gnutls_x509_crt_t}  structure
 
 @var{seq}: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
@@ -17,7 +17,7 @@
 
 @var{serial_size}: Holds the size of the serial field (may be null)
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function will return the X.509 authority key
 identifier when stored as a general name (authorityCertIssuer) 

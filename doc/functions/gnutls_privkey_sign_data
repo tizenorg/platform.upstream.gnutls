@@ -7,7 +7,7 @@
 
 @var{hash}: should be a digest algorithm
 
-@var{flags}: should be 0 for now
+@var{flags}: Zero or one of @code{gnutls_privkey_flags_t} 
 
 @var{data}: holds the data to be signed
 
@@ -18,7 +18,7 @@ supported by the private key. Signature algorithms are always used
 together with a hash functions.  Different hash functions may be
 used for the RSA algorithm, but only the SHA family for the DSA keys.
 
-Use @code{gnutls_pubkey_get_preferred_hash_algorithm()}  to determine
+You may use @code{gnutls_pubkey_get_preferred_hash_algorithm()}  to determine
 the hash algorithm.
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a

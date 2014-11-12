@@ -9,7 +9,7 @@
 
 @var{indx}: In case multiple same OIDs exist in the RDN, this specifies which to send. Use (0) to get the first one.
 
-@var{raw_flag}: If non (0) returns the raw DER data of the DN part.
+@var{raw_flag}: If non-zero returns the raw DER data of the DN part.
 
 @var{buf}: a pointer to a structure to hold the peer's name (may be null)
 

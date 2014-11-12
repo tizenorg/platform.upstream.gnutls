@@ -17,7 +17,7 @@ holds actual size of  @code{oid} .
 This function will return the requested extension OID in the
 certificate, and the critical flag for it.  The extension OID will
 be stored as a string in the provided buffer.  Use
-@code{gnutls_x509_crt_get_extension_data()}  to extract the data.
+@code{gnutls_x509_crt_get_extension()}  to extract the data.
 
 If the buffer provided is not long enough to hold the output, then
  @code{oid_size} is updated and @code{GNUTLS_E_SHORT_MEMORY_BUFFER}  will be

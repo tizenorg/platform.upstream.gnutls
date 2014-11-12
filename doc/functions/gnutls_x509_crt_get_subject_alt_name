@@ -11,7 +11,7 @@
 
 @var{san_size}: holds the size of san.
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function retrieves the Alternative Name (2.5.29.17), contained
 in the given certificate in the X509v3 Certificate Extensions.

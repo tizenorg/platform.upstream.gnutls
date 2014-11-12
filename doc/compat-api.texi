@@ -1,7 +1,69 @@
 
+@subheading gnutls_certificate_client_set_retrieve_function
+@anchor{gnutls_certificate_client_set_retrieve_function}
+@deftypefun {void} {gnutls_certificate_client_set_retrieve_function} (gnutls_certificate_credentials_t @var{cred}, gnutls_certificate_client_retrieve_function * @var{func})
+@var{cred}: is a @code{gnutls_certificate_credentials_t}  structure.
+
+@var{func}: is the callback function
+
+This function sets a callback to be called in order to retrieve the
+certificate to be used in the handshake.
+You are advised to use @code{gnutls_certificate_set_retrieve_function2()}  because it
+is much more efficient in the processing it requires from gnutls.
+
+The callback's function prototype is:
+int (*callback)(gnutls_session_t, const gnutls_datum_t* req_ca_dn, int nreqs,
+const gnutls_pk_algorithm_t* pk_algos, int pk_algos_length, gnutls_retr_st* st);
+
+ @code{req_ca_cert} is only used in X.509 certificates.
+Contains a list with the CA names that the server considers trusted.
+Normally we should send a certificate that is signed
+by one of these CAs. These names are DER encoded. To get a more
+meaningful value use the function @code{gnutls_x509_rdn_get()} .
+
+ @code{pk_algos} contains a list with server's acceptable signature algorithms.
+The certificate returned should support the server's given algorithms.
+
+ @code{st} should contain the certificates and private keys.
+
+If the callback function is provided then gnutls will call it, in the
+handshake, if a certificate is requested by the server (and after the 
+certificate request message has been received).
+
+The callback function should set the certificate list to be sent,
+and return 0 on success. If no certificate was selected then the
+number of certificates should be set to zero. The value (-1)
+indicates error and the handshake will be terminated.
+@end deftypefun
+
+@subheading gnutls_certificate_server_set_retrieve_function
+@anchor{gnutls_certificate_server_set_retrieve_function}
+@deftypefun {void} {gnutls_certificate_server_set_retrieve_function} (gnutls_certificate_credentials_t @var{cred}, gnutls_certificate_server_retrieve_function * @var{func})
+@var{cred}: is a @code{gnutls_certificate_credentials_t}  structure.
+
+@var{func}: is the callback function
+
+This function sets a callback to be called in order to retrieve the
+certificate to be used in the handshake.
+You are advised to use @code{gnutls_certificate_set_retrieve_function2()}  because it
+is much more efficient in the processing it requires from gnutls.
+
+The callback's function prototype is:
+int (*callback)(gnutls_session_t, gnutls_retr_st* st);
+
+ @code{st} should contain the certificates and private keys.
+
+If the callback function is provided then gnutls will call it, in the
+handshake, after the certificate request message has been received.
+
+The callback function should set the certificate list to be sent, and
+return 0 on success.  The value (-1) indicates error and the handshake
+will be terminated.
+@end deftypefun
+
 @subheading gnutls_certificate_set_rsa_export_params
 @anchor{gnutls_certificate_set_rsa_export_params}
-@deftypefun {void} {gnutls_certificate_set_rsa_export_params} (gnutls_certificate_credentials_t                                           @var{res}, gnutls_rsa_params_t @var{rsa_params})
+@deftypefun {void} {gnutls_certificate_set_rsa_export_params} (gnutls_certificate_credentials_t       @var{res}, gnutls_rsa_params_t @var{rsa_params})
 @var{res}: is a gnutls_certificate_credentials_t structure
 
 @var{rsa_params}: is a structure that holds temporary RSA parameters.
@@ -65,6 +127,33 @@ extensions.
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  on success, or an error code.
 @end deftypefun
 
+@subheading gnutls_global_set_mem_functions
+@anchor{gnutls_global_set_mem_functions}
+@deftypefun {void} {gnutls_global_set_mem_functions} (gnutls_alloc_function @var{alloc_func}, gnutls_alloc_function @var{secure_alloc_func}, gnutls_is_secure_function @var{is_secure_func}, gnutls_realloc_function @var{realloc_func}, gnutls_free_function @var{free_func})
+@var{alloc_func}: it's the default memory allocation function. Like @code{malloc()} .
+
+@var{secure_alloc_func}: This is the memory allocation function that will be used for sensitive data.
+
+@var{is_secure_func}: a function that returns 0 if the memory given is not secure. May be NULL.
+
+@var{realloc_func}: A realloc function
+
+@var{free_func}: The function that frees allocated data. Must accept a NULL pointer.
+
+
+@strong{Deprecated:} since 3.3.0 it is no longer possible to replace the internally used 
+memory allocation functions
+
+This is the function where you set the memory allocation functions
+gnutls is going to use. By default the libc's allocation functions
+(@code{malloc()} , @code{free()} ), are used by gnutls, to allocate both sensitive
+and not sensitive data.  This function is provided to set the
+memory allocation functions to something other than the defaults
+
+This function must be called before @code{gnutls_global_init()}  is called.
+This function is not thread safe.
+@end deftypefun
+
 @subheading gnutls_kx_set_priority
 @anchor{gnutls_kx_set_priority}
 @deftypefun {int} {gnutls_kx_set_priority} (gnutls_session_t @var{session}, const int * @var{list})
@@ -116,6 +205,32 @@ calling this function to set the subkey to use.
 negative error value.
 
 @strong{Deprecated:} Use @code{gnutls_privkey_sign_hash()}  instead.
+@end deftypefun
+
+@subheading gnutls_privkey_sign_raw_data
+@anchor{gnutls_privkey_sign_raw_data}
+@deftypefun {int} {gnutls_privkey_sign_raw_data} (gnutls_privkey_t @var{key}, unsigned @var{flags}, const gnutls_datum_t * @var{data}, gnutls_datum_t * @var{signature})
+@var{key}: Holds the key
+
+@var{flags}: should be zero
+
+@var{data}: holds the data to be signed
+
+@var{signature}: will contain the signature allocate with @code{gnutls_malloc()} 
+
+This function will sign the given data using a signature algorithm
+supported by the private key. Note that this is a low-level function
+and does not apply any preprocessing or hash on the signed data. 
+For example on an RSA key the input  @code{data} should be of the DigestInfo
+PKCS @code{1}  1.5 format. Use it only if you know what are you doing.
+
+Note this function is equivalent to using the @code{GNUTLS_PRIVKEY_SIGN_FLAG_TLS1_RSA} 
+flag with @code{gnutls_privkey_sign_hash()} .
+
+@strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
+negative error value.
+
+@strong{Since:} 3.1.10
 @end deftypefun
 
 @subheading gnutls_protocol_set_priority
@@ -188,12 +303,12 @@ This function will deinitialize the RSA parameters structure.
 
 @var{format}: the format of output params. One of PEM or DER.
 
-@var{params_data}: will contain a PKCS1 RSAPublicKey structure PEM or DER encoded
+@var{params_data}: will contain a PKCS1 RSAPrivateKey structure PEM or DER encoded
 
 @var{params_data_size}: holds the size of params_data (and will be replaced by the actual size of parameters)
 
 This function will export the given RSA parameters to a PKCS1
-RSAPublicKey structure. If the buffer provided is not long enough to
+RSAPrivateKey structure. If the buffer provided is not long enough to
 hold the output, then GNUTLS_E_SHORT_MEMORY_BUFFER will be returned.
 
 If the structure is PEM encoded, it will have a header
@@ -252,11 +367,11 @@ no use calling this in client side.
 @deftypefun {int} {gnutls_rsa_params_import_pkcs1} (gnutls_rsa_params_t @var{params}, const gnutls_datum_t * @var{pkcs1_params}, gnutls_x509_crt_fmt_t @var{format})
 @var{params}: A structure where the parameters will be copied to
 
-@var{pkcs1_params}: should contain a PKCS1 RSAPublicKey structure PEM or DER encoded
+@var{pkcs1_params}: should contain a PKCS1 RSAPrivateKey structure PEM or DER encoded
 
 @var{format}: the format of params. PEM or DER.
 
-This function will extract the RSAPublicKey found in a PKCS1 formatted
+This function will extract the RSAPrivateKey found in a PKCS1 formatted
 structure.
 
 If the structure is PEM encoded, it should have a header
@@ -396,12 +511,12 @@ negative error value.
 
 @subheading gnutls_x509_crt_get_preferred_hash_algorithm
 @anchor{gnutls_x509_crt_get_preferred_hash_algorithm}
-@deftypefun {int} {gnutls_x509_crt_get_preferred_hash_algorithm} (gnutls_x509_crt_t @var{crt}, gnutls_digest_algorithm_t *                                               @var{hash}, unsigned int * @var{mand})
+@deftypefun {int} {gnutls_x509_crt_get_preferred_hash_algorithm} (gnutls_x509_crt_t @var{crt}, gnutls_digest_algorithm_t *           @var{hash}, unsigned int * @var{mand})
 @var{crt}: Holds the certificate
 
 @var{hash}: The result of the call with the hash algorithm used for signature
 
-@var{mand}: If non (0) it means that the algorithm MUST use this hash. May be NULL.
+@var{mand}: If non-zero it means that the algorithm MUST use this hash. May be NULL.
 
 This function will read the certifcate and return the appropriate digest
 algorithm to use for signing with this certificate. Some certificates (i.e.
@@ -449,7 +564,8 @@ returned on error.
 This function will verify the given signed data, using the
 parameters from the certificate.
 
-Deprecated. Please use @code{gnutls_pubkey_verify_data()} .
+Deprecated. This function cannot be easily used securely. 
+Use @code{gnutls_pubkey_verify_data2()}  instead.
 
 @strong{Returns:} In case of a verification failure @code{GNUTLS_E_PK_SIG_VERIFY_FAILED}  
 is returned, and zero or positive code on success.
@@ -469,7 +585,8 @@ is returned, and zero or positive code on success.
 This function will verify the given signed digest, using the
 parameters from the certificate.
 
-Deprecated. Please use @code{gnutls_pubkey_verify_data2()}  or @code{gnutls_pubkey_verify_hash2()} .
+Deprecated. This function cannot be easily used securely. 
+Use @code{gnutls_pubkey_verify_hash2()}  instead.
 
 @strong{Returns:} In case of a verification failure @code{GNUTLS_E_PK_SIG_VERIFY_FAILED}  
 is returned, and zero or positive code on success.

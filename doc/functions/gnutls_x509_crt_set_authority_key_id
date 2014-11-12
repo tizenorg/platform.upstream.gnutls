@@ -7,7 +7,7 @@
 
 @var{id}: The key ID
 
-@var{id_size}: Holds the size of the serial field.
+@var{id_size}: Holds the size of the key ID field.
 
 This function will set the X.509 certificate's authority key ID extension.
 Only the keyIdentifier field can be set with this function.

@@ -7,12 +7,12 @@
 
 @var{format}: the format of output params. One of PEM or DER.
 
-@var{params_data}: will contain a PKCS1 RSAPublicKey structure PEM or DER encoded
+@var{params_data}: will contain a PKCS1 RSAPrivateKey structure PEM or DER encoded
 
 @var{params_data_size}: holds the size of params_data (and will be replaced by the actual size of parameters)
 
 This function will export the given RSA parameters to a PKCS1
-RSAPublicKey structure. If the buffer provided is not long enough to
+RSAPrivateKey structure. If the buffer provided is not long enough to
 hold the output, then GNUTLS_E_SHORT_MEMORY_BUFFER will be returned.
 
 If the structure is PEM encoded, it will have a header

@@ -31,6 +31,11 @@ Tim Dierks and Christopher Allen, "The TLS Protocol Version 1.0",
 January 1999, Available from
 @url{http://www.ietf.org/rfc/rfc2246.txt}.
 
+@item @anchor{RFC4418}[RFC4418]
+Ted Krovetz, "UMAC: Message Authentication Code using Universal Hashing",
+March 2006, Available from
+@url{http://www.ietf.org/rfc/rfc4418.txt}.
+
 @item @anchor{RFC4680}[RFC4680]
 S. Santesson, "TLS Handshake Message for Supplemental Data",
 September 2006, Available from
@@ -102,10 +107,22 @@ Thompson, "Internet X.509 Public Key Infrastructure (PKI) Proxy
 Certificate Profile", June 2004, available from
 @url{http://www.ietf.org/rfc/rfc3820}.
 
+@item @anchor{RFC6520}[RFC6520]
+R. Seggelmann, M. Tuexen, and M. Williams, "Transport Layer Security (TLS) and
+Datagram Transport Layer Security (DTLS) Heartbeat Extension", February 2012, available from
+@url{http://www.ietf.org/rfc/rfc6520}.
+
+
 @item @anchor{RFC5746}[RFC5746]
 E. Rescorla, M. Ray, S. Dispensa, and N. Oskov, "Transport Layer
 Security (TLS) Renegotiation Indication Extension", February 2010,
 available from @url{http://www.ietf.org/rfc/rfc5746}.
+
+@item @anchor{RFC5280}[RFC5280]
+D. Cooper, S. Santesson, S. Farrell, S. Boeyen, R. Housley, and
+W. Polk, "Internet X.509 Public Key Infrastructure Certificate and
+Certificate Revocation List (CRL) Profile", May 2008, available from
+@url{http://www.ietf.org/rfc/rfc5280}.
 
 @item @anchor{TLSTKT}[TLSTKT]
 Joseph Salowey, Hao Zhou, Pasi Eronen, Hannes Tschofenig, "Transport
@@ -179,8 +196,12 @@ J. Altman, N. Williams, L. Zhu, "Channel Bindings for TLS", July 2010,
 available from @url{http://www.ietf.org/rfc/rfc5929}.
 
 @item @anchor{PKCS11URI}[PKCS11URI]
-J. Pechanec, D. Moffat, "The PKCS#11 URI Scheme", August 2011,
-Work in progress, available from @url{http://tools.ietf.org/html/draft-pechanec-pkcs11uri-05}.
+J. Pechanec, D. Moffat, "The PKCS#11 URI Scheme", January 2013,
+Work in progress, available from @url{http://tools.ietf.org/html/draft-pechanec-pkcs11uri-08}.
+
+@item @anchor{TPMURI}[TPMURI]
+C. Latze, N. Mavrogiannopoulos, "The TPMKEY URI Scheme", January 2013,
+Work in progress, available from @url{http://tools.ietf.org/html/draft-mavrogiannopoulos-tpmuri-01}.
 
 @item @anchor{ANDERSON}[ANDERSON]
 R. J. Anderson, "Security Engineering: A Guide to Building Dependable Distributed Systems", 

@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_openpgp_privkey_set_preferred_key_id} (gnutls_openpgp_privkey_t @var{key}, const gnutls_openpgp_keyid_t                                              @var{keyid})
+@deftypefun {int} {gnutls_openpgp_privkey_set_preferred_key_id} (gnutls_openpgp_privkey_t @var{key}, const gnutls_openpgp_keyid_t          @var{keyid})
 @var{key}: the structure that contains the OpenPGP public key.
 
 @var{keyid}: the selected keyid

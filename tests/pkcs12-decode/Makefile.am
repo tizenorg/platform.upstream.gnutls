@@ -19,10 +19,16 @@
 # along with this file; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-EXTRA_DIST = client.p12 noclient.p12 unclient.p12 pkcs12_2certs.p12
+EXTRA_DIST = client.p12 noclient.p12 unclient.p12 pkcs12_2certs.p12 \
+	pkcs12_5certs.p12 test-null.p12 cert-ca.p12
 
 dist_check_SCRIPTS = pkcs12
 
+if !ENABLE_FIPS140
 TESTS = pkcs12
+endif
 
-TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT)
+TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT) \
+	LC_ALL="C"						\
+	top_builddir="$(top_builddir)"				\
+	srcdir="$(srcdir)"

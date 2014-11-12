@@ -4,9 +4,7 @@
 
 @deftypefun {const gnutls_certificate_type_t *} {gnutls_certificate_type_list} ( @var{void})
 
-Get a list of certificate types.  Note that to be able to use
-OpenPGP certificates, you must link to libgnutls-extra and call
-@code{gnutls_global_init_extra()} .
+Get a list of certificate types.
 
 @strong{Returns:} a (0)-terminated list of @code{gnutls_certificate_type_t} 
 integers indicating the available certificate types.

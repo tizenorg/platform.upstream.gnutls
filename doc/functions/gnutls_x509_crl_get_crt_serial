@@ -16,6 +16,9 @@
 This function will retrieve the serial number of the specified, by
 the index, revoked certificate.
 
+Note that this function will have performance issues in large sequences
+of revoked certificates. In that case use @code{gnutls_x509_crl_iter_crt_serial()} .
+
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value. and a negative error code on error.
 @end deftypefun

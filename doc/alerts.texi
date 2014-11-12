@@ -85,4 +85,7 @@
 @item GNUTLS_@-A_@-UNKNOWN_@-PSK_@-IDENTITY
 @tab 115
 @tab The SRP/PSK username is missing or not known
+@item GNUTLS_@-A_@-NO_@-APPLICATION_@-PROTOCOL
+@tab 120
+@tab No supported application protocol could be negotiated
 @end multitable

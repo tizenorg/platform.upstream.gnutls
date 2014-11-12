@@ -9,7 +9,7 @@
 
 @var{issuer}: Will hold the issuer if any. Should be treated as constant.
 
-@var{flags}: Use (0).
+@var{flags}: Use zero.
 
 This function will attempt to find the issuer of the
 given certificate.

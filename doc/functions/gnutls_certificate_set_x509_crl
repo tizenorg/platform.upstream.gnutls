@@ -15,7 +15,7 @@ be called if the certificates are not verified using
 @code{gnutls_certificate_verify_peers2()} .  This function may be called
 multiple times.
 
-@strong{Returns:} @code{GNUTLS_E_SUCCESS}  (0) on success, or a negative error code.
+@strong{Returns:} number of CRLs processed, or a negative error code on error.
 
 @strong{Since:} 2.4.0
 @end deftypefun

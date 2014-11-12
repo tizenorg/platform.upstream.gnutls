@@ -1,7 +1,7 @@
 
 @subheading gnutls_dtls_cookie_send
 @anchor{gnutls_dtls_cookie_send}
-@deftypefun {int} {gnutls_dtls_cookie_send} (gnutls_datum_t* @var{key}, void* @var{client_data}, size_t @var{client_data_size}, gnutls_dtls_prestate_st* @var{prestate}, gnutls_transport_ptr_t @var{ptr}, gnutls_push_func @var{push_func})
+@deftypefun {int} {gnutls_dtls_cookie_send} (gnutls_datum_t * @var{key}, void * @var{client_data}, size_t @var{client_data_size}, gnutls_dtls_prestate_st * @var{prestate}, gnutls_transport_ptr_t @var{ptr}, gnutls_push_func @var{push_func})
 @var{key}: is a random key to be used at cookie generation
 
 @var{client_data}: contains data identifying the client (i.e. address)
@@ -21,6 +21,10 @@ it can be ensured that a client we allocated resources
 for (i.e. @code{gnutls_session_t} ) is the one that the 
 original incoming packet was originated from.
 
+This function must be called at the first incoming packet,
+prior to allocating any resources and must be succeeded
+by @code{gnutls_dtls_cookie_verify()} .
+
 @strong{Returns:} the number of bytes sent, or a negative error code.  
 
 @strong{Since:} 3.0
@@ -28,7 +32,7 @@ original incoming packet was originated from.
 
 @subheading gnutls_dtls_cookie_verify
 @anchor{gnutls_dtls_cookie_verify}
-@deftypefun {int} {gnutls_dtls_cookie_verify} (gnutls_datum_t* @var{key}, void* @var{client_data}, size_t @var{client_data_size}, void* @var{_msg}, size_t @var{msg_size}, gnutls_dtls_prestate_st* @var{prestate})
+@deftypefun {int} {gnutls_dtls_cookie_verify} (gnutls_datum_t * @var{key}, void * @var{client_data}, size_t @var{client_data_size}, void * @var{_msg}, size_t @var{msg_size}, gnutls_dtls_prestate_st * @var{prestate})
 @var{key}: is a random key to be used at cookie generation
 
 @var{client_data}: contains data identifying the client (i.e. address)
@@ -41,10 +45,12 @@ original incoming packet was originated from.
 
 @var{prestate}: The cookie of this client.
 
-This function will verify an incoming message for
+This function will verify the received message for
 a valid cookie. If a valid cookie is returned then
 it should be associated with the session using
 @code{gnutls_dtls_prestate_set()} ;
+
+This function must be called after @code{gnutls_dtls_cookie_send()} .
 
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  (0) on success, or a negative error code.  
 
@@ -58,7 +64,7 @@ it should be associated with the session using
 
 This function will return the actual maximum transfer unit for
 application data. I.e. DTLS headers are subtracted from the
-actual MTU.
+actual MTU which is set using @code{gnutls_dtls_set_mtu()} .
 
 @strong{Returns:} the maximum allowed transfer unit.
 
@@ -98,7 +104,7 @@ if no packets have been received.
 
 @subheading gnutls_dtls_prestate_set
 @anchor{gnutls_dtls_prestate_set}
-@deftypefun {void} {gnutls_dtls_prestate_set} (gnutls_session_t @var{session}, gnutls_dtls_prestate_st* @var{prestate})
+@deftypefun {void} {gnutls_dtls_prestate_set} (gnutls_session_t @var{session}, gnutls_dtls_prestate_st * @var{prestate})
 @var{session}: a new session
 
 @var{prestate}: contains the client's prestate
@@ -106,6 +112,9 @@ if no packets have been received.
 This function will associate the prestate acquired by
 the cookie authentication with the client, with the newly 
 established session.
+
+This functions must be called after a successful @code{gnutls_dtls_cookie_verify()} 
+and should be succeeded by the actual DTLS handshake using @code{gnutls_handshake()} .
 
 @strong{Since:} 3.0
 @end deftypefun
@@ -124,6 +133,9 @@ calling @code{gnutls_dtls_set_mtu()}  with that value. In particular, this means
 that you may need to call this function again after any negotiation or
 renegotiation, in order to ensure that the MTU is still sufficient to
 account for the new protocol overhead.
+
+In most cases you only need to call @code{gnutls_dtls_set_mtu()}  with
+the maximum MTU of your transport layer.
 
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  (0) on success, or a negative error code.
 
@@ -166,6 +178,8 @@ respectively.
 
 If the retransmission timeout is zero then the handshake will operate
 in a non-blocking way, i.e., return @code{GNUTLS_E_AGAIN} .
+
+To disable retransmissions set a  @code{retrans_timeout} larger than the  @code{total_timeout} .
 
 @strong{Since:} 3.0
 @end deftypefun

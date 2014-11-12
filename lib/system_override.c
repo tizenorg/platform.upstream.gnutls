@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -36,7 +36,7 @@
 
 #include <errno.h>
 #ifdef _WIN32
-# include <windows.h>
+#include <windows.h>
 #endif
 
 /**
@@ -56,10 +56,9 @@
  * msvcr71.dll and gnutls is linked to msvcrt.dll).
  *
  **/
-void
-gnutls_transport_set_errno (gnutls_session_t session, int err)
+void gnutls_transport_set_errno(gnutls_session_t session, int err)
 {
-  session->internals.errnum = err;
+	session->internals.errnum = err;
 }
 
 /**
@@ -77,10 +76,10 @@ gnutls_transport_set_errno (gnutls_session_t session, int err)
  * ssize_t (*gnutls_pull_func)(gnutls_transport_ptr_t, void*, size_t);
  **/
 void
-gnutls_transport_set_pull_function (gnutls_session_t session,
-                                    gnutls_pull_func pull_func)
+gnutls_transport_set_pull_function(gnutls_session_t session,
+				   gnutls_pull_func pull_func)
 {
-  session->internals.pull_func = pull_func;
+	session->internals.pull_func = pull_func;
 }
 
 /**
@@ -93,19 +92,21 @@ gnutls_transport_set_pull_function (gnutls_session_t session,
  * given time frame in milliseconds. The callback should return 0 on 
  * timeout, a positive number if data can be received, and -1 on error.
  * You'll need to override this function if select() is not suitable
- * for the provided transport calls. 
- * The callback function is used in DTLS only.
+ * for the provided transport calls.
+ *
+ * As with select(), if the timeout value is zero the callback should return
+ * zero if no data are immediately available.
  *
  * @gnutls_pull_timeout_func is of the form,
- * ssize_t (*gnutls_pull_timeout_func)(gnutls_transport_ptr_t, unsigned int ms);
+ * int (*gnutls_pull_timeout_func)(gnutls_transport_ptr_t, unsigned int ms);
  *
  * Since: 3.0
  **/
 void
-gnutls_transport_set_pull_timeout_function (gnutls_session_t session,
-                                            gnutls_pull_timeout_func func)
+gnutls_transport_set_pull_timeout_function(gnutls_session_t session,
+					   gnutls_pull_timeout_func func)
 {
-  session->internals.pull_timeout_func = func;
+	session->internals.pull_timeout_func = func;
 }
 
 /**
@@ -126,11 +127,11 @@ gnutls_transport_set_pull_timeout_function (gnutls_session_t session,
  *
  **/
 void
-gnutls_transport_set_push_function (gnutls_session_t session,
-                                    gnutls_push_func push_func)
+gnutls_transport_set_push_function(gnutls_session_t session,
+				   gnutls_push_func push_func)
 {
-  session->internals.push_func = push_func;
-  session->internals.vec_push_func = NULL;
+	session->internals.push_func = push_func;
+	session->internals.vec_push_func = NULL;
 }
 
 /**
@@ -149,11 +150,11 @@ gnutls_transport_set_push_function (gnutls_session_t session,
  * Since: 2.12.0
  **/
 void
-gnutls_transport_set_vec_push_function (gnutls_session_t session,
-                                        gnutls_vec_push_func vec_func)
+gnutls_transport_set_vec_push_function(gnutls_session_t session,
+				       gnutls_vec_push_func vec_func)
 {
-  session->internals.push_func = NULL;
-  session->internals.vec_push_func = vec_func;
+	session->internals.push_func = NULL;
+	session->internals.vec_push_func = vec_func;
 }
 
 /**
@@ -171,8 +172,8 @@ gnutls_transport_set_vec_push_function (gnutls_session_t session,
  * Since: 2.12.0
  **/
 void
-gnutls_transport_set_errno_function (gnutls_session_t session,
-                                     gnutls_errno_func errno_func)
+gnutls_transport_set_errno_function(gnutls_session_t session,
+				    gnutls_errno_func errno_func)
 {
-  session->internals.errno_func = errno_func;
+	session->internals.errno_func = errno_func;
 }

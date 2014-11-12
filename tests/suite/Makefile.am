@@ -30,6 +30,9 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/tests/suite/ecore/src/include \
 	-I$(top_srcdir)/tests/suite/ecore/src/lib
 
+EXTRA_DIST = crl/long.crl crl/long.pem
+
+check_PROGRAMS = rng
 AM_LDFLAGS = -no-install
 LDADD = ../../lib/libgnutls.la \
 	../../gl/libgnu.la \
@@ -37,7 +40,6 @@ LDADD = ../../lib/libgnutls.la \
 	$(LTLIBGCRYPT)	\
 	$(LIBSOCKET) $(INET_NTOP_LIB) $(INET_PTON_LIB)
 
-noinst_LTLIBRARIES = libecore.la
 
 libecore_la_CPPFLAGS = -I$(top_srcdir)/tests/suite/ecore/		\
 	-I$(top_srcdir)/tests/suite/ecore/src/include			\
@@ -81,11 +83,46 @@ nodist_libecore_la_SOURCES = ecore/src/lib/ecore_anim.c			\
 	ecore/src/lib/eina_unicode.c ecore/src/lib/eina_ustrbuf.c	\
 	ecore/src/lib/eina_ustringshare.c ecore/src/lib/eina_value.c
 
-eagain_cli_LDADD = $(LDADD) libecore.la -lrt -lm -ldl -lpthread
+
+
+nodist_check_SCRIPTS = eagain testsrn testcompat chain invalid-cert testrandom \
+	testpkcs11 testrng
+
+TESTS = ciphersuite/test-ciphersuites.sh eagain testsrn testcompat chain invalid-cert \
+	testpkcs11 testrng
+
+if ENABLE_PKCS11
+check_PROGRAMS += pkcs11-chainverify pkcs11-get-issuer
+TESTS += pkcs11-chainverify pkcs11-get-issuer crl-test
+endif
+
+TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT) \
+	LC_ALL="C"					\
+	VALGRIND="$(VALGRIND)"				\
+	LIBTOOL="$(LIBTOOL)"				\
+	top_builddir="$(top_builddir)"			\
+	srcdir="$(srcdir)"
+
+if ENABLE_DANE
+TESTS += testdane
+endif
+
+if !MACOSX
+if !WINDOWS
+noinst_LTLIBRARIES = libecore.la
+
+mini_record_timing_LDADD = -lrt $(LDADD)
+eagain_cli_LDADD = libecore.la -lrt -lm -ldl -lpthread $(LDADD)
 nodist_eagain_cli_SOURCES = mini-eagain2.c
 
-noinst_PROGRAMS = eagain-cli
+noinst_PROGRAMS = eagain-cli mini-record-timing
 
-nodist_check_SCRIPTS = eagain testsrn testcompat chain invalid-cert
+TESTS += eagain
+endif
+endif
 
-TESTS = eagain testsrn testcompat chain invalid-cert
+#pkcs11-chainverify cannot run under valgrind (or hell breaks loose)
+
+#if WANT_TEST_SUITE
+#LOG_COMPILER = $(VALGRIND)
+#endif

@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -30,45 +30,73 @@ extern gnutls_crypto_pk_st _gnutls_pk_ops;
 #define _gnutls_pk_decrypt( algo, ciphertext, plaintext, params) _gnutls_pk_ops.decrypt( algo, ciphertext, plaintext, params)
 #define _gnutls_pk_sign( algo, sig, data, params) _gnutls_pk_ops.sign( algo, sig, data, params)
 #define _gnutls_pk_verify( algo, data, sig, params) _gnutls_pk_ops.verify( algo, data, sig, params)
-#define _gnutls_pk_verify_params( algo, params) _gnutls_pk_ops.verify_params( algo, params)
+#define _gnutls_pk_verify_priv_params( algo, params) _gnutls_pk_ops.verify_priv_params( algo, params)
+#define _gnutls_pk_verify_pub_params( algo, params) _gnutls_pk_ops.verify_pub_params( algo, params)
 #define _gnutls_pk_derive( algo, out, pub, priv) _gnutls_pk_ops.derive( algo, out, pub, priv)
-#define _gnutls_pk_generate( algo, bits, priv) _gnutls_pk_ops.generate( algo, bits, priv)
+#define _gnutls_pk_generate_keys( algo, bits, priv) _gnutls_pk_ops.generate_keys( algo, bits, priv)
+#define _gnutls_pk_generate_params( algo, bits, priv) _gnutls_pk_ops.generate_params( algo, bits, priv)
+#define _gnutls_pk_hash_algorithm( pk, sig, params, hash) _gnutls_pk_ops.hash_algorithm(pk, sig, params, hash)
+#define _gnutls_pk_curve_exists( curve) _gnutls_pk_ops.curve_exists(curve)
 
 inline static int
-_gnutls_pk_fixup (gnutls_pk_algorithm_t algo, gnutls_direction_t direction,
-                  gnutls_pk_params_st * params)
+_gnutls_pk_fixup(gnutls_pk_algorithm_t algo, gnutls_direction_t direction,
+		 gnutls_pk_params_st * params)
 {
-  if (_gnutls_pk_ops.pk_fixup_private_params)
-    return _gnutls_pk_ops.pk_fixup_private_params (algo, direction, params);
-  return 0;
+	if (_gnutls_pk_ops.pk_fixup_private_params)
+		return _gnutls_pk_ops.pk_fixup_private_params(algo,
+							      direction,
+							      params);
+	return 0;
 }
 
-int _gnutls_pk_params_copy (gnutls_pk_params_st * dst, const gnutls_pk_params_st * src);
+int _gnutls_pk_params_copy(gnutls_pk_params_st * dst,
+			   const gnutls_pk_params_st * src);
 
 /* The internal PK interface */
-int _gnutls_pkcs1_rsa_encrypt (gnutls_datum_t * ciphertext,
-                               const gnutls_datum_t * plaintext,
-                               gnutls_pk_params_st * params,
-                               unsigned btype);
-int _gnutls_pkcs1_rsa_decrypt (gnutls_datum_t * plaintext,
-                               const gnutls_datum_t * ciphertext,
-                               gnutls_pk_params_st* params,
-                               unsigned btype);
-int _gnutls_rsa_verify (const gnutls_datum_t * vdata,
-                        const gnutls_datum_t * ciphertext, 
-                        gnutls_pk_params_st*,
-                        int btype);
+int
+_gnutls_encode_ber_rs(gnutls_datum_t * sig_value, bigint_t r, bigint_t s);
+int
+_gnutls_encode_ber_rs_raw(gnutls_datum_t * sig_value,
+			  const gnutls_datum_t * r,
+			  const gnutls_datum_t * s);
 
 int
-_gnutls_encode_ber_rs (gnutls_datum_t * sig_value, bigint_t r, bigint_t s);
+_gnutls_decode_ber_rs(const gnutls_datum_t * sig_value, bigint_t * r,
+		      bigint_t * s);
 
 int
-_gnutls_decode_ber_rs (const gnutls_datum_t * sig_value, bigint_t * r,
-                       bigint_t * s);
+encode_ber_digest_info(const mac_entry_st * e,
+		       const gnutls_datum_t * digest,
+		       gnutls_datum_t * output);
 
-int _gnutls_pk_get_hash_algorithm (gnutls_pk_algorithm_t pk,
-                                   gnutls_pk_params_st*,
-                                   gnutls_digest_algorithm_t * dig,
-                                   unsigned int *mand);
+int
+decode_ber_digest_info(const gnutls_datum_t * info,
+		       gnutls_digest_algorithm_t * hash,
+		       uint8_t * digest, unsigned int *digest_size);
 
-#endif /* GNUTLS_PK_H */
+int _gnutls_pk_get_hash_algorithm(gnutls_pk_algorithm_t pk,
+				  gnutls_pk_params_st *,
+				  gnutls_digest_algorithm_t * dig,
+				  unsigned int *mand);
+
+int
+_gnutls_params_get_rsa_raw(const gnutls_pk_params_st* params,
+				    gnutls_datum_t * m, gnutls_datum_t * e,
+				    gnutls_datum_t * d, gnutls_datum_t * p,
+				    gnutls_datum_t * q, gnutls_datum_t * u,
+				    gnutls_datum_t * e1,
+				    gnutls_datum_t * e2);
+
+int
+_gnutls_params_get_dsa_raw(const gnutls_pk_params_st* params,
+			     gnutls_datum_t * p, gnutls_datum_t * q,
+			     gnutls_datum_t * g, gnutls_datum_t * y,
+			     gnutls_datum_t * x);
+
+int _gnutls_params_get_ecc_raw(const gnutls_pk_params_st* params,
+				       gnutls_ecc_curve_t * curve,
+				       gnutls_datum_t * x,
+				       gnutls_datum_t * y,
+				       gnutls_datum_t * k);
+
+#endif				/* GNUTLS_PK_H */

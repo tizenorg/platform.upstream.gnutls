@@ -16,7 +16,8 @@
 This manual is last updated @value{UPDATED} for version
 @value{VERSION} of GnuTLS.
 
-Copyright @copyright{} 2001-2012 Free Software Foundation, Inc.
+Copyright @copyright{} 2001-2013 Free Software Foundation, Inc.\\
+Copyright @copyright{} 2001-2013 Nikos Mavrogiannopoulos
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -50,7 +51,7 @@ Documentation License''.
 @sp 7
 @center @image{gnutls-logo,6cm,6cm}
 @author Nikos Mavrogiannopoulos
-@author Simon Josefsson (@email{bug-gnutls@@gnu.org})
+@author Simon Josefsson (@email{bugs@@gnutls.org})
 @page
 @vskip 0pt plus 1filll
 @insertcopying
@@ -148,11 +149,11 @@ Documentation License''.
 * Preface::
 * Introduction to GnuTLS::
 * Introduction to TLS::
-* Certificate authentication::
-* Shared-key and anonymous authentication::
-* More on certificate authentication::
+* Authentication methods::
+* Hardware security modules and abstract key types::
 * How to use GnuTLS in applications::
 * GnuTLS application examples::
+* Using GnuTLS as a cryptographic library::
 * Other included programs::
 * Internal architecture of GnuTLS::
 * Upgrading from previous versions::
@@ -173,15 +174,15 @@ Documentation License''.
 
 @include cha-intro-tls.texi
 
-@include cha-cert-auth.texi
+@include cha-auth.texi
 
-@include cha-shared-key.texi
-
-@include cha-cert-auth2.texi
+@include cha-tokens.texi
 
 @include cha-gtls-app.texi
 
 @include cha-gtls-examples.texi
+
+@include cha-crypto.texi
 
 @include cha-programs.texi
 

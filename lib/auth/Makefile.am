@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS)
+AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS) $(NETTLE_CFLAGS)
 AM_CPPFLAGS = \
 	-I$(srcdir)/../../gl		\
 	-I$(builddir)/../../gl		\
@@ -35,7 +35,7 @@ endif
 noinst_LTLIBRARIES = libgnutls_auth.la
 
 libgnutls_auth_la_SOURCES = anon.c cert.c dh_common.c dhe.c \
-	dhe_psk.c psk.c psk_passwd.c rsa.c rsa_export.c srp.c \
+	rsa_psk.c dhe_psk.c psk.c psk_passwd.c rsa.c srp.c \
 	srp_passwd.c srp_rsa.c srp_sb64.c anon.h cert.h dh_common.h \
 	psk.h psk_passwd.h srp.h srp_passwd.h anon_ecdh.c \
-	ecdh_common.c ecdh_common.h
+	ecdhe.c ecdhe.h rsa_common.h

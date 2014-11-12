@@ -13,18 +13,12 @@
 
 @var{critical}: pointer to output integer that is set to non-0 if the extension is marked as critical (may be @code{NULL} )
 
+Note that a simpler API to access the authority info data is provided
+by @code{gnutls_x509_aia_get()}  and @code{gnutls_x509_ext_import_aia()} .
+
 This function extracts the Authority Information Access (AIA)
 extension, see RFC 5280 section 4.2.2.1 for more information.  The
-AIA extension holds a sequence of AccessDescription (AD) data:
-
-<informalexample><programlisting>
-AuthorityInfoAccessSyntax  ::=
-SEQUENCE SIZE (1..MAX) OF AccessDescription
-
-AccessDescription  ::=  SEQUENCE @{
-accessMethod          OBJECT IDENTIFIER,
-accessLocation        GeneralName  @}
-</programlisting></informalexample>
+AIA extension holds a sequence of AccessDescription (AD) data.
 
 The  @code{seq} input parameter is used to indicate which member of the
 sequence the caller is interested in.  The first member is 0, the

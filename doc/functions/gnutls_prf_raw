@@ -15,22 +15,22 @@
 
 @var{outsize}: size of pre-allocated output buffer to hold the output.
 
-@var{out}: pre-allocate buffer to hold the generated data.
+@var{out}: pre-allocated buffer to hold the generated data.
 
 Apply the TLS Pseudo-Random-Function (PRF) on the master secret
 and the provided data.
 
-The  @code{label} variable usually contain a string denoting the purpose
-for the generated data.  The  @code{seed} usually contain data such as the
+The  @code{label} variable usually contains a string denoting the purpose
+for the generated data.  The  @code{seed} usually contains data such as the
 client and server random, perhaps together with some additional
 data that is added to guarantee uniqueness of the output for a
 particular purpose.
 
 Because the output is not guaranteed to be unique for a particular
-session unless  @code{seed} include the client random and server random
+session unless  @code{seed} includes the client random and server random
 fields (the PRF would output the same data on another connection
 resumed from the first one), it is not recommended to use this
-function directly.  The @code{gnutls_prf()}  function seed the PRF with the
+function directly.  The @code{gnutls_prf()}  function seeds the PRF with the
 client and server random fields directly, and is recommended if you
 want to generate pseudo random data unique for each session.
 

@@ -2,32 +2,22 @@
 
 
 
-@deftypefun {int} {gnutls_x509_crt_get_crl_dist_points} (gnutls_x509_crt_t @var{cert}, unsigned int @var{seq}, void * @var{ret}, size_t * @var{ret_size}, unsigned int * @var{reason_flags}, unsigned int * @var{critical})
+@deftypefun {int} {gnutls_x509_crt_get_crl_dist_points} (gnutls_x509_crt_t @var{cert}, unsigned int @var{seq}, void * @var{san}, size_t * @var{san_size}, unsigned int * @var{reason_flags}, unsigned int * @var{critical})
 @var{cert}: should contain a @code{gnutls_x509_crt_t}  structure
 
 @var{seq}: specifies the sequence number of the distribution point (0 for the first one, 1 for the second etc.)
 
-@var{ret}: is the place where the distribution point will be copied to
+@var{san}: is the place where the distribution point will be copied to
 
-@var{ret_size}: holds the size of ret.
+@var{san_size}: holds the size of ret.
 
-@var{reason_flags}: Revocation reasons flags.
+@var{reason_flags}: Revocation reasons. An ORed sequence of flags from @code{gnutls_x509_crl_reason_flags_t} .
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function retrieves the CRL distribution points (2.5.29.31),
 contained in the given certificate in the X509v3 Certificate
 Extensions.
-
- @code{reason_flags} should be an ORed sequence of
-@code{GNUTLS_CRL_REASON_UNUSED} , @code{GNUTLS_CRL_REASON_KEY_COMPROMISE} ,
-@code{GNUTLS_CRL_REASON_CA_COMPROMISE} ,
-@code{GNUTLS_CRL_REASON_AFFILIATION_CHANGED} ,
-@code{GNUTLS_CRL_REASON_SUPERSEEDED} ,
-@code{GNUTLS_CRL_REASON_CESSATION_OF_OPERATION} ,
-@code{GNUTLS_CRL_REASON_CERTIFICATE_HOLD} ,
-@code{GNUTLS_CRL_REASON_PRIVILEGE_WITHDRAWN} ,
-@code{GNUTLS_CRL_REASON_AA_COMPROMISE} , or (0) for all possible reasons.
 
 @strong{Returns:} @code{GNUTLS_E_SHORT_MEMORY_BUFFER}  and updates  @code{ret_size} if
  @code{ret_size} is not enough to hold the distribution point, or the

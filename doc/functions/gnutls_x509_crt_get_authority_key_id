@@ -9,7 +9,7 @@
 
 @var{id_size}: Holds the size of the id field.
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function will return the X.509v3 certificate authority's key
 identifier.  This is obtained by the X.509 Authority Key

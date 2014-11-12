@@ -20,10 +20,12 @@
 
 WFLAGS ?= --enable-gcc-warnings
 ADDFLAGS ?=
-CFGFLAGS ?= --enable-gtk-doc --enable-gtk-doc-pdf $(ADDFLAGS) $(WFLAGS)
+CFGFLAGS ?= --enable-gtk-doc --enable-gtk-doc-pdf --enable-gtk-doc-html $(ADDFLAGS) $(WFLAGS)
 PACKAGE ?= gnutls
 
-INDENT_SOURCES = `find . -name \*.[ch] -o -name gnutls.h.in | grep -v -e ^./build-aux/ -e ^./lib/minitasn1/ -e ^./lib/build-aux/ -e ^./gl/ -e ^./src/libopts/ -e -gaa.[ch] -e asn1_tab.c -e ^./tests/suite/`
+.PHONY: config
+
+INDENT_SOURCES = `find . -name \*.[ch] -o -name gnutls.h.in | grep -v -e ^./build-aux/ -e ^./lib/minitasn1/ -e ^./lib/build-aux/ -e ^./gl/ -e ^./src/libopts/ -e -args.[ch] -e asn1_tab.c -e ^./tests/suite/`
 
 ifeq ($(.DEFAULT_GOAL),abort-due-to-no-makefile)
 .DEFAULT_GOAL := bootstrap
@@ -70,13 +72,21 @@ update-po: refresh-po
 	git add $(PODIR)/*.po.in
 	git commit -m "Sync with TP." $(PODIR)/LINGUAS $(PODIR)/*.po.in
 
-bootstrap: autoreconf
+config:
 	./configure $(CFGFLAGS)
+
+.submodule.stamp:
+	git submodule init
+	git submodule update
+	touch $@
+
+bootstrap: autoreconf .submodule.stamp
 
 # The only non-lgpl modules used are: gettime progname timespec. Those
 # are not used (and must not be used) in the library)
 glimport:
-	gnulib-tool --add-import
+	../gnulib/gnulib-tool --dir=. --local-dir=gl/override --lib=libgnu --source-base=gl --m4-base=gl/m4 --doc-base=doc --tests-base=gl/tests --aux-dir=build-aux --add-import --lgpl=2
+	../gnulib/gnulib-tool --dir=. --local-dir=src/gl/override --lib=libgnu_gpl --source-base=src/gl --m4-base=src/gl/m4 --doc-base=doc --tests-base=tests --aux-dir=build-aux --add-import
 
 # Code Coverage
 
@@ -115,7 +125,7 @@ clang-upload:
 # Release
 
 ChangeLog:
-	git log --pretty --numstat --summary --since="2010 November 07" -- | git2cl > ChangeLog
+	git log --pretty --numstat --summary --since="2012 November 07" -- | git2cl > ChangeLog
 	cat .clcopying >> ChangeLog
 
 tag = $(PACKAGE)_`echo $(VERSION) | sed 's/\./_/g'`
@@ -131,22 +141,23 @@ prepare:
 	git commit -m Generated. ChangeLog
 	git tag -u b565716f! -m $(VERSION) $(tag)
 
-upload:
+upload-tarballs:
 	git push
 	git push --tags
-	build-aux/gnupload --to alpha.gnu.org:$(PACKAGE) $(distdir).tar.bz2
-	scp $(distdir).tar.bz2 $(distdir).tar.bz2.sig igloo.linux.gr:~ftp/pub/gnutls/devel/
-	ssh igloo.linux.gr 'cd ~ftp/pub/gnutls/devel/ && sha1sum *.tar.bz2 > CHECKSUMS'
-	cp $(distdir).tar.bz2 $(distdir).tar.bz2.sig ../releases/$(PACKAGE)/
+	build-aux/gnupload --to alpha.gnu.org:$(PACKAGE) $(distdir).tar.xz
+	build-aux/gnupload --to alpha.gnu.org:$(PACKAGE) $(distdir).tar.lz
+	cp $(distdir).tar.xz $(distdir).tar.xz.sig ../releases/$(PACKAGE)/
+	cp $(distdir).tar.lz $(distdir).tar.lz.sig ../releases/$(PACKAGE)/
 
 
 web:
 	echo generating documentation for $(PACKAGE)
-	cd doc && $(SHELL) ../build-aux/gendocs.sh \
-		--html "--css-include=./texinfo.css" \
-		-o ../$(htmldir)/manual/ $(PACKAGE) "$(PACKAGE_NAME)"
-	-cd doc && make gnutls.epub && cp gnutls.epub ../$(htmldir)/manual/
+	make -C doc gnutls.html
+	cd doc && cp gnutls.html *.png ../$(htmldir)/manual/
+	cd doc && makeinfo --html --split=node -o ../$(htmldir)/manual/html_node/ --css-include=./texinfo.css gnutls.texi
 	cd doc && cp *.png ../$(htmldir)/manual/html_node/
+	sed 's/\@VERSION\@/$(VERSION)/g' -i $(htmldir)/manual/html_node/*.html $(htmldir)/manual/gnutls.html
+	-cd doc && make gnutls.epub && cp gnutls.epub ../$(htmldir)/manual/
 	cd doc/latex && make gnutls.pdf && cp gnutls.pdf ../../$(htmldir)/manual/
 	#cd doc/doxygen && doxygen && cd ../.. && cp -v doc/doxygen/html/* $(htmldir)/devel/doxygen/ && cd doc/doxygen/latex && make refman.pdf && cd ../../../ && cp doc/doxygen/latex/refman.pdf $(htmldir)/devel/doxygen/$(PACKAGE).pdf
 	-cp -v doc/reference/html/*.html doc/reference/html/*.png doc/reference/html/*.devhelp doc/reference/html/*.css $(htmldir)/reference/
@@ -157,129 +168,75 @@ upload-web:
 		cvs commit -m "Update." manual/ reference/ \
 			doxygen/ devel/ cyclo/
 
-ASM_SOURCES:= \
-	lib/accelerated/x86/elf/cpuid-x86-64.s \
-	lib/accelerated/x86/elf/cpuid-x86.s \
-	lib/accelerated/x86/elf/appro-aes-gcm-x86-64.s \
-	lib/accelerated/x86/elf/appro-aes-x86-64.s \
-	lib/accelerated/x86/elf/appro-aes-x86.s \
-	lib/accelerated/x86/elf/padlock-x86-64.s \
-	lib/accelerated/x86/elf/padlock-x86.s \
-	lib/accelerated/x86/coff/cpuid-x86-coff.s \
-	lib/accelerated/x86/coff/cpuid-x86-64-coff.s \
-	lib/accelerated/x86/coff/appro-aes-gcm-x86-64-coff.s \
-	lib/accelerated/x86/coff/appro-aes-x86-64-coff.s \
-	lib/accelerated/x86/coff/appro-aes-x86-coff.s \
-	lib/accelerated/x86/coff/padlock-x86-64-coff.s \
-	lib/accelerated/x86/coff/padlock-x86-coff.s \
-	lib/accelerated/x86/macosx/cpuid-x86-64-macosx.s \
-	lib/accelerated/x86/macosx/cpuid-x86-macosx.s \
-	lib/accelerated/x86/macosx/appro-aes-gcm-x86-64-macosx.s \
-	lib/accelerated/x86/macosx/appro-aes-x86-64-macosx.s \
-	lib/accelerated/x86/macosx/appro-aes-x86-macosx.s \
-	lib/accelerated/x86/macosx/padlock-x86-64-macosx.s \
-	lib/accelerated/x86/macosx/padlock-x86-macosx.s
+ASM_SOURCES_XXX := \
+	lib/accelerated/x86/XXX/cpuid-x86_64.s \
+	lib/accelerated/x86/XXX/cpuid-x86.s \
+	lib/accelerated/x86/XXX/ghash-x86_64.s \
+	lib/accelerated/x86/XXX/aesni-x86_64.s \
+	lib/accelerated/x86/XXX/aesni-x86.s \
+	lib/accelerated/x86/XXX/e_padlock-x86_64.s \
+	lib/accelerated/x86/XXX/e_padlock-x86.s \
+	lib/accelerated/x86/XXX/sha1-ssse3-x86.s \
+	lib/accelerated/x86/XXX/sha1-ssse3-x86_64.s \
+	lib/accelerated/x86/XXX/sha256-ssse3-x86.s \
+	lib/accelerated/x86/XXX/sha512-ssse3-x86.s \
+	lib/accelerated/x86/XXX/sha512-ssse3-x86_64.s \
+	lib/accelerated/x86/XXX/aes-ssse3-x86.s \
+	lib/accelerated/x86/XXX/aes-ssse3-x86_64.s
 
-asm-sources: $(ASM_SOURCES)
+ASM_SOURCES_ELF := $(subst XXX,elf,$(ASM_SOURCES_XXX))
+ASM_SOURCES_COFF := $(subst XXX,coff,$(ASM_SOURCES_XXX))
+ASM_SOURCES_MACOSX := $(subst XXX,macosx,$(ASM_SOURCES_XXX))
+
+asm-sources: $(ASM_SOURCES_ELF) $(ASM_SOURCES_COFF) $(ASM_SOURCES_MACOSX) lib/accelerated/x86/files.mk
 
 asm-sources-clean:
-	rm -f $(ASM_SOURCES)
+	rm -f $(ASM_SOURCES_ELF) $(ASM_SOURCES_COFF) $(ASM_SOURCES_MACOSX) lib/accelerated/x86/files.mk
 
-lib/accelerated/x86/elf/cpuid-x86-64.s: devel/perlasm/cpuid-x86_64.pl
-	cat devel/perlasm/license-gnutls.txt > $@
+X86_FILES=XXX/aesni-x86.s XXX/cpuid-x86.s XXX/e_padlock-x86.s XXX/sha1-ssse3-x86.s \
+	XXX/sha256-ssse3-x86.s XXX/sha512-ssse3-x86.s XXX/aes-ssse3-x86.s
+
+X86_64_FILES=XXX/aesni-x86_64.s XXX/cpuid-x86_64.s XXX/e_padlock-x86_64.s XXX/ghash-x86_64.s \
+	XXX/sha1-ssse3-x86_64.s XXX/sha512-ssse3-x86_64.s XXX/aes-ssse3-x86_64.s
+
+X86_FILES_ELF := $(subst XXX,elf,$(X86_FILES))
+X86_FILES_COFF := $(subst XXX,coff,$(X86_FILES))
+X86_FILES_MACOSX := $(subst XXX,macosx,$(X86_FILES))
+X86_64_FILES_ELF := $(subst XXX,elf,$(X86_64_FILES))
+X86_64_FILES_COFF := $(subst XXX,coff,$(X86_64_FILES))
+X86_64_FILES_MACOSX := $(subst XXX,macosx,$(X86_64_FILES))
+
+lib/accelerated/x86/files.mk: $(ASM_SOURCES_ELF)
+	echo X86_FILES_ELF=$(X86_FILES_ELF) > $@.tmp
+	echo X86_FILES_COFF=$(X86_FILES_COFF) >> $@.tmp
+	echo X86_FILES_MACOSX=$(X86_FILES_MACOSX) >> $@.tmp
+	echo X86_64_FILES_ELF=$(X86_64_FILES_ELF) >> $@.tmp
+	echo X86_64_FILES_COFF=$(X86_64_FILES_COFF) >> $@.tmp
+	echo X86_64_FILES_MACOSX=$(X86_64_FILES_MACOSX) >> $@.tmp
+	mv $@.tmp $@
+
+# Appro's code
+lib/accelerated/x86/elf/%.s: devel/perlasm/%.pl .submodule.stamp 
+	cat $<.license > $@
 	perl $< elf >> $@
 	echo "" >> $@
 	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
+	sed -i 's/OPENSSL_ia32cap_P/_gnutls_x86_cpuid_s/g' $@
 
-
-lib/accelerated/x86/elf/cpuid-x86.s: devel/perlasm/cpuid-x86.pl
-	cat devel/perlasm/license-gnutls.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/elf/appro-aes-gcm-x86-64.s: devel/perlasm/ghash-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/elf/appro-aes-x86-64.s: devel/perlasm/aesni-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/elf/appro-aes-x86.s: devel/perlasm/aesni-x86.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/elf/padlock-x86-64.s: devel/perlasm/e_padlock-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/elf/padlock-x86.s: devel/perlasm/e_padlock-x86.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< elf >> $@
-	echo "" >> $@
-	echo ".section .note.GNU-stack,\"\",%progbits" >> $@
-
-lib/accelerated/x86/coff/appro-aes-gcm-x86-64-coff.s: devel/perlasm/ghash-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< mingw64 >> $@
-
-lib/accelerated/x86/coff/appro-aes-x86-64-coff.s: devel/perlasm/aesni-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< mingw64 >> $@
-
-lib/accelerated/x86/coff/appro-aes-x86-coff.s: devel/perlasm/aesni-x86.pl
-	cat devel/perlasm/license.txt > $@
+lib/accelerated/x86/coff/%-x86.s: devel/perlasm/%-x86.pl .submodule.stamp 
+	cat $<.license > $@
 	perl $< coff >> $@
+	echo "" >> $@
+	sed -i 's/OPENSSL_ia32cap_P/_gnutls_x86_cpuid_s/g' $@
 
-lib/accelerated/x86/coff/padlock-x86-64-coff.s: devel/perlasm/e_padlock-x86_64.pl
-	cat devel/perlasm/license.txt > $@
+lib/accelerated/x86/coff/%-x86_64.s: devel/perlasm/%-x86_64.pl .submodule.stamp 
+	cat $<.license > $@
 	perl $< mingw64 >> $@
+	echo "" >> $@
+	sed -i 's/OPENSSL_ia32cap_P/_gnutls_x86_cpuid_s/g' $@
 
-lib/accelerated/x86/coff/padlock-x86-coff.s: devel/perlasm/e_padlock-x86.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< coff >> $@
-
-lib/accelerated/x86/coff/cpuid-x86-64-coff.s: devel/perlasm/cpuid-x86_64.pl
-	cat devel/perlasm/license-gnutls.txt > $@
-	perl $< mingw64 >> $@
-
-lib/accelerated/x86/coff/cpuid-x86-coff.s: devel/perlasm/cpuid-x86.pl
-	cat devel/perlasm/license-gnutls.txt > $@
-	perl $< coff >> $@
-
-lib/accelerated/x86/macosx/appro-aes-gcm-x86-64-macosx.s: devel/perlasm/ghash-x86_64.pl
-	cat devel/perlasm/license.txt > $@
+lib/accelerated/x86/macosx/%.s: devel/perlasm/%.pl .submodule.stamp 
+	cat $<.license > $@
 	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/appro-aes-x86-64-macosx.s: devel/perlasm/aesni-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/appro-aes-x86-macosx.s: devel/perlasm/aesni-x86.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/padlock-x86-64-macosx.s: devel/perlasm/e_padlock-x86_64.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/padlock-x86-macosx.s: devel/perlasm/e_padlock-x86.pl
-	cat devel/perlasm/license.txt > $@
-	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/cpuid-x86-64-macosx.s: devel/perlasm/cpuid-x86_64.pl
-	cat devel/perlasm/license-gnutls.txt > $@
-	perl $< macosx >> $@
-
-lib/accelerated/x86/macosx/cpuid-x86-macosx.s: devel/perlasm/cpuid-x86.pl
-	cat devel/perlasm/license-gnutls.txt > $@
-	perl $< macosx >> $@
+	echo "" >> $@
+	sed -i 's/OPENSSL_ia32cap_P/_gnutls_x86_cpuid_s/g' $@

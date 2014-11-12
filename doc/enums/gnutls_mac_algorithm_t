@@ -24,4 +24,8 @@ HMAC-SHA-512 algorithm.
 HMAC-SHA-224 algorithm.
 @item GNUTLS_@-MAC_@-AEAD
 MAC implicit through AEAD cipher.
+@item GNUTLS_@-MAC_@-UMAC_@-96
+The UMAC-96 MAC algorithm.
+@item GNUTLS_@-MAC_@-UMAC_@-128
+The UMAC-128 MAC algorithm.
 @end table

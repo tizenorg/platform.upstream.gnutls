@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -28,6 +28,7 @@ extern extension_entry_st ext_mod_supported_ecc;
 extern extension_entry_st ext_mod_supported_ecc_pf;
 
 int
-_gnutls_session_supports_ecc_curve (gnutls_session_t session, unsigned int ecc_type);
+_gnutls_session_supports_ecc_curve(gnutls_session_t session,
+				   unsigned int ecc_type);
 
 #endif

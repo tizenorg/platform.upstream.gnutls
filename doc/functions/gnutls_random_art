@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_random_art} (gnutls_random_art_t @var{type}, const char* @var{key_type}, unsigned int @var{key_size}, void * @var{fpr}, size_t @var{fpr_size}, gnutls_datum_t* @var{art})
+@deftypefun {int} {gnutls_random_art} (gnutls_random_art_t @var{type}, const char * @var{key_type}, unsigned int @var{key_size}, void * @var{fpr}, size_t @var{fpr_size}, gnutls_datum_t * @var{art})
 @var{type}: The type of the random art
 
 @var{key_type}: The type of the key (RSA, DSA etc.)

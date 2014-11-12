@@ -8,7 +8,8 @@
 @var{flags}: The output flags (GNUTLS_PKCS11_TOKEN_*)
 
 This function will return information about the PKCS 11 token flags.
-The flags from the @code{gnutls_pkcs11_token_info_t}  enumeration.
+
+The supported flags are: @code{GNUTLS_PKCS11_TOKEN_HW}  and @code{GNUTLS_PKCS11_TOKEN_TRUSTED} .
 
 @strong{Returns:} @code{GNUTLS_E_SUCCESS}  (0) on success or a negative error code on error.
 

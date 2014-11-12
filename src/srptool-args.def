@@ -18,7 +18,9 @@ short-usage   = "srptool [options]\nsrptool --help for usage instructions.\n";
 flag = {
     name      = index;
     value     = i;
-    descrip   = "specify the index of the group parameters in tpasswd.conf to use.";
+    arg-type  = number;
+    arg-default = 1;
+    descrip   = "specify the index of the group parameters in tpasswd.conf to use";
     doc = "";
 };
 
@@ -34,7 +36,7 @@ flag = {
     name      = passwd;
     value     = p;
     arg-type  = string;
-    descrip   = "specify a password file.";
+    descrip   = "specify a password file";
     doc       = "";
 };
 
@@ -42,7 +44,7 @@ flag = {
     name      = salt;
     value     = s;
     arg-type  = number;
-    descrip   = "specify salt size.";
+    descrip   = "specify salt size";
     doc = "";
 };
 

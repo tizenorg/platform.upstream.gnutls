@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -27,7 +27,7 @@
 
 extern extension_entry_st ext_mod_session_ticket;
 
-int _gnutls_send_new_session_ticket (gnutls_session_t session, int again);
-int _gnutls_recv_new_session_ticket (gnutls_session_t session);
+int _gnutls_send_new_session_ticket(gnutls_session_t session, int again);
+int _gnutls_recv_new_session_ticket(gnutls_session_t session);
 
 #endif

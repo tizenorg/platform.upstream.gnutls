@@ -7,7 +7,7 @@
 
 @var{id}: The key ID
 
-@var{id_size}: Holds the size of the serial field.
+@var{id_size}: Holds the size of the subject key ID field.
 
 This function will set the X.509 certificate's subject key ID
 extension.

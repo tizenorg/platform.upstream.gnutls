@@ -13,6 +13,10 @@
 
 @var{free_func}: The function that frees allocated data. Must accept a NULL pointer.
 
+
+@strong{Deprecated:} since 3.3.0 it is no longer possible to replace the internally used 
+memory allocation functions
+
 This is the function where you set the memory allocation functions
 gnutls is going to use. By default the libc's allocation functions
 (@code{malloc()} , @code{free()} ), are used by gnutls, to allocate both sensitive

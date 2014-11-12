@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {gnutls_pk_algorithm_t} {gnutls_openpgp_privkey_get_subkey_pk_algorithm} (gnutls_openpgp_privkey_t @var{key}, unsigned int @var{idx}, unsigned int * @var{bits})
+@deftypefun {gnutls_pk_algorithm_t} {gnutls_openpgp_privkey_get_subkey_pk_algorithm} (gnutls_openpgp_privkey_t             @var{key}, unsigned int @var{idx}, unsigned int * @var{bits})
 @var{key}: is an OpenPGP key
 
 @var{idx}: is the subkey index

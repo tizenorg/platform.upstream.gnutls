@@ -40,7 +40,7 @@ implemented by another example.
 
 @node Simple client example with X.509 certificate support
 @subsection Simple client example with @acronym{X.509} certificate support
-@anchor{ex:verify}
+@anchor{ex-verify}
 
 Let's assume now that we want to create a TCP client which
 communicates with servers that use @acronym{X.509} or
@@ -110,7 +110,7 @@ certificate selection callback.
 
 @node Verifying a certificate
 @subsection Verifying a certificate
-@anchor{ex:verify2}
+@anchor{ex-verify2}
 
 An example is listed below which uses the high level verification
 functions to verify a given certificate list.
@@ -119,7 +119,7 @@ functions to verify a given certificate list.
 
 @node Client using a smart card with TLS
 @subsection Using a smart card with TLS
-@anchor{ex:pkcs11-client}
+@anchor{ex-pkcs11-client}
 @cindex Smart card example
 
 This example will demonstrate how to load keys and certificates
@@ -131,7 +131,7 @@ use it in a TLS connection.
 
 @node Client with Resume capability example
 @subsection Client with resume capability example
-@anchor{ex:resume-client}
+@anchor{ex-resume-client}
 
 This is a modification of the simple client example. Here we
 demonstrate the use of session resumption. The client tries to connect
@@ -252,6 +252,7 @@ A small tool to generate OCSP requests.
 * Checking for an alert::
 * X.509 certificate parsing example::
 * Listing the ciphersuites in a priority string::
+* PKCS12 structure generation example::
 @end menu
 
 @node Checking for an alert
@@ -264,7 +265,7 @@ current session.
 
 @node X.509 certificate parsing example
 @subsection @acronym{X.509} certificate parsing example
-@anchor{ex:x509-info}
+@anchor{ex-x509-info}
 
 To demonstrate the @acronym{X.509} parsing capabilities an example program is
 listed below.  That program reads the peer's certificate, and prints
@@ -279,3 +280,12 @@ This is a small program to list the enabled ciphersuites by a
 priority string.
 
 @verbatiminclude examples/print-ciphersuites.c
+
+@node PKCS12 structure generation example
+@subsection PKCS #12 structure generation example
+
+This small program demonstrates the usage of the PKCS #12 API, by generating
+such a structure.
+
+@verbatiminclude examples/ex-pkcs12.c
+

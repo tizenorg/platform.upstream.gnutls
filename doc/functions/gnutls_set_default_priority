@@ -8,9 +8,8 @@
 Sets some default priority on the ciphers, key exchange methods,
 macs and compression methods.
 
-This is the same as calling:
-
-gnutls_priority_set_direct (session, "NORMAL", NULL);
+This typically sets a default priority that is considered
+sufficiently secure to establish encrypted sessions.
 
 This function is kept around for backwards compatibility, but
 because of its wide use it is still fully supported.  If you wish

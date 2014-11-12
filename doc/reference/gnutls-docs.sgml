@@ -11,7 +11,7 @@
     <releaseinfo>
       for GnuTLS &version;.
       The latest version of this documentation can be found on-line at
-      <ulink role="online-location" url="https://www.gnu.org/software/gnutls/reference/">https://www.gnu.org/software/gnutls/reference/</ulink>.
+      <ulink role="online-location" url="http://www.gnutls.org/reference/">http://www.gnutls.org/reference/</ulink>.
     </releaseinfo>
   </bookinfo>
 
@@ -25,44 +25,54 @@
 
     <para>
       More up to date information can be found at
-      <ulink url="http://www.gnu.org/software/gnutls/">
-	http://www.gnu.org/software/gnutls/</ulink>.
+      <ulink url="http://www.gnutls.org/">
+	http://www.gnutls.org/</ulink>.
     </para>
 
     <xi:include href="xml/gnutls.xml"/>
     <xi:include href="xml/abstract.xml"/>
     <xi:include href="xml/x509.xml"/>
     <xi:include href="xml/openpgp.xml"/>
-    <xi:include href="xml/dtls.xml"/>
     <xi:include href="xml/crypto.xml"/>
     <xi:include href="xml/pkcs11.xml"/>
     <xi:include href="xml/pkcs12.xml"/>
     <xi:include href="xml/ocsp.xml"/>
+    <xi:include href="xml/dtls.xml"/>
+    <xi:include href="xml/tpm.xml"/>
+<!--    <xi:include href="xml/dane.xml"/>-->
 
   </chapter>
   <index id="api-index-full">
     <title>API Index</title>
     <xi:include href="xml/api-index-full.xml"><xi:fallback /></xi:include>
   </index>
+<!--
   <index role="deprecated" id="api-index-deprecated">
     <title>Index of deprecated symbols</title>
   </index>
   <index role="2.4.0" id="api-index-2-4-0">
-    <title>Index of new symbols in 2.4.0</title>
+    <title>Index of new symbols in 2.4.x</title>
   </index>
   <index role="2.6.0" id="api-index-2-6-0">
-    <title>Index of new symbols in 2.6.0</title>
+    <title>Index of new symbols in 2.6.x</title>
   </index>
   <index role="2.8.0" id="api-index-2-8-0">
-    <title>Index of new symbols in 2.8.0</title>
+    <title>Index of new symbols in 2.8.x</title>
   </index>
   <index role="2.10.0" id="api-index-2-10-0">
-    <title>Index of new symbols in 2.10.0</title>
+    <title>Index of new symbols in 2.10.x</title>
   </index>
   <index role="2.12.0" id="api-index-2-12-0">
-    <title>Index of new symbols in 2.12.0</title>
+    <title>Index of new symbols in 2.12.x</title>
   </index>
   <index role="3.0" id="api-index-3-0">
     <title>Index of new symbols in 3.0.x</title>
   </index>
+  <index role="3.1" id="api-index-3-1">
+    <title>Index of new symbols in 3.1.x</title>
+  </index>
+  <index role="3.2" id="api-index-3-2">
+    <title>Index of new symbols in 3.2.x</title>
+  </index>
+-->
 </book>

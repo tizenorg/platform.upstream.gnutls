@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -20,9 +20,25 @@
  *
  */
 
-int _gnutls_trustlist_inlist (gnutls_x509_trust_list_t list,
-			      gnutls_x509_crt_t cert);
-int
-_gnutls_x509_trust_list_remove_cas(gnutls_x509_trust_list_t list,
-                               const gnutls_x509_crt_t * clist,
-                               int clist_size);
+#ifndef VERIFY_HIGH_H
+# define VERIFY_HIGH_H
+
+struct gnutls_x509_trust_list_st {
+	unsigned int size;
+	struct node_st *node;
+
+	/* holds a sequence of the RDNs of the CAs above.
+	 * This is used when using the trust list in TLS.
+	 */
+	gnutls_datum_t x509_rdn_sequence;
+
+	gnutls_x509_crt_t *blacklisted;
+	unsigned int blacklisted_size;
+	
+	char* pkcs11_token;
+};
+
+int _gnutls_trustlist_inlist(gnutls_x509_trust_list_t list,
+			     gnutls_x509_crt_t cert);
+
+#endif

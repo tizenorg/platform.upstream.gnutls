@@ -26,6 +26,11 @@ EXTRA_DIST = pkcs1-pad-ok.pem pkcs1-pad-broken.pem \
 
 dist_check_SCRIPTS = pkcs1-pad
 
+if !WINDOWS
 TESTS = pkcs1-pad
+endif
 
-TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT)
+TESTS_ENVIRONMENT = EXEEXT=$(EXEEXT) \
+	LC_ALL="C"						\
+	top_builddir="$(top_builddir)"				\
+	srcdir="$(srcdir)"

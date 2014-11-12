@@ -32,58 +32,53 @@
 #include "../lib/gnutls_errors.h"
 #include "../lib/debug.h"
 
-static void
-tls_log_func (int level, const char *str)
+static void tls_log_func(int level, const char *str)
 {
-  fprintf (stderr, "|<%d>| %s", level, str);
+	fprintf(stderr, "|<%d>| %s", level, str);
 }
 
-#define RND_BITS 510            /* not multiple of 8 */
-void
-doit (void)
+void doit(void)
 {
-  int rc;
-  bigint_t n1, n2, n3, n4;
+	bigint_t n1, n2, n3, n4;
+	int ret;
 
-  gnutls_global_init ();
+	global_init();
 
-  gnutls_global_set_log_function (tls_log_func);
-  if (debug)
-    gnutls_global_set_log_level (99);
+	gnutls_global_set_log_function(tls_log_func);
+	if (debug)
+		gnutls_global_set_log_level(99);
 
-  n1 = _gnutls_mpi_new (1000);
-  if (n1 == NULL)
-    fail ("mpi_new failed\n");
+	ret = _gnutls_mpi_init_multi(&n1, &n2, &n3, &n4, NULL);
+	if (ret < 0)
+		fail("mpi_new failed\n");
 
-  n2 = _gnutls_mpi_set_ui (NULL, 2);
-  if (n2 == NULL)
-    fail ("mpi_set_ui failed\n");
+	ret = _gnutls_mpi_set_ui(n2, 2);
+	if (ret < 0)
+		fail("mpi_set_ui failed\n");
 
-  n3 = _gnutls_mpi_set_ui (NULL, 5);
-  if (n3 == NULL)
-    fail ("mpi_set_ui failed\n");
+	ret = _gnutls_mpi_set_ui(n3, 5);
+	if (ret < 0)
+		fail("mpi_set_ui failed\n");
 
-  _gnutls_mpi_randomize (n1, RND_BITS, GNUTLS_RND_NONCE);
+	ret = _gnutls_mpi_set_ui(n1, 12498924);
+	if (ret < 0)
+		fail("mpi_set_ui failed\n");
 
-  _gnutls_mpi_log ("rand:", n1);
+	ret = _gnutls_mpi_addm(n4, n1, n3, n2);
+	if (ret < 0)
+		fail("mpi_set_ui failed\n");
 
-  rc = _gnutls_mpi_get_nbits (n1);
-  if (rc > RND_BITS)
-    fail ("mpi_get_nbits failed... returned %d\n", rc);
+	if (_gnutls_mpi_cmp_ui(n4, 0) != 0
+	    && _gnutls_mpi_cmp_ui(n4, 1) != 0)
+		fail("mpi_cmp_ui failed\n");
 
-  n4 = _gnutls_mpi_addm (NULL, n1, n3, n2);
-  if (n4 == NULL)
-    fail ("mpi_set_ui failed\n");
+	_gnutls_mpi_release(&n1);
+	_gnutls_mpi_release(&n2);
+	_gnutls_mpi_release(&n3);
+	_gnutls_mpi_release(&n4);
 
-  if (_gnutls_mpi_cmp_ui (n4, 0) != 0 && _gnutls_mpi_cmp_ui (n4, 1) != 0)
-    fail ("mpi_cmp_ui failed\n");
+	gnutls_global_deinit();
 
-  _gnutls_mpi_release (&n1);
-  _gnutls_mpi_release (&n2);
-  _gnutls_mpi_release (&n3);
-  _gnutls_mpi_release (&n4);
-
-  gnutls_global_deinit ();
-
-  if (debug) success ("mpi ops ok\n");
+	if (debug)
+		success("mpi ops ok\n");
 }

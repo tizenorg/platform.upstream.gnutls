@@ -1,18 +1,18 @@
 /* A GNU-like <stdio.h>.
 
-   Copyright (C) 2004, 2007-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2007-2014 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3, or (at your option)
+   it under the terms of the GNU Lesser General Public License as published by
+   the Free Software Foundation; either version 2.1, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   GNU Lesser General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
+   You should have received a copy of the GNU Lesser General Public License
    along with this program; if not, see <http://www.gnu.org/licenses/>.  */
 
 #if __GNUC__ >= 3
@@ -124,6 +124,15 @@
 #define _GL_STDIO_STRINGIZE(token) #token
 #define _GL_STDIO_MACROEXPAND_AND_STRINGIZE(token) _GL_STDIO_STRINGIZE(token)
 
+/* When also using extern inline, suppress the use of static inline in
+   standard headers of problematic Apple configurations, as Libc at
+   least through Libc-825.26 (2013-04-09) mishandles it; see, e.g.,
+   <http://lists.gnu.org/archive/html/bug-gnulib/2012-12/msg00023.html>.
+   Perhaps Apple will fix this some day.  */
+#if (defined _GL_EXTERN_INLINE_IN_USE && defined __APPLE__ \
+     && defined __GNUC__ && defined __STDC__)
+# undef putc_unlocked
+#endif
 
 #if @GNULIB_DPRINTF@
 # if @REPLACE_DPRINTF@

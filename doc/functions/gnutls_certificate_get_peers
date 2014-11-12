@@ -2,10 +2,10 @@
 
 
 
-@deftypefun {const gnutls_datum_t *} {gnutls_certificate_get_peers} (gnutls_session_t                               @var{session}, unsigned int * @var{list_size})
+@deftypefun {const gnutls_datum_t *} {gnutls_certificate_get_peers} (gnutls_session_t          @var{session}, unsigned int * @var{list_size})
 @var{session}: is a gnutls session
 
-@var{list_size}: is the length of the certificate list
+@var{list_size}: is the length of the certificate list (may be @code{NULL} )
 
 Get the peer's raw certificate (chain) as sent by the peer.  These
 certificates are in raw format (DER encoded for X.509).  In case of

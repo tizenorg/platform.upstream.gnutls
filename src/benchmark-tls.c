@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
+#include <math.h>
 
 #define fail(...) \
 	{ \
@@ -40,403 +41,452 @@
 #include "../tests/eagain-common.h"
 #include "benchmark.h"
 
-const char* side = "";
+const char *side = "";
 
 #define PRIO_DH "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+DHE-RSA"
 #define PRIO_ECDH "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ECDHE-RSA:+CURVE-SECP192R1"
 #define PRIO_ECDHE_ECDSA "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ECDHE-ECDSA:+CURVE-SECP192R1"
 #define PRIO_RSA "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
 
-#define PRIO_AES_CBC_SHA1 "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ANON-DH"
-#define PRIO_ARCFOUR_128_MD5 "NONE:+VERS-TLS1.0:+ARCFOUR-128:+MD5:+SIGN-ALL:+COMP-NULL:+ANON-DH"
-#define PRIO_AES_GCM "NONE:+VERS-TLS1.2:+AES-128-GCM:+AEAD:+SIGN-ALL:+COMP-NULL:+ANON-DH"
-#define PRIO_CAMELLIA_CBC_SHA1 "NONE:+VERS-TLS1.0:+CAMELLIA-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ANON-DH"
+#define PRIO_ARCFOUR_128_SHA1 "NONE:+VERS-TLS1.0:+ARCFOUR-128:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
 
-// #define PARAMS_1024 
+#define PRIO_AES_CBC_SHA1 "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
+#define PRIO_ARCFOUR_128_MD5 "NONE:+VERS-TLS1.0:+ARCFOUR-128:+MD5:+SIGN-ALL:+COMP-NULL:+RSA"
+#define PRIO_AES_GCM "NONE:+VERS-TLS1.2:+AES-128-GCM:+AEAD:+SIGN-ALL:+COMP-NULL:+RSA"
+#define PRIO_CAMELLIA_CBC_SHA1 "NONE:+VERS-TLS1.0:+CAMELLIA-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
+#define PRIO_SALSA20_256_SHA1 "NONE:+VERS-TLS1.0:+SALSA20-256:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
 
-#ifdef PARAMS_1024
-
-static const int rsa_bits = 1024, ec_bits = 192;
-
-const char *pkcs3 = 
-  "-----BEGIN DH PARAMETERS-----\n"
-  "MIIBCwKBgQCsIrA9BK23OUVIwrC4c65YJ2t8bqoGpJpuISjO07lAbWHWa47Kf9/t\n"
-  "F9ckO2AF6Yj1Y7xS+FSCDeoIZsp0LCq3nAP9Ls25fgHrKSMPQBJt2vd5mUdm90Wr\n"
-  "wCK2YjogQ7YVQlovVHsnJWC6Kf0P+OQ4hrihoBCGSj9sGK3wH57m+wKBgH5xlPNR\n"
-  "pI8E2WBNqB6y4sV3eMGRvygScbbFUFFO1ccmNJl5Y5L/O+fP0ZXtmUJVsSvlY0fp\n"
-  "Kcl6k5WCWMY8h6iHlJ9teHmC4s2jifXtaV759kJXdqrGEjRPEku50y3ANzDLzklW\n"
-  "8R7HcSO397vIdouaUt38FbQESnIWOIZqDtq6AgIAnw==\n"
-  "-----END DH PARAMETERS-----\n";
-
-/* RSA key of 1024 bits */
-static unsigned char server_cert_pem[] =
-  "-----BEGIN CERTIFICATE-----\n"
-  "MIICVjCCAcGgAwIBAgIERiYdMTALBgkqhkiG9w0BAQUwGTEXMBUGA1UEAxMOR251\n"
-  "VExTIHRlc3QgQ0EwHhcNMDcwNDE4MTMyOTIxWhcNMDgwNDE3MTMyOTIxWjA3MRsw\n"
-  "GQYDVQQKExJHbnVUTFMgdGVzdCBzZXJ2ZXIxGDAWBgNVBAMTD3Rlc3QuZ251dGxz\n"
-  "Lm9yZzCBnDALBgkqhkiG9w0BAQEDgYwAMIGIAoGA17pcr6MM8C6pJ1aqU46o63+B\n"
-  "dUxrmL5K6rce+EvDasTaDQC46kwTHzYWk95y78akXrJutsoKiFV1kJbtple8DDt2\n"
-  "DZcevensf9Op7PuFZKBroEjOd35znDET/z3IrqVgbtm2jFqab7a+n2q9p/CgMyf1\n"
-  "tx2S5Zacc1LWn9bIjrECAwEAAaOBkzCBkDAMBgNVHRMBAf8EAjAAMBoGA1UdEQQT\n"
-  "MBGCD3Rlc3QuZ251dGxzLm9yZzATBgNVHSUEDDAKBggrBgEFBQcDATAPBgNVHQ8B\n"
-  "Af8EBQMDB6AAMB0GA1UdDgQWBBTrx0Vu5fglyoyNgw106YbU3VW0dTAfBgNVHSME\n"
-  "GDAWgBTpPBz7rZJu5gakViyi4cBTJ8jylTALBgkqhkiG9w0BAQUDgYEAaFEPTt+7\n"
-  "bzvBuOf7+QmeQcn29kT6Bsyh1RHJXf8KTk5QRfwp6ogbp94JQWcNQ/S7YDFHglD1\n"
-  "AwUNBRXwd3riUsMnsxgeSDxYBfJYbDLeohNBsqaPDJb7XailWbMQKfAbFQ8cnOxg\n"
-  "rOKLUQRWJ0K3HyXRMhbqjdLIaQiCvQLuizo=\n" "-----END CERTIFICATE-----\n";
-static unsigned char server_key_pem[] =
-  "-----BEGIN RSA PRIVATE KEY-----\n"
-  "MIICXAIBAAKBgQDXulyvowzwLqknVqpTjqjrf4F1TGuYvkrqtx74S8NqxNoNALjq\n"
-  "TBMfNhaT3nLvxqResm62ygqIVXWQlu2mV7wMO3YNlx696ex/06ns+4VkoGugSM53\n"
-  "fnOcMRP/PciupWBu2baMWppvtr6far2n8KAzJ/W3HZLllpxzUtaf1siOsQIDAQAB\n"
-  "AoGAYAFyKkAYC/PYF8e7+X+tsVCHXppp8AoP8TEZuUqOZz/AArVlle/ROrypg5kl\n"
-  "8YunrvUdzH9R/KZ7saNZlAPLjZyFG9beL/am6Ai7q7Ma5HMqjGU8kTEGwD7K+lbG\n"
-  "iomokKMOl+kkbY/2sI5Czmbm+/PqLXOjtVc5RAsdbgvtmvkCQQDdV5QuU8jap8Hs\n"
-  "Eodv/tLJ2z4+SKCV2k/7FXSKWe0vlrq0cl2qZfoTUYRnKRBcWxc9o92DxK44wgPi\n"
-  "oMQS+O7fAkEA+YG+K9e60sj1K4NYbMPAbYILbZxORDecvP8lcphvwkOVUqbmxOGh\n"
-  "XRmTZUuhBrJhJKKf6u7gf3KWlPl6ShKEbwJASC118cF6nurTjuLf7YKARDjNTEws\n"
-  "qZEeQbdWYINAmCMj0RH2P0mvybrsXSOD5UoDAyO7aWuqkHGcCLv6FGG+qwJAOVqq\n"
-  "tXdUucl6GjOKKw5geIvRRrQMhb/m5scb+5iw8A4LEEHPgGiBaF5NtJZLALgWfo5n\n"
-  "hmC8+G8F0F78znQtPwJBANexu+Tg5KfOnzSILJMo3oXiXhf5PqXIDmbN0BKyCKAQ\n"
-  "LfkcEcUbVfmDaHpvzwY9VEaoMOKVLitETXdNSxVpvWM=\n"
-  "-----END RSA PRIVATE KEY-----\n";
-
-#else
-
-static const int rsa_bits = 1840, ec_bits = 192;
+static const int rsa_bits = 1776, ec_bits = 192;
 
 /* DH of 1840 bits that is pretty close equivalent to 192 bits of ECDH.
  */
 const char *pkcs3 =
-  "-----BEGIN DH PARAMETERS-----\n"
-  "MIIB1gKB5kX/Dun+gVTZ1WXWxpS5efQUQY8XNGxi2V0IYHSqKMkrt8UGruv4Gqop\n"
-  "vAoG/+llD/t84cIdUxNwHtLd5y/ae7lFOKFNhP+glvK/GsCfTcACRy9OFKphWi6E\n"
-  "NDMyWV0miiZgIc/LrXgC4RcDMlmxRR3UW/+eVu1ti6PLMLYSooMwn60K6CWmgaM6\n"
-  "VZaiD++gQtsgJdJv2+eNiVotodBPItJ5KcaPNVEdP1D8MzljO98UIOBR3YnalIAW\n"
-  "oyTjWMcX5oxwIR4eSywPeUQokMFFAKxZfo6/IUv05sQ9semagqAilg52Q5CfAoHm\n"
-  "RL1euKirrpaXqUtrV8r0l962oVFlLD92ReJOcjHFni8FY26qZ4IZba1lLP2Q4DTX\n"
-  "ovR7HPMaa6Ss6EdR2hba8Q1LAiCCUFH5jiKjMU8bSM2Zi23GOdoHqYpHMbcSKkpX\n"
-  "IQpbHHNap53/VxcPj4PK9SbQLt0KWe/253l8Ib5zivb6jKSOY/KzwoXO+MiPae01\n"
-  "BdQhrMtsdntRWo5jChSBUidGP7orra3gPBOXhWdNeeTTshc0AZdSWP3NicokW/q7\n"
-  "jHBuaadmhVv3yd6BvFkSePhVWcSKXXG27K9d3RNsXmaBasNYIhsCAgDf\n"
-  "-----END DH PARAMETERS-----\n";
+    "-----BEGIN DH PARAMETERS-----\n"
+    "MIIBxgKB3gNZMD2odqYk7HGnT+kh72vcnGrDhFMad1m4VlYZoLClkRUOH05W9gKF\n"
+    "hjBzlg5zO1Pp14hpSNWdfXcd2glWE2wzkxxxztzt23gdXK1GjfupnALyPS2Q0Oj7\n"
+    "UiLDfos46vXOSzqO3vBElM2HJQ6N1TRU+EqD5t/6aTAV6iAD+yz2Fyv4Xs+rgJC2\n"
+    "IbpunLzM2IhH2u9tLUXGkBzHPW/6Q+fJRhn88OLBC9vwOHPQvw779+FB0NPue1Qs\n"
+    "vb+4HSywpOr4BtNLWST2MzhCYBApvV1dKcZLI5k5Cfmp5ryV+wKB3gEUe9uAk+5I\n"
+    "ENkTLC7XLLNGjPEKwQhBzE7Nh7RKWlZRX+B/cX5/iT7ZF9+N83O/wf2AxEV6CRWV\n"
+    "WiCjvML/wbskpGoGmrPyef7bLHI62x4/nNacGGWEichPW8Sn/qaT80FHyYM0m7Ha\n"
+    "+Q9kYUSx0u1CW//3nGvma5dh/c2iiq8r7J9w2PSYynHts4bYMrRRx2PVeGhvU8+X\n"
+    "nRkYOqptEqoB6NG5kPRL8b5jJSp7J2hN7shDjQB/s9/N8rvF8tRmMUTJpk3Fwr9F\n"
+    "LVdX3640cbukwFTKlkqZ1evymVzx0wICAL0=\n"
+    "-----END DH PARAMETERS-----\n";
 
 static unsigned char server_cert_pem[] =
-  "-----BEGIN CERTIFICATE-----\n"
-  "MIIC3TCCAeCgAwIBAgIETwIyNzANBgkqhkiG9w0BAQsFADAhMQswCQYDVQQGEwJH\n"
-  "UjESMBAGA1UEAxMJbG9jYWxob3N0MB4XDTEyMDEwMjIyMzk1MloXDTE3MDYwNjIy\n"
-  "Mzk1NlowITELMAkGA1UEBhMCR1IxEjAQBgNVBAMTCWxvY2FsaG9zdDCCAQUwDQYJ\n"
-  "KoZIhvcNAQEBBQADgfMAMIHvAoHnAMnMTaYe76aNxyhPDDZ1YWuj8SQh9PC7PRDD\n"
-  "8qL+G8se+DwiJOL3fjRCXi2R1zt6gUrJmycmW+1xc9GdVST6oO09ZG6NQ8CRvU+K\n"
-  "EcaDRQojUFM9QLmkDO1MyEZDMuXBpM+9TFkyDWgrsgYgcNU+Y9FN9Y45OT780+kl\n"
-  "DjZItjl1jnD3tfWaYORQE//Xy4i2HrxTgikP26PB+3ynI+SDj7Sdt4oasgUo1Fpd\n"
-  "OWDQ0hYQ6sn51mOYUnhYZax5y4lI6Cm4KOQc1NMn3iaX5+nS5YGcFhS/Usb8KsX1\n"
-  "fHGsvePSyS/oxTMlAgMBAAGjVTBTMAwGA1UdEwEB/wQCMAAwEwYDVR0lBAwwCgYI\n"
-  "KwYBBQUHAwEwDwYDVR0PAQH/BAUDAwegADAdBgNVHQ4EFgQUgQI1pnj7olEUcUu3\n"
-  "SVCbJwYyuF4wDQYJKoZIhvcNAQELBQADgecAs2veVEtkSIlj2nEy1NI/lr0Wf51K\n"
-  "0E2/oAeZJGoGo4wK5HUDfW2HlO+UVTkPei2Zk5Kjl/hpd9zG4BhTurL5mncPntXx\n"
-  "Q6F3FMklBld4AYKeq5SSl+GG/PoEDzEJjazABCWgLa/U3EYjuwSXZj9RMibB6NQX\n"
-  "bKCaj4cjRZSa1UmdLl2KTgRfG1ZDU4EBObagkdaOGD0XJ8EEZaBRktMtT8byxM8A\n"
-  "m2pRMdwPvbxENmMhLXcIPQTaPaEYZyq9LA8Pee5wJosN66l8JVlsz2XEcH35DcG0\n"
-  "bSUX8CSDmUPyHRyzVNeEcHc=\n"
-  "-----END CERTIFICATE-----\n";
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIEEzCCAx6gAwIBAgIBBzANBgkqhkiG9w0BAQsFADCBuDELMAkGA1UEBhMCR1Ix\n"
+    "EjAQBgNVBAoTCUtva28gaW5jLjEXMBUGA1UECxMOc2xlZXBpbmcgZGVwdC4xDzAN\n"
+    "BgNVBAgTBkF0dGlraTEVMBMGA1UEAxMMQ2luZHkgTGF1cGVyMRcwFQYKCZImiZPy\n"
+    "LGQBARMHY2xhdXBlcjEMMAoGA1UEDBMDRHIuMQ8wDQYDVQRBEwZqYWNrYWwxHDAa\n"
+    "BgkqhkiG9w0BCQEWDW5vbmVAbm9uZS5vcmcwIhgPMjAxMjA2MDYxOTAxMjdaGA8y\n"
+    "MDE5MDcxMDE5MDEyN1owgbgxCzAJBgNVBAYTAkdSMRIwEAYDVQQKEwlLb2tvIGlu\n"
+    "Yy4xFzAVBgNVBAsTDnNsZWVwaW5nIGRlcHQuMQ8wDQYDVQQIEwZBdHRpa2kxFTAT\n"
+    "BgNVBAMTDENpbmR5IExhdXBlcjEXMBUGCgmSJomT8ixkAQETB2NsYXVwZXIxDDAK\n"
+    "BgNVBAwTA0RyLjEPMA0GA1UEQRMGamFja2FsMRwwGgYJKoZIhvcNAQkBFg1ub25l\n"
+    "QG5vbmUub3JnMIH9MA0GCSqGSIb3DQEBAQUAA4HrADCB5wKB3wC/VSBHG5adM0r0\n"
+    "E80dgVvt+oVnnDcKYcm9q2WbknTL6dFgjjcEbiHDKmnr1hgyT9jfQVE/ve2XnZqA\n"
+    "kbpYMNrQbdieclNycjoXCj3BJSJXXz3Ra6O4DLNh0/XwsxbVd/tMSQvwAK0MR60K\n"
+    "/yfruL2oxe8j7uDmS5oY8b5O9nP/EVW2u7P1KVhrNxC2rGoaK6iRpgkAX3oP2YVM\n"
+    "hLfPONpDgYGxBvrO0tlpHCYL+miWdRzIDPMYtdcU1v1zVSKAsvJ2dgEwP6FoSiWP\n"
+    "nkw3U41i4oe+T7kVEk1F9QLCnXsCAwEAAaNrMGkwDAYDVR0TAQH/BAIwADAUBgNV\n"
+    "HREEDTALgglsb2NhbGhvc3QwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDwYDVR0PAQH/\n"
+    "BAUDAwegADAdBgNVHQ4EFgQUMwvofEmn5CtM4GygipfIuebOssgwDQYJKoZIhvcN\n"
+    "AQELBQADgd8AdP87xzJGv3ddODGoCaVNipkO96HDwt1fC4Jtp1VTn1V4JRaL4e4D\n"
+    "0dlFMq30kmrLTxNSET7MJ5l2m0XZS7jhbl5UW9jLCv1GurMaVuYK4v0LGGezODoH\n"
+    "8naZkxWYGS16kssPu0SDE0V9gWF31IXs2qs0PHvvpI5WFmjrOPX3RfFeVNhmc5sv\n"
+    "1cy+hnM9wxcT2r+jpKn3mYVVcnG7ANZyLKzLwN/PGkYB+tv8sS0ojxMKZLQjr9xs\n"
+    "z1plHeDzm0/t7gsAkrL8ynSkBBJ1SLqaKMmlP1DmgU/zTlMTyKrG\n"
+    "-----END CERTIFICATE-----\n";
 
 static unsigned char server_key_pem[] =
-  "-----BEGIN RSA PRIVATE KEY-----\n"
-  "MIIEKQIBAAKB5wDJzE2mHu+mjccoTww2dWFro/EkIfTwuz0Qw/Ki/hvLHvg8IiTi\n"
-  "9340Ql4tkdc7eoFKyZsnJlvtcXPRnVUk+qDtPWRujUPAkb1PihHGg0UKI1BTPUC5\n"
-  "pAztTMhGQzLlwaTPvUxZMg1oK7IGIHDVPmPRTfWOOTk+/NPpJQ42SLY5dY5w97X1\n"
-  "mmDkUBP/18uIth68U4IpD9ujwft8pyPkg4+0nbeKGrIFKNRaXTlg0NIWEOrJ+dZj\n"
-  "mFJ4WGWsecuJSOgpuCjkHNTTJ94ml+fp0uWBnBYUv1LG/CrF9XxxrL3j0skv6MUz\n"
-  "JQIDAQABAoHnALSPqarKY4STt2/JyxOvU8wMlOfPumrsHmex7JkK5bOJsnOb2YV8\n"
-  "DeCUwc/kfsEpjCZu3fTZzcdXjFoyfMzptLSSChshK05TGSDiWaVWL6AymNziIdf5\n"
-  "gdeSrGCyIAiUi/OVXYsxze03q8LvpAYqHQZayysto69IOe6P5Qt17xYPgsRIA6k9\n"
-  "LAgBIjCN2ukgR/fWERGSn2jC/aBlO3jwmG80LsdPNaQ6+esQcwjwMjFajkf5A1XE\n"
-  "OiYlIdmUS2liuWnUQK+D76WSUTrlwKKjxQiB0A9wugCN43BWHfV/Kf6ohIM1kIAB\n"
-  "AnQA/g8rrF0cTe6ZsiZU0m7nyIQkmATENlLhu37DtcsdqTAwV3+UqzLIh46sHiRa\n"
-  "D3SKlhhNs6iTqw/Wv02ZHy+//pxCmWWNAxhhwPCM6/OO6i5oEYU4uH+llEcu5Flh\n"
-  "udFt7fMy/tzpwPsZRFpXaO1wScU2AQJ0AMtW7rsVrdqZqOdVGNI7vRsLC1SM26j4\n"
-  "2bouNvKPuaLOsLBSlFopSpFRDgOxe+OOqk9Reg6RzO/q+496bEOqixofCE5Gfc/I\n"
-  "pwlwwRGTP7sA0w6Y+Vo+qiATht/YaruscXL3AdQ3BulaqunAzsKN0Iz2ZSUCdACu\n"
-  "bTX74fVj4BPvxvdnfrNt7KO/J06bSW4nr1GpB6n2ldoqyLIGlBgvUZoEG8slX0si\n"
-  "387BMVUpFffHYfxl9/+mTBxBewJEhMHgmIb4HEEbsP7MQJ3/tcu1sOWV63P4Aryp\n"
-  "qNZzOrLWRs9DKY9nv9TfISIBAnMFNzCeadrwvXpAnMUrN08Nb4YV4BsORXvIM8FD\n"
-  "DX60d1q+2w9lFKQOACc83wOPfaxOpodb8k9wY/WZ44j9X1V8EQm0gEhf2QS30EWT\n"
-  "ftRmponDWRckQnE4q2eNPE7Yi37JdR594/9wYtv5bPGgueR8iSFlAnQAjinshgPe\n"
-  "kfAYhgSBbyJJvmCCp3jSra5JzoBnmMy2JyEJT+trCs9pmaP79GP/6BjPXHImnN0w\n"
-  "PsTvmNPD3U2BqsGRuu6OGg9VRP/LDLpPGmV7j8nTraVJCkc4w/n/gazAbPydZZbz\n"
-  "qRP/3et96JUHZnmn6g==\n"
-  "-----END RSA PRIVATE KEY-----\n";
-#endif
+    "-----BEGIN RSA PRIVATE KEY-----\n"
+    "MIIEBAIBAAKB3wC/VSBHG5adM0r0E80dgVvt+oVnnDcKYcm9q2WbknTL6dFgjjcE\n"
+    "biHDKmnr1hgyT9jfQVE/ve2XnZqAkbpYMNrQbdieclNycjoXCj3BJSJXXz3Ra6O4\n"
+    "DLNh0/XwsxbVd/tMSQvwAK0MR60K/yfruL2oxe8j7uDmS5oY8b5O9nP/EVW2u7P1\n"
+    "KVhrNxC2rGoaK6iRpgkAX3oP2YVMhLfPONpDgYGxBvrO0tlpHCYL+miWdRzIDPMY\n"
+    "tdcU1v1zVSKAsvJ2dgEwP6FoSiWPnkw3U41i4oe+T7kVEk1F9QLCnXsCAwEAAQKB\n"
+    "3iYR2gpMAvvkaNWH2xgz1QbVAhZLjugR7QJASEdcLMEmFPMRWQEYqL8cgVbbkpTw\n"
+    "Lka9yFzWfZ/dTBCo7lr93Yv7T063kMME12oeL4tuyBZ6bOJueHT2kfq1Igpyl+iB\n"
+    "pw7WuflXKRd4a4X0nwzYBQxYWH7bKkQRZDlViKuOXKVzgT7GqD6cbTZbc/8wUTi7\n"
+    "HoyMlz4d+YH/XL5Zt6SM7cMuJ/VOGGUcBiXqlixzulloihkPwJeg6zxx0e1dVy4q\n"
+    "jvVhb+hmypWajjBDPUwIGFih0lZJ6rqIDyls/ZK2AQJwAPFeAMubo1KWcFU+nHoK\n"
+    "Q/jdOjpuAt7fwczkqhb6uOrJtS4RUtF3x3jfESFYf6Btnt6Slj1HpNKHbud2Weyw\n"
+    "i3lIkkmQq4+8uRjZXlNtp2Sd33NFeYE1D8ll3V2wiwiCOPJxYWpOOwHs7pkcOsAD\n"
+    "ywJwAMruluGFAUhoCxXOGzbJeXOC0U+LbwU72Xgk9zhEX6chaklKgdSnJ8DlHnYe\n"
+    "R+wc2vXRfSGlT1OH0X8ezn82QV8UmYo6cNpMTNarW0rzpFir51owvYSBPnPB+DLX\n"
+    "0JausRZoI6fyZSw4Vxt9PN13EQJwANnEX2FUfcmQs68le1ZclrEdIGEBSpO9PARZ\n"
+    "tuBeu6IR9OaoeJlGwXDbiYAVcajT3oefp++ICTxtNvGchUuYiW4WvO2kmjVoJ3Q1\n"
+    "Afaxs1qDWcyNvS+HKUQjJNNX6kj1/N040JRyGqkFFMyNfLArewJwAL/KfLkJjmvT\n"
+    "QV7LW3cNNYbRRWdLXZLxvJfLQAdiv5BiiWRZUZkcnfq10HNMLSdfIiYfZocNCIrm\n"
+    "mz3sbLdYHLJy8qXsk8oNQLXGX9LXsCTJ2y6nUAZSbCbVVPEgfRhcZCvMIp7Q/YOs\n"
+    "f88QLx0UMQJvYsEnYagLe9EfC0d8fXTKJr143FMxas7j3eftxLEBnx7ZsqCbJD1o\n"
+    "UsvWkp5I3kqIABEqY1ZJV/gU41MceuWURSVADpuuRDLzv8WPdeffad9o2hX/bkI6\n"
+    "2INKeuq1nILiEHAZLloH6/fdjpWZYF0D\n" "-----END RSA PRIVATE KEY-----\n";
 
 static unsigned char server_ecc_key_pem[] =
-  "-----BEGIN EC PRIVATE KEY-----\n"
-  "MGACAQEEGQCovzs4UsfRncfJXO3WOZUe/Zf+usKzEcWgCgYIKoZIzj0DAQGhNAMy\n"
-  "AAREwuCcUHKNWyetsymkAaqA0GCgksI2AjewpOWsraGrfea3GPw1uuyOQRMR7kka\n"
-  "v6s=\n"
-  "-----END EC PRIVATE KEY-----\n";
+    "-----BEGIN EC PRIVATE KEY-----\n"
+    "MGACAQEEGQCovzs4UsfRncfJXO3WOZUe/Zf+usKzEcWgCgYIKoZIzj0DAQGhNAMy\n"
+    "AAREwuCcUHKNWyetsymkAaqA0GCgksI2AjewpOWsraGrfea3GPw1uuyOQRMR7kka\n"
+    "v6s=\n" "-----END EC PRIVATE KEY-----\n";
 
 static unsigned char server_ecc_cert_pem[] =
-  "-----BEGIN CERTIFICATE-----\n"
-  "MIIBYDCCARWgAwIBAgIETuILrDAKBggqhkjOPQQDAjAcMQswCQYDVQQGEwJCRTEN\n"
-  "MAsGA1UEChMEVGVzdDAeFw0xMTEyMDkxMzIyNTJaFw0xNzA4MTExMzIyNTlaMBwx\n"
-  "CzAJBgNVBAYTAkJFMQ0wCwYDVQQKEwRUZXN0MEkwEwYHKoZIzj0CAQYIKoZIzj0D\n"
-  "AQEDMgAERMLgnFByjVsnrbMppAGqgNBgoJLCNgI3sKTlrK2hq33mtxj8NbrsjkET\n"
-  "Ee5JGr+ro1UwUzAMBgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G\n"
-  "A1UdDwEB/wQFAwMHgAAwHQYDVR0OBBYEFKeR27mtYWFaH43U2zEvjd28Zf+CMAoG\n"
-  "CCqGSM49BAMCAzkAMDYCGQD7WWWiFV+ddI7tIyMFepKFA1dX4nlc/+ICGQCCPdHc\n"
-  "gMyHv2XyfOGHLhq0HmDTOOiwfC4=\n"
-  "-----END CERTIFICATE-----\n";
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIBYDCCARWgAwIBAgIETuILrDAKBggqhkjOPQQDAjAcMQswCQYDVQQGEwJCRTEN\n"
+    "MAsGA1UEChMEVGVzdDAeFw0xMTEyMDkxMzIyNTJaFw0xNzA4MTExMzIyNTlaMBwx\n"
+    "CzAJBgNVBAYTAkJFMQ0wCwYDVQQKEwRUZXN0MEkwEwYHKoZIzj0CAQYIKoZIzj0D\n"
+    "AQEDMgAERMLgnFByjVsnrbMppAGqgNBgoJLCNgI3sKTlrK2hq33mtxj8NbrsjkET\n"
+    "Ee5JGr+ro1UwUzAMBgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G\n"
+    "A1UdDwEB/wQFAwMHgAAwHQYDVR0OBBYEFKeR27mtYWFaH43U2zEvjd28Zf+CMAoG\n"
+    "CCqGSM49BAMCAzkAMDYCGQD7WWWiFV+ddI7tIyMFepKFA1dX4nlc/+ICGQCCPdHc\n"
+    "gMyHv2XyfOGHLhq0HmDTOOiwfC4=\n" "-----END CERTIFICATE-----\n";
 
 const gnutls_datum_t server_cert = { server_cert_pem,
-  sizeof (server_cert_pem)
+	sizeof(server_cert_pem)
 };
 
 const gnutls_datum_t server_key = { server_key_pem,
-  sizeof (server_key_pem)
+	sizeof(server_key_pem)
 };
 
 const gnutls_datum_t server_ecc_cert = { server_ecc_cert_pem,
-  sizeof (server_ecc_cert_pem)
+	sizeof(server_ecc_cert_pem)
 };
 
 const gnutls_datum_t server_ecc_key = { server_ecc_key_pem,
-  sizeof (server_ecc_key_pem)
+	sizeof(server_ecc_key_pem)
 };
 
 char buffer[64 * 1024];
 
 static void tls_log_func(int level, const char *str)
 {
-    fprintf(stderr, "%s|<%d>| %s", side, level, str);
+	fprintf(stderr, "%s|<%d>| %s", side, level, str);
 }
 
 static void test_ciphersuite(const char *cipher_prio, int size)
 {
-    /* Server stuff. */
-    gnutls_anon_server_credentials_t s_anoncred;
-    const gnutls_datum_t p3 = { (void*) pkcs3, strlen(pkcs3) };
-    static gnutls_dh_params_t dh_params;
-    gnutls_session_t server;
-    int sret, cret;
-    const char *str;
-    /* Client stuff. */
-    gnutls_anon_client_credentials_t c_anoncred;
-    gnutls_session_t client;
-    /* Need to enable anonymous KX specifically. */
-    int ret;
-    struct benchmark_st st;
+	/* Server stuff. */
+	gnutls_anon_server_credentials_t s_anoncred;
+	gnutls_certificate_credentials_t c_certcred, s_certcred;
+	const gnutls_datum_t p3 = { (void *) pkcs3, strlen(pkcs3) };
+	static gnutls_dh_params_t dh_params;
+	gnutls_session_t server;
+	int sret, cret;
+	const char *str;
+	/* Client stuff. */
+	gnutls_anon_client_credentials_t c_anoncred;
+	gnutls_session_t client;
+	/* Need to enable anonymous KX specifically. */
+	int ret;
+	struct benchmark_st st;
+	gnutls_packet_t packet;
 
-    /* Init server */
-    gnutls_anon_allocate_server_credentials(&s_anoncred);
-    gnutls_dh_params_init(&dh_params);
-    gnutls_dh_params_import_pkcs3(dh_params, &p3, GNUTLS_X509_FMT_PEM);
-    gnutls_anon_set_server_dh_params(s_anoncred, dh_params);
-    gnutls_init(&server, GNUTLS_SERVER);
-    ret = gnutls_priority_set_direct(server, cipher_prio, &str);
-    if (ret < 0) {
-        fprintf(stderr, "Error in %s\n", str);
-        exit(1);
-    }
-    gnutls_credentials_set(server, GNUTLS_CRD_ANON, s_anoncred);
-    gnutls_dh_set_prime_bits(server, 1024);
-    gnutls_transport_set_push_function(server, server_push);
-    gnutls_transport_set_pull_function(server, server_pull);
-    gnutls_transport_set_ptr(server, (gnutls_transport_ptr_t) server);
-    reset_buffers();
+	/* Init server */
+	gnutls_anon_allocate_server_credentials(&s_anoncred);
+	gnutls_dh_params_init(&dh_params);
+	gnutls_dh_params_import_pkcs3(dh_params, &p3, GNUTLS_X509_FMT_PEM);
+	gnutls_anon_set_server_dh_params(s_anoncred, dh_params);
 
-    /* Init client */
-    gnutls_anon_allocate_client_credentials(&c_anoncred);
-    gnutls_init(&client, GNUTLS_CLIENT);
+	gnutls_certificate_allocate_credentials(&s_certcred);
+	gnutls_certificate_set_dh_params(s_certcred, dh_params);
 
-    ret = gnutls_priority_set_direct(client, cipher_prio, &str);
-    if (ret < 0) {
-        fprintf(stderr, "Error in %s\n", str);
-        exit(1);
-    }
-    gnutls_credentials_set(client, GNUTLS_CRD_ANON, c_anoncred);
-    gnutls_transport_set_push_function(client, client_push);
-    gnutls_transport_set_pull_function(client, client_pull);
-    gnutls_transport_set_ptr(client, (gnutls_transport_ptr_t) client);
+	gnutls_certificate_set_x509_key_mem(s_certcred, &server_cert,
+					    &server_key,
+					    GNUTLS_X509_FMT_PEM);
+	gnutls_certificate_set_x509_key_mem(s_certcred, &server_ecc_cert,
+					    &server_ecc_key,
+					    GNUTLS_X509_FMT_PEM);
 
-    HANDSHAKE(client, server);
+	gnutls_init(&server, GNUTLS_SERVER);
+	ret = gnutls_priority_set_direct(server, cipher_prio, &str);
+	if (ret < 0) {
+		fprintf(stderr, "Error in %s\n", str);
+		exit(1);
+	}
+	gnutls_credentials_set(server, GNUTLS_CRD_ANON, s_anoncred);
+	gnutls_credentials_set(server, GNUTLS_CRD_CERTIFICATE, s_certcred);
+	gnutls_transport_set_push_function(server, server_push);
+	gnutls_transport_set_pull_function(server, server_pull);
+	gnutls_transport_set_ptr(server, (gnutls_transport_ptr_t) server);
+	reset_buffers();
 
-    fprintf(stdout, "Testing %s with %d packet size: ",
-            gnutls_cipher_suite_get_name(gnutls_kx_get(server),
-                                         gnutls_cipher_get(server),
-                                         gnutls_mac_get(server)), size);
-    fflush(stdout);
+	/* Init client */
+	gnutls_anon_allocate_client_credentials(&c_anoncred);
+	gnutls_certificate_allocate_credentials(&c_certcred);
+	gnutls_init(&client, GNUTLS_CLIENT);
 
-    gnutls_rnd(GNUTLS_RND_NONCE, buffer, sizeof(buffer));
+	ret = gnutls_priority_set_direct(client, cipher_prio, &str);
+	if (ret < 0) {
+		fprintf(stderr, "Error in %s\n", str);
+		exit(1);
+	}
+	gnutls_credentials_set(client, GNUTLS_CRD_ANON, c_anoncred);
+	gnutls_credentials_set(client, GNUTLS_CRD_CERTIFICATE, c_certcred);
+	gnutls_transport_set_push_function(client, client_push);
+	gnutls_transport_set_pull_function(client, client_pull);
+	gnutls_transport_set_ptr(client, (gnutls_transport_ptr_t) client);
 
-    start_benchmark(&st);
+	HANDSHAKE(client, server);
 
-    do {
-        do {
-            ret = gnutls_record_send(client, buffer, size);
-        }
-        while (ret == GNUTLS_E_AGAIN);
+	fprintf(stdout, "%38s  ",
+		gnutls_cipher_suite_get_name(gnutls_kx_get(server),
+					     gnutls_cipher_get(server),
+					     gnutls_mac_get(server)));
+	fflush(stdout);
 
-        if (ret < 0) {
-            fprintf(stderr, "Failed sending to server\n");
-            exit(1);
-        }
+	gnutls_rnd(GNUTLS_RND_NONCE, buffer, sizeof(buffer));
 
-        do {
-            ret = gnutls_record_recv(server, buffer, sizeof(buffer));
-        }
-        while (ret == GNUTLS_E_AGAIN);
+	start_benchmark(&st);
 
-        if (ret < 0) {
-            fprintf(stderr, "Failed receiving from client\n");
-            exit(1);
-        }
+	do {
+		do {
+			ret = gnutls_record_send(client, buffer, size);
+		}
+		while (ret == GNUTLS_E_AGAIN);
 
-        st.size += size;
-    }
-    while (benchmark_must_finish == 0);
+		if (ret < 0) {
+			fprintf(stderr, "Failed sending to server\n");
+			exit(1);
+		}
 
-    stop_benchmark(&st, NULL);
+		do {
+			ret =
+			    gnutls_record_recv_packet(server, &packet);
+		}
+		while (ret == GNUTLS_E_AGAIN);
 
-    gnutls_bye(client, GNUTLS_SHUT_WR);
-    gnutls_bye(server, GNUTLS_SHUT_WR);
+		if (ret < 0) {
+			fprintf(stderr, "Failed receiving from client: %s\n", gnutls_strerror(ret));
+			exit(1);
+		}
 
-    gnutls_deinit(client);
-    gnutls_deinit(server);
+		st.size += size;
+		gnutls_packet_deinit(packet);
+	}
+	while (benchmark_must_finish == 0);
 
-    gnutls_anon_free_client_credentials(c_anoncred);
-    gnutls_anon_free_server_credentials(s_anoncred);
+	stop_benchmark(&st, NULL, 1);
 
-    gnutls_dh_params_deinit(dh_params);
+	gnutls_bye(client, GNUTLS_SHUT_WR);
+	gnutls_bye(server, GNUTLS_SHUT_WR);
+
+	gnutls_deinit(client);
+	gnutls_deinit(server);
+
+	gnutls_anon_free_client_credentials(c_anoncred);
+	gnutls_anon_free_server_credentials(s_anoncred);
+
+	gnutls_dh_params_deinit(dh_params);
 
 }
+
+static
+double calc_avg(unsigned int *diffs, unsigned int diffs_size)
+{
+	double avg = 0;
+	unsigned int i;
+
+	for (i = 0; i < diffs_size; i++)
+		avg += diffs[i];
+
+	avg /= diffs_size;
+
+	return avg;
+}
+
+static
+double calc_sstdev(unsigned int *diffs, unsigned int diffs_size,
+		   double avg)
+{
+	double sum = 0, d;
+	unsigned int i;
+
+	for (i = 0; i < diffs_size; i++) {
+		d = ((double) diffs[i] - avg);
+		d *= d;
+
+		sum += d;
+	}
+	sum /= diffs_size - 1;
+
+	return sum;
+}
+
+
+unsigned int diffs[32 * 1024];
+unsigned int diffs_size = 0;
 
 static void test_ciphersuite_kx(const char *cipher_prio)
 {
-    /* Server stuff. */
-    gnutls_anon_server_credentials_t s_anoncred;
-    const gnutls_datum_t p3 = { (void*) pkcs3, strlen(pkcs3) };
-    static gnutls_dh_params_t dh_params;
-    gnutls_session_t server;
-    int sret, cret;
-    const char *str;
-    const char *suite = NULL;
-    /* Client stuff. */
-    gnutls_anon_client_credentials_t c_anoncred;
-    gnutls_certificate_credentials_t c_certcred, s_certcred;
-    gnutls_session_t client;
-    /* Need to enable anonymous KX specifically. */
-    int ret;
-    struct benchmark_st st;
+	/* Server stuff. */
+	gnutls_anon_server_credentials_t s_anoncred;
+	const gnutls_datum_t p3 = { (void *) pkcs3, strlen(pkcs3) };
+	static gnutls_dh_params_t dh_params;
+	gnutls_session_t server;
+	int sret, cret;
+	const char *str;
+	const char *suite = NULL;
+	/* Client stuff. */
+	gnutls_anon_client_credentials_t c_anoncred;
+	gnutls_certificate_credentials_t c_certcred, s_certcred;
+	gnutls_session_t client;
+	/* Need to enable anonymous KX specifically. */
+	int ret;
+	struct benchmark_st st;
+	struct timespec tr_start, tr_stop;
+	double avg, sstddev;
 
-    /* Init server */
-    gnutls_certificate_allocate_credentials(&s_certcred);
-    gnutls_anon_allocate_server_credentials(&s_anoncred);
-    gnutls_dh_params_init(&dh_params);
-    if ((ret=gnutls_dh_params_import_pkcs3(dh_params, &p3, GNUTLS_X509_FMT_PEM)) < 0) {
-      fprintf(stderr, "Error importing the PKCS #3 params: %s\n", gnutls_strerror(ret));
-      exit(1);
-    }
-    gnutls_anon_set_server_dh_params(s_anoncred, dh_params);
-    gnutls_certificate_set_dh_params(s_certcred, dh_params);
+	diffs_size = 0;
 
-    gnutls_certificate_set_x509_key_mem (s_certcred, &server_cert, &server_key,
-                                         GNUTLS_X509_FMT_PEM);
-    gnutls_certificate_set_x509_key_mem (s_certcred, &server_ecc_cert, &server_ecc_key,
-                                         GNUTLS_X509_FMT_PEM);
+	/* Init server */
+	gnutls_certificate_allocate_credentials(&s_certcred);
+	gnutls_anon_allocate_server_credentials(&s_anoncred);
+	gnutls_dh_params_init(&dh_params);
+	if ((ret =
+	     gnutls_dh_params_import_pkcs3(dh_params, &p3,
+					   GNUTLS_X509_FMT_PEM)) < 0) {
+		fprintf(stderr, "Error importing the PKCS #3 params: %s\n",
+			gnutls_strerror(ret));
+		exit(1);
+	}
+	gnutls_anon_set_server_dh_params(s_anoncred, dh_params);
+	gnutls_certificate_set_dh_params(s_certcred, dh_params);
 
-    start_benchmark(&st);
+	gnutls_certificate_set_x509_key_mem(s_certcred, &server_cert,
+					    &server_key,
+					    GNUTLS_X509_FMT_PEM);
+	gnutls_certificate_set_x509_key_mem(s_certcred, &server_ecc_cert,
+					    &server_ecc_key,
+					    GNUTLS_X509_FMT_PEM);
 
-    do {
-        gnutls_init(&server, GNUTLS_SERVER);
-        ret = gnutls_priority_set_direct(server, cipher_prio, &str);
-        if (ret < 0) {
-            fprintf(stderr, "Error in %s\n", str);
-            exit(1);
-        }
-        gnutls_credentials_set(server, GNUTLS_CRD_ANON, s_anoncred);
-        gnutls_credentials_set(server, GNUTLS_CRD_CERTIFICATE, s_certcred);
-        gnutls_transport_set_push_function(server, server_push);
-        gnutls_transport_set_pull_function(server, server_pull);
-        gnutls_transport_set_ptr(server, (gnutls_transport_ptr_t) server);
-        reset_buffers();
+	/* Init client */
+	gnutls_anon_allocate_client_credentials(&c_anoncred);
+	gnutls_certificate_allocate_credentials(&c_certcred);
 
-        /* Init client */
-        gnutls_anon_allocate_client_credentials(&c_anoncred);
-        gnutls_certificate_allocate_credentials(&c_certcred);
+	start_benchmark(&st);
 
-        gnutls_init(&client, GNUTLS_CLIENT);
+	do {
 
-        ret = gnutls_priority_set_direct(client, cipher_prio, &str);
-        if (ret < 0) {
-            fprintf(stderr, "Error in %s\n", str);
-            exit(1);
-        }
-        gnutls_credentials_set(client, GNUTLS_CRD_ANON, c_anoncred);
-        gnutls_credentials_set(client, GNUTLS_CRD_CERTIFICATE, c_certcred);
+		gnutls_init(&server, GNUTLS_SERVER);
+		ret =
+		    gnutls_priority_set_direct(server, cipher_prio, &str);
+		if (ret < 0) {
+			fprintf(stderr, "Error in %s\n", str);
+			exit(1);
+		}
+		gnutls_credentials_set(server, GNUTLS_CRD_ANON,
+				       s_anoncred);
+		gnutls_credentials_set(server, GNUTLS_CRD_CERTIFICATE,
+				       s_certcred);
+		gnutls_transport_set_push_function(server, server_push);
+		gnutls_transport_set_pull_function(server, server_pull);
+		gnutls_transport_set_ptr(server,
+					 (gnutls_transport_ptr_t) server);
+		reset_buffers();
 
-        gnutls_transport_set_push_function(client, client_push);
-        gnutls_transport_set_pull_function(client, client_pull);
-        gnutls_transport_set_ptr(client, (gnutls_transport_ptr_t) client);
+		gnutls_init(&client, GNUTLS_CLIENT);
 
-        HANDSHAKE(client, server);
+		ret =
+		    gnutls_priority_set_direct(client, cipher_prio, &str);
+		if (ret < 0) {
+			fprintf(stderr, "Error in %s\n", str);
+			exit(1);
+		}
+		gnutls_credentials_set(client, GNUTLS_CRD_ANON,
+				       c_anoncred);
+		gnutls_credentials_set(client, GNUTLS_CRD_CERTIFICATE,
+				       c_certcred);
 
-        if (suite == NULL)
-            suite = gnutls_cipher_suite_get_name(gnutls_kx_get(server),
-                                                 gnutls_cipher_get(server),
-                                                 gnutls_mac_get(server));
+		gnutls_transport_set_push_function(client, client_push);
+		gnutls_transport_set_pull_function(client, client_pull);
+		gnutls_transport_set_ptr(client,
+					 (gnutls_transport_ptr_t) client);
 
-        gnutls_deinit(client);
-        gnutls_deinit(server);
+		gettime(&tr_start);
 
-        st.size += 1;
-    }
-    while (benchmark_must_finish == 0);
+		HANDSHAKE(client, server);
 
-    fprintf(stdout, "Tested %s: ", suite);
-    stop_benchmark(&st, "transactions");
+		gettime(&tr_stop);
 
-    gnutls_anon_free_client_credentials(c_anoncred);
-    gnutls_anon_free_server_credentials(s_anoncred);
+		if (suite == NULL)
+			suite =
+			    gnutls_cipher_suite_get_name(gnutls_kx_get
+							 (server),
+							 gnutls_cipher_get
+							 (server),
+							 gnutls_mac_get
+							 (server));
 
-    gnutls_dh_params_deinit(dh_params);
+		gnutls_deinit(client);
+		gnutls_deinit(server);
+
+		diffs[diffs_size++] = timespec_sub_ms(&tr_stop, &tr_start);
+		if (diffs_size > sizeof(diffs))
+			abort();
+
+		st.size += 1;
+	}
+	while (benchmark_must_finish == 0);
+
+	fprintf(stdout, "%38s  ", suite);
+	stop_benchmark(&st, "transactions", 1);
+
+	avg = calc_avg(diffs, diffs_size);
+	sstddev = calc_sstdev(diffs, diffs_size, avg);
+
+	printf("%32s %.2f ms, sample variance: %.2f)\n",
+	       "(avg. handshake time:", avg, sstddev);
+
+	gnutls_anon_free_client_credentials(c_anoncred);
+	gnutls_anon_free_server_credentials(s_anoncred);
+
+	gnutls_dh_params_deinit(dh_params);
 
 }
 
-void benchmark_tls(int debug_level)
+void benchmark_tls(int debug_level, int ciphers)
 {
-    gnutls_global_set_log_function(tls_log_func);
-    gnutls_global_set_log_level(debug_level);
-    gnutls_global_init();
+	int size;
 
-    printf("Testing throughput in cipher/MAC combinations:\n");
+	gnutls_global_set_log_function(tls_log_func);
+	gnutls_global_set_log_level(debug_level);
+	gnutls_global_init();
 
-    test_ciphersuite(PRIO_ARCFOUR_128_MD5, 1024);
-    test_ciphersuite(PRIO_ARCFOUR_128_MD5, 4096);
-    test_ciphersuite(PRIO_ARCFOUR_128_MD5, 8 * 1024);
-    test_ciphersuite(PRIO_ARCFOUR_128_MD5, 15 * 1024);
+	if (ciphers != 0) {
+		size = 1400;
+		printf
+		    ("Testing throughput in cipher/MAC combinations (payload: %d bytes)\n",
+		     size);
 
-    test_ciphersuite(PRIO_AES_GCM, 1024);
-    test_ciphersuite(PRIO_AES_GCM, 4096);
-    test_ciphersuite(PRIO_AES_GCM, 8 * 1024);
-    test_ciphersuite(PRIO_AES_GCM, 15 * 1024);
+		test_ciphersuite(PRIO_SALSA20_256_SHA1, size);
+		test_ciphersuite(PRIO_ARCFOUR_128_SHA1, size);
+		test_ciphersuite(PRIO_ARCFOUR_128_MD5, size);
+		test_ciphersuite(PRIO_AES_GCM, size);
+		test_ciphersuite(PRIO_AES_CBC_SHA1, size);
+		test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, size);
 
-    test_ciphersuite(PRIO_AES_CBC_SHA1, 1024);
-    test_ciphersuite(PRIO_AES_CBC_SHA1, 4096);
-    test_ciphersuite(PRIO_AES_CBC_SHA1, 8 * 1024);
-    test_ciphersuite(PRIO_AES_CBC_SHA1, 15 * 1024);
+		size = 15 * 1024;
+		printf
+		    ("\nTesting throughput in cipher/MAC combinations (payload: %d bytes)\n",
+		     size);
+		test_ciphersuite(PRIO_SALSA20_256_SHA1, size);
+		test_ciphersuite(PRIO_ARCFOUR_128_SHA1, size);
+		test_ciphersuite(PRIO_ARCFOUR_128_MD5, size);
+		test_ciphersuite(PRIO_AES_GCM, size);
+		test_ciphersuite(PRIO_AES_CBC_SHA1, size);
+		test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, size);
+	} else {
+		printf
+		    ("Testing key exchanges (RSA/DH bits: %d, EC bits: %d)\n",
+		     rsa_bits, ec_bits);
+		test_ciphersuite_kx(PRIO_DH);
+		test_ciphersuite_kx(PRIO_ECDH);
+		test_ciphersuite_kx(PRIO_ECDHE_ECDSA);
+		test_ciphersuite_kx(PRIO_RSA);
+	}
 
-    test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, 1024);
-    test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, 4096);
-    test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, 8 * 1024);
-    test_ciphersuite(PRIO_CAMELLIA_CBC_SHA1, 15 * 1024);
+	gnutls_global_deinit();
 
-    printf("\nTesting key exchanges (RSA/DH bits: %d, EC bits: %d):\n", rsa_bits, ec_bits);
-    test_ciphersuite_kx(PRIO_DH);
-    test_ciphersuite_kx(PRIO_ECDH);
-    test_ciphersuite_kx(PRIO_ECDHE_ECDSA);
-    test_ciphersuite_kx(PRIO_RSA);
-
-    gnutls_global_deinit();
-    
 }

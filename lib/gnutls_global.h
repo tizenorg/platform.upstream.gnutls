@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -26,7 +26,7 @@
 #include <libtasn1.h>
 #include <gnutls/gnutls.h>
 
-int gnutls_is_secure_memory (const void *mem);
+int gnutls_is_secure_memory(const void *mem);
 
 extern ASN1_TYPE _gnutls_pkix1_asn;
 extern ASN1_TYPE _gnutls_gnutls_asn;
@@ -41,7 +41,7 @@ extern ASN1_TYPE _gnutls_gnutls_asn;
 extern gnutls_log_func _gnutls_log_func;
 extern gnutls_audit_log_func _gnutls_audit_log_func;
 extern int _gnutls_log_level;
-extern int gnutls_crypto_init (void);
-void _gnutls_priority_prefer_aes_gcm(void);
+extern int gnutls_crypto_init(void);
+extern void gnutls_crypto_deinit(void);
 
 #endif

@@ -5,7 +5,7 @@
 @deftypefun {int} {gnutls_x509_crt_get_ca_status} (gnutls_x509_crt_t @var{cert}, unsigned int * @var{critical})
 @var{cert}: should contain a @code{gnutls_x509_crt_t}  structure
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 
 This function will return certificates CA status, by reading the
 basicConstraints X.509 extension (2.5.29.19). If the certificate is

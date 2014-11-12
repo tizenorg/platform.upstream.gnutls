@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_certificate_get_issuer} (gnutls_certificate_credentials_t @var{sc}, gnutls_x509_crt_t @var{cert}, gnutls_x509_crt_t* @var{issuer}, unsigned int @var{flags})
+@deftypefun {int} {gnutls_certificate_get_issuer} (gnutls_certificate_credentials_t @var{sc}, gnutls_x509_crt_t @var{cert}, gnutls_x509_crt_t * @var{issuer}, unsigned int @var{flags})
 @var{sc}: is a @code{gnutls_certificate_credentials_t}  structure.
 
 @var{cert}: is the certificate to find issuer for

@@ -9,7 +9,7 @@
 
 @var{indx}: In case multiple same OIDs exist in the RDN, this specifies which to send. Use (0) to get the first one.
 
-@var{raw_flag}: If non (0) returns the raw DER data of the DN part.
+@var{raw_flag}: If non-zero returns the raw DER data of the DN part.
 
 @var{buf}: a pointer to a structure to hold the name (may be null)
 
@@ -29,7 +29,8 @@ using @code{gnutls_x509_dn_oid_known()} .
 If  @code{buf} is null then only the size will be filled. If the  @code{raw_flag} is not specified the output is always null terminated, although the
  @code{buf_size} will not include the null character.
 
-@strong{Returns:} GNUTLS_E_SHORT_MEMORY_BUFFER if the provided buffer is not
-long enough, and in that case the  @code{buf_size} will be updated
-with the required size.  On success 0 is returned.
+@strong{Returns:} @code{GNUTLS_E_SHORT_MEMORY_BUFFER}  if the provided buffer is not
+long enough, and in that case the  @code{buf_size} will be updated with
+the required size. @code{GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE}  if there 
+are no data in the current index. On success 0 is returned.
 @end deftypefun

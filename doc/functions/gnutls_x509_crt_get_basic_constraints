@@ -5,7 +5,7 @@
 @deftypefun {int} {gnutls_x509_crt_get_basic_constraints} (gnutls_x509_crt_t @var{cert}, unsigned int * @var{critical}, unsigned int * @var{ca}, int * @var{pathlen})
 @var{cert}: should contain a @code{gnutls_x509_crt_t}  structure
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 
 @var{ca}: pointer to output integer indicating CA status, may be NULL,
 value is 1 if the certificate CA flag is set, 0 otherwise.

@@ -20,110 +20,11 @@ pkcs12
 <!-- ##### SECTION Image ##### -->
 
 
-<!-- ##### STRUCT gnutls_pkcs12_int ##### -->
+<!-- ##### MACRO GNUTLS_PKCS12_SP_INCLUDE_SELF_SIGNED ##### -->
 <para>
 
 </para>
 
-
-<!-- ##### TYPEDEF gnutls_pkcs12_t ##### -->
-<para>
-
-</para>
-
-
-<!-- ##### STRUCT gnutls_pkcs12_bag_int ##### -->
-<para>
-
-</para>
-
-
-<!-- ##### TYPEDEF gnutls_pkcs12_bag_t ##### -->
-<para>
-
-</para>
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_init ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_deinit ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_import ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@data: 
-@format: 
-@flags: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_export ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@format: 
-@output_data: 
-@output_data_size: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_get_bag ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@indx: 
-@bag: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_set_bag ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@bag: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_generate_mac ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@pass: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_verify_mac ##### -->
-<para>
-
-</para>
-
-@pkcs12: 
-@pass: 
-@Returns: 
 
 
 <!-- ##### FUNCTION gnutls_pkcs12_bag_decrypt ##### -->
@@ -134,6 +35,14 @@ pkcs12
 @bag: 
 @pass: 
 @Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_bag_deinit ##### -->
+<para>
+
+</para>
+
+@bag: 
 
 
 <!-- ##### FUNCTION gnutls_pkcs12_bag_encrypt ##### -->
@@ -147,27 +56,12 @@ pkcs12
 @Returns: 
 
 
-<!-- ##### ENUM gnutls_pkcs12_bag_type_t ##### -->
-<para>
-
-</para>
-
-@GNUTLS_BAG_EMPTY: 
-@GNUTLS_BAG_PKCS8_ENCRYPTED_KEY: 
-@GNUTLS_BAG_PKCS8_KEY: 
-@GNUTLS_BAG_CERTIFICATE: 
-@GNUTLS_BAG_CRL: 
-@GNUTLS_BAG_SECRET: 
-@GNUTLS_BAG_ENCRYPTED: 
-@GNUTLS_BAG_UNKNOWN: 
-
-<!-- ##### FUNCTION gnutls_pkcs12_bag_get_type ##### -->
+<!-- ##### FUNCTION gnutls_pkcs12_bag_get_count ##### -->
 <para>
 
 </para>
 
 @bag: 
-@indx: 
 @Returns: 
 
 
@@ -182,16 +76,44 @@ pkcs12
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs12_bag_set_data ##### -->
+<!-- ##### FUNCTION gnutls_pkcs12_bag_get_friendly_name ##### -->
 <para>
 
 </para>
 
 @bag: 
-@type: 
-@data: 
+@indx: 
+@name: 
 @Returns: 
 
+
+<!-- ##### FUNCTION gnutls_pkcs12_bag_get_key_id ##### -->
+<para>
+
+</para>
+
+@bag: 
+@indx: 
+@id: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_bag_init ##### -->
+<para>
+
+</para>
+
+@bag: 
+@Returns: 
+
+
+<!-- ##### STRUCT gnutls_pkcs12_bag_int ##### -->
+<para>
+
+</para>
+
+@element: 
+@bag_elements: 
 
 <!-- ##### FUNCTION gnutls_pkcs12_bag_set_crl ##### -->
 <para>
@@ -213,40 +135,25 @@ pkcs12
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs12_bag_init ##### -->
+<!-- ##### FUNCTION gnutls_pkcs12_bag_set_data ##### -->
 <para>
 
 </para>
 
 @bag: 
+@type: 
+@data: 
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs12_bag_deinit ##### -->
-<para>
-
-</para>
-
-@bag: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_bag_get_count ##### -->
-<para>
-
-</para>
-
-@bag: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gnutls_pkcs12_bag_get_key_id ##### -->
+<!-- ##### FUNCTION gnutls_pkcs12_bag_set_friendly_name ##### -->
 <para>
 
 </para>
 
 @bag: 
 @indx: 
-@id: 
+@name: 
 @Returns: 
 
 
@@ -261,25 +168,146 @@ pkcs12
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs12_bag_get_friendly_name ##### -->
+<!-- ##### TYPEDEF gnutls_pkcs12_bag_t ##### -->
 <para>
 
 </para>
 
-@bag: 
-@indx: 
-@name: 
+
+<!-- ##### ENUM gnutls_pkcs12_bag_type_t ##### -->
+<para>
+
+</para>
+
+@GNUTLS_BAG_EMPTY: 
+@GNUTLS_BAG_PKCS8_ENCRYPTED_KEY: 
+@GNUTLS_BAG_PKCS8_KEY: 
+@GNUTLS_BAG_CERTIFICATE: 
+@GNUTLS_BAG_CRL: 
+@GNUTLS_BAG_SECRET: 
+@GNUTLS_BAG_ENCRYPTED: 
+@GNUTLS_BAG_UNKNOWN: 
+
+<!-- ##### FUNCTION gnutls_pkcs12_deinit ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_export ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@format: 
+@output_data: 
+@output_data_size: 
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs12_bag_set_friendly_name ##### -->
+<!-- ##### FUNCTION gnutls_pkcs12_export2 ##### -->
 <para>
 
 </para>
 
-@bag: 
+@pkcs12: 
+@format: 
+@out: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_generate_mac ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@pass: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_get_bag ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
 @indx: 
-@name: 
+@bag: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_import ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@data: 
+@format: 
+@flags: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_init ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@Returns: 
+
+
+<!-- ##### STRUCT gnutls_pkcs12_int ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+
+<!-- ##### FUNCTION gnutls_pkcs12_set_bag ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@bag: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_simple_parse ##### -->
+<para>
+
+</para>
+
+@p12: 
+@password: 
+@key: 
+@chain: 
+@chain_len: 
+@extra_certs: 
+@extra_certs_len: 
+@crl: 
+@flags: 
+@Returns: 
+
+
+<!-- ##### TYPEDEF gnutls_pkcs12_t ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### FUNCTION gnutls_pkcs12_verify_mac ##### -->
+<para>
+
+</para>
+
+@pkcs12: 
+@pass: 
 @Returns: 
 
 

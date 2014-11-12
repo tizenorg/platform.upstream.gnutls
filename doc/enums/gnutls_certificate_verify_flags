@@ -4,13 +4,8 @@
 @table @code
 @item GNUTLS_@-VERIFY_@-DISABLE_@-CA_@-SIGN
 If set a signer does not have to be
-a certificate authority. This flag should normaly be disabled,
+a certificate authority. This flag should normally be disabled,
 unless you know what this means.
-@item GNUTLS_@-VERIFY_@-ALLOW_@-X509_@-V1_@-CA_@-CRT
-Allow trusted CA certiﬁcates
-with version 1. This is safer than @code{GNUTLS_VERIFY_ALLOW_ANY_X509_V1_CA_CRT} ,
-and should be used instead. That way only signers in your trusted list
-will be allowed to have certiﬁcates of version 1. This is the default.
 @item GNUTLS_@-VERIFY_@-DO_@-NOT_@-ALLOW_@-SAME
 If a certificate is not signed by
 anyone trusted but exists in the trusted CA list do not treat it
@@ -19,8 +14,7 @@ as trusted.
 Allow CA certificates that
 have version 1 (both root and intermediate). This might be
 dangerous since those haven't the basicConstraints
-extension. Must be used in combination with
-@code{GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT} .
+extension. 
 @item GNUTLS_@-VERIFY_@-ALLOW_@-SIGN_@-RSA_@-MD2
 Allow certificates to be signed
 using the broken MD2 algorithm.
@@ -40,8 +34,15 @@ certificates that have version 1.  This option is to be used
 to deprecate all certificates of version 1.
 @item GNUTLS_@-VERIFY_@-DISABLE_@-CRL_@-CHECKS
 Disable checking for validity
-using certificate revocation lists.
+using certificate revocation lists or the available OCSP data.
 @item GNUTLS_@-VERIFY_@-ALLOW_@-UNSORTED_@-CHAIN
 A certificate chain is tolerated
-if unsorted (the case with many TLS servers out there).
+if unsorted (the case with many TLS servers out there). This is the
+default since GnuTLS 3.1.4.
+@item GNUTLS_@-VERIFY_@-DO_@-NOT_@-ALLOW_@-UNSORTED_@-CHAIN
+Do not tolerate an unsorted
+certificate chain.
+@item GNUTLS_@-VERIFY_@-DO_@-NOT_@-ALLOW_@-WILDCARDS
+When including a hostname
+check in the verification, do not consider any wildcards.
 @end table

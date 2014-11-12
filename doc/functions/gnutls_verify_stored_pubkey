@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_verify_stored_pubkey} (const char* @var{db_name}, gnutls_tdb_t @var{tdb}, const char* @var{host}, const char* @var{service}, gnutls_certificate_type_t @var{cert_type}, const gnutls_datum_t * @var{cert}, unsigned int @var{flags})
+@deftypefun {int} {gnutls_verify_stored_pubkey} (const char * @var{db_name}, gnutls_tdb_t @var{tdb}, const char * @var{host}, const char * @var{service}, gnutls_certificate_type_t @var{cert_type}, const gnutls_datum_t * @var{cert}, unsigned int @var{flags})
 @var{db_name}: A file specifying the stored keys (use NULL for the default)
 
 @var{tdb}: A storage structure or NULL to use the default
@@ -17,8 +17,8 @@
 
 @var{flags}: should be 0.
 
-This function will try to verify the provided certificate using
-a list of stored public keys.  The  @code{service} field if non-NULL should
+This function will try to verify the provided (raw or DER-encoded) certificate 
+using a list of stored public keys.  The  @code{service} field if non-NULL should
 be a port number.
 
 The  @code{retrieve} variable if non-null specifies a custom backend for
@@ -39,5 +39,5 @@ is found but does not match @code{GNUTLS_E_CERTIFICATE_KEY_MISMATCH}
 is returned. On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, 
 or a negative error value on other errors.
 
-@strong{Since:} 3.0
+@strong{Since:} 3.0.13
 @end deftypefun

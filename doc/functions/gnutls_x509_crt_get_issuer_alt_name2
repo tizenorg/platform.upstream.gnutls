@@ -13,7 +13,7 @@
 
 @var{ian_type}: holds the type of the alternative name (one of gnutls_x509_subject_alt_name_t).
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function will return the alternative names, contained in the
 given certificate. It is the same as

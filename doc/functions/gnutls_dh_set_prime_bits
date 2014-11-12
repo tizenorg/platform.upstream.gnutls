@@ -19,5 +19,10 @@ a server sends a prime with less bits than that
 Note that values lower than 512 bits may allow decryption of the
 exchanged data.
 
-This function has no effect in server side.
+The function has no effect in server side.
+
+Note that since 3.1.7 this function is deprecated. The minimum
+number of bits is set by the priority string level.
+Also this function must be called after @code{gnutls_priority_set_direct()} 
+or the set value may be overridden by the selected priority options.
 @end deftypefun

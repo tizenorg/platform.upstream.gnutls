@@ -12,7 +12,7 @@
 #include "examples.h"
 
 /* A very basic TLS client, with X.509 authentication and server certificate
- * verification. Note that error checking for missing files etc. is missing
+ * verification. Note that error checking for missing files etc. is omitted
  * for simplicity.
  */
 
@@ -20,201 +20,193 @@
 #define CAFILE "/etc/ssl/certs/ca-certificates.crt"
 #define MSG "GET / HTTP/1.0\r\n\r\n"
 
-extern int tcp_connect (void);
-extern void tcp_close (int sd);
-static int _verify_certificate_callback (gnutls_session_t session);
+extern int tcp_connect(void);
+extern void tcp_close(int sd);
+static int _verify_certificate_callback(gnutls_session_t session);
 
-int main (void)
+int main(void)
 {
-  int ret, sd, ii;
-  gnutls_session_t session;
-  char buffer[MAX_BUF + 1];
-  const char *err;
-  gnutls_certificate_credentials_t xcred;
+        int ret, sd, ii;
+        gnutls_session_t session;
+        char buffer[MAX_BUF + 1];
+        const char *err;
+        gnutls_certificate_credentials_t xcred;
 
-  gnutls_global_init ();
-
-  /* X509 stuff */
-  gnutls_certificate_allocate_credentials (&xcred);
-
-  /* sets the trusted cas file
-   */
-  /* gnutls_certificate_set_x509_system_trust(xcred); */
-  gnutls_certificate_set_x509_trust_file (xcred, CAFILE, GNUTLS_X509_FMT_PEM);
-  gnutls_certificate_set_verify_function (xcred, _verify_certificate_callback);
-  
-  /* If client holds a certificate it can be set using the following:
-   *
-     gnutls_certificate_set_x509_key_file (xcred, 
-                                           "cert.pem", "key.pem", 
-                                           GNUTLS_X509_FMT_PEM); 
-   */
-
-  /* Initialize TLS session 
-   */
-  gnutls_init (&session, GNUTLS_CLIENT);
-
-  gnutls_session_set_ptr (session, (void *) "my_host_name");
-  gnutls_server_name_set (session, GNUTLS_NAME_DNS, "my_host_name", 
-                          strlen("my_host_name"));
-
-  /* Use default priorities */
-  ret = gnutls_priority_set_direct (session, "NORMAL", &err);
-  if (ret < 0)
-    {
-      if (ret == GNUTLS_E_INVALID_REQUEST)
-        {
-          fprintf (stderr, "Syntax error at: %s\n", err);
+        if (gnutls_check_version("3.1.4") == NULL) {
+                fprintf(stderr, "GnuTLS 3.1.4 is required for this example\n");
+                exit(1);
         }
-      exit (1);
-    }
 
-  /* put the x509 credentials to the current session
-   */
-  gnutls_credentials_set (session, GNUTLS_CRD_CERTIFICATE, xcred);
+        gnutls_global_init();
 
-  /* connect to the peer
-   */
-  sd = tcp_connect ();
+        /* X509 stuff */
+        gnutls_certificate_allocate_credentials(&xcred);
 
-  gnutls_transport_set_ptr (session, (gnutls_transport_ptr_t) sd);
+        /* sets the trusted cas file
+         */
+        gnutls_certificate_set_x509_trust_file(xcred, CAFILE,
+                                               GNUTLS_X509_FMT_PEM);
+        gnutls_certificate_set_verify_function(xcred,
+                                               _verify_certificate_callback);
 
-  /* Perform the TLS handshake
-   */
-  do
-    {
-      ret = gnutls_handshake (session);
-    }
-  while (ret < 0 && gnutls_error_is_fatal (ret) == 0);
+        /* If client holds a certificate it can be set using the following:
+         *
+         gnutls_certificate_set_x509_key_file (xcred, 
+         "cert.pem", "key.pem", 
+         GNUTLS_X509_FMT_PEM); 
+         */
 
-  if (ret < 0)
-    {
-      fprintf (stderr, "*** Handshake failed\n");
-      gnutls_perror (ret);
-      goto end;
-    }
-  else
-    {
-      printf ("- Handshake was completed\n");
-    }
+        /* Initialize TLS session 
+         */
+        gnutls_init(&session, GNUTLS_CLIENT);
 
-  gnutls_record_send (session, MSG, strlen (MSG));
+        gnutls_session_set_ptr(session, (void *) "my_host_name");
 
-  ret = gnutls_record_recv (session, buffer, MAX_BUF);
-  if (ret == 0)
-    {
-      printf ("- Peer has closed the TLS connection\n");
-      goto end;
-    }
-  else if (ret < 0)
-    {
-      fprintf (stderr, "*** Error: %s\n", gnutls_strerror (ret));
-      goto end;
-    }
+        gnutls_server_name_set(session, GNUTLS_NAME_DNS, "my_host_name",
+                               strlen("my_host_name"));
 
-  printf ("- Received %d bytes: ", ret);
-  for (ii = 0; ii < ret; ii++)
-    {
-      fputc (buffer[ii], stdout);
-    }
-  fputs ("\n", stdout);
+        /* use default priorities */
+        gnutls_set_default_priority(session);
+#if 0
+	/* if more fine-graned control is required */
+        ret = gnutls_priority_set_direct(session, 
+                                         "NORMAL", &err);
+        if (ret < 0) {
+                if (ret == GNUTLS_E_INVALID_REQUEST) {
+                        fprintf(stderr, "Syntax error at: %s\n", err);
+                }
+                exit(1);
+        }
+#endif
 
-  gnutls_bye (session, GNUTLS_SHUT_RDWR);
+        /* put the x509 credentials to the current session
+         */
+        gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, xcred);
 
-end:
+        /* connect to the peer
+         */
+        sd = tcp_connect();
 
-  tcp_close (sd);
+        gnutls_transport_set_int(session, sd);
+        gnutls_handshake_set_timeout(session,
+                                     GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
 
-  gnutls_deinit (session);
+        /* Perform the TLS handshake
+         */
+        do {
+                ret = gnutls_handshake(session);
+        }
+        while (ret < 0 && gnutls_error_is_fatal(ret) == 0);
 
-  gnutls_certificate_free_credentials (xcred);
+        if (ret < 0) {
+                fprintf(stderr, "*** Handshake failed\n");
+                gnutls_perror(ret);
+                goto end;
+        } else {
+                char *desc;
 
-  gnutls_global_deinit ();
+                desc = gnutls_session_get_desc(session);
+                printf("- Session info: %s\n", desc);
+                gnutls_free(desc);
+        }
 
-  return 0;
+        gnutls_record_send(session, MSG, strlen(MSG));
+
+        ret = gnutls_record_recv(session, buffer, MAX_BUF);
+        if (ret == 0) {
+                printf("- Peer has closed the TLS connection\n");
+                goto end;
+        } else if (ret < 0 && gnutls_error_is_fatal(ret) == 0) {
+                fprintf(stderr, "*** Warning: %s\n", gnutls_strerror(ret));
+        } else if (ret < 0) {
+                fprintf(stderr, "*** Error: %s\n", gnutls_strerror(ret));
+                goto end;
+        }
+
+        if (ret > 0) {
+                printf("- Received %d bytes: ", ret);
+                for (ii = 0; ii < ret; ii++) {
+                        fputc(buffer[ii], stdout);
+                }
+                fputs("\n", stdout);
+        }
+
+        gnutls_bye(session, GNUTLS_SHUT_RDWR);
+
+      end:
+
+        tcp_close(sd);
+
+        gnutls_deinit(session);
+
+        gnutls_certificate_free_credentials(xcred);
+
+        gnutls_global_deinit();
+
+        return 0;
 }
 
 /* This function will verify the peer's certificate, and check
  * if the hostname matches, as well as the activation, expiration dates.
  */
-static int
-_verify_certificate_callback (gnutls_session_t session)
+static int _verify_certificate_callback(gnutls_session_t session)
 {
-  unsigned int status;
-  const gnutls_datum_t *cert_list;
-  unsigned int cert_list_size;
-  int ret;
-  gnutls_x509_crt_t cert;
-  const char *hostname;
+        unsigned int status;
+        int ret, type;
+        const char *hostname;
+        gnutls_datum_t out;
 
-  /* read hostname */
-  hostname = gnutls_session_get_ptr (session);
+        /* read hostname */
+        hostname = gnutls_session_get_ptr(session);
 
-  /* This verification function uses the trusted CAs in the credentials
-   * structure. So you must have installed one or more CA certificates.
-   */
-  ret = gnutls_certificate_verify_peers2 (session, &status);
-  if (ret < 0)
-    {
-      printf ("Error\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        /* This verification function uses the trusted CAs in the credentials
+         * structure. So you must have installed one or more CA certificates.
+         */
 
-  if (status & GNUTLS_CERT_SIGNER_NOT_FOUND)
-    printf ("The certificate hasn't got a known issuer.\n");
+         /* The following demonstrate two different verification functions,
+          * the more flexible gnutls_certificate_verify_peers(), as well
+          * as the old gnutls_certificate_verify_peers3(). */
+#if 1
+        {
+        gnutls_typed_vdata_st data[2];
 
-  if (status & GNUTLS_CERT_REVOKED)
-    printf ("The certificate has been revoked.\n");
+        memset(data, 0, sizeof(data));
 
-  if (status & GNUTLS_CERT_EXPIRED)
-    printf ("The certificate has expired\n");
+        data[0].type = GNUTLS_DT_DNS_HOSTNAME;
+        data[0].data = (void*)hostname;
 
-  if (status & GNUTLS_CERT_NOT_ACTIVATED)
-    printf ("The certificate is not yet activated\n");
+        data[1].type = GNUTLS_DT_KEY_PURPOSE_OID;
+        data[1].data = (void*)GNUTLS_KP_TLS_WWW_SERVER;
 
-  if (status & GNUTLS_CERT_INVALID)
-    {
-      printf ("The certificate is not trusted.\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        ret = gnutls_certificate_verify_peers(session, data, 2,
+					      &status);
+        }
+#else
+        ret = gnutls_certificate_verify_peers3(session, hostname,
+					       &status);
+#endif
+        if (ret < 0) {
+                printf("Error\n");
+                return GNUTLS_E_CERTIFICATE_ERROR;
+        }
 
-  /* Up to here the process is the same for X.509 certificates and
-   * OpenPGP keys. From now on X.509 certificates are assumed. This can
-   * be easily extended to work with openpgp keys as well.
-   */
-  if (gnutls_certificate_type_get (session) != GNUTLS_CRT_X509)
-    return GNUTLS_E_CERTIFICATE_ERROR;
+        type = gnutls_certificate_type_get(session);
 
-  if (gnutls_x509_crt_init (&cert) < 0)
-    {
-      printf ("error in initialization\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        ret =
+            gnutls_certificate_verification_status_print(status, type,
+                                                         &out, 0);
+        if (ret < 0) {
+                printf("Error\n");
+                return GNUTLS_E_CERTIFICATE_ERROR;
+        }
 
-  cert_list = gnutls_certificate_get_peers (session, &cert_list_size);
-  if (cert_list == NULL)
-    {
-      printf ("No certificate was found!\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        printf("%s", out.data);
 
-  if (gnutls_x509_crt_import (cert, &cert_list[0], GNUTLS_X509_FMT_DER) < 0)
-    {
-      printf ("error parsing certificate\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        gnutls_free(out.data);
 
+        if (status != 0)        /* Certificate is not trusted */
+                return GNUTLS_E_CERTIFICATE_ERROR;
 
-  if (!gnutls_x509_crt_check_hostname (cert, hostname))
-    {
-      printf ("The certificate's owner does not match hostname '%s'\n",
-              hostname);
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
-
-  gnutls_x509_crt_deinit (cert);
-
-  /* notify gnutls to continue handshake normally */
-  return 0;
+        /* notify gnutls to continue handshake normally */
+        return 0;
 }
-

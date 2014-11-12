@@ -8,7 +8,7 @@ created key.
 
 @var{key_size}: The number of bytes of the key.
 
-Generates a random key of  @code{key_bytes} size.
+Generates a random key of  @code{key_size} bytes.
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, or an
 error code.

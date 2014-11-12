@@ -26,10 +26,12 @@ Certificate verify.
 Client key exchange.
 @item GNUTLS_@-HANDSHAKE_@-FINISHED
 Finished.
+@item GNUTLS_@-HANDSHAKE_@-CERTIFICATE_@-STATUS
+Certificate status (OCSP).
 @item GNUTLS_@-HANDSHAKE_@-SUPPLEMENTAL
 Supplemental.
 @item GNUTLS_@-HANDSHAKE_@-CHANGE_@-CIPHER_@-SPEC
-Change Cipher Spec
+Change Cipher Spec.
 @item GNUTLS_@-HANDSHAKE_@-CLIENT_@-HELLO_@-V2
 SSLv2 Client Hello.
 @end table

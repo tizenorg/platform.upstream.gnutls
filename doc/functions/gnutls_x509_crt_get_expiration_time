@@ -8,5 +8,8 @@
 This function will return the time this Certificate was or will be
 expired.
 
+The no well defined expiration time can be checked against with the
+@code{GNUTLS_X509_NO_WELL_DEFINED_EXPIRATION}  macro.
+
 @strong{Returns:} expiration time, or (time_t)-1 on error.
 @end deftypefun

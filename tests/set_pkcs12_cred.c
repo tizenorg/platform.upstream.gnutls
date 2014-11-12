@@ -25,76 +25,74 @@
 #endif
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "utils.h"
 
-void
-doit (void)
+static void tls_log_func(int level, const char *str)
 {
-  gnutls_certificate_credentials_t x509cred;
-  const char *file, *password;
-  int ret;
+	fprintf(stderr, "<%d>| %s", level, str);
+}
 
-  ret = gnutls_global_init ();
-  if (ret < 0)
-    fail ("gnutls_global_init failed %d\n", ret);
+typedef struct {
+	const char *file;
+	const char *pass;
+} files_st;
 
-  ret = gnutls_certificate_allocate_credentials (&x509cred);
-  if (ret < 0)
-    fail ("gnutls_certificate_allocate_credentials failed %d\n", ret);
+files_st files[] = {
+	{"client.p12", "foobar"},
+	{"cert-ca.p12", "1234"}, /* 2 certs, one is a CA */
+	{"pkcs12_2certs.p12", ""}, /* 2 certs, on is unrelated */
+	{NULL, NULL}
+};
 
-  file = getenv ("PKCS12FILE");
-  password = getenv ("PKCS12PASSWORD");
+void doit(void)
+{
+	gnutls_certificate_credentials_t x509cred;
+	const char *path;
+	unsigned int i;
+	char file[512];
+	int ret;
 
-  if (!file)
-    file = "pkcs12-decode/client.p12";
-  if (!password)
-    password = "foobar";
+	ret = global_init();
+	if (ret < 0)
+		fail("global_init failed %d\n", ret);
 
-  if (debug)
-    success ("Reading PKCS#12 blob from `%s' using password `%s'.\n",
-             file, password);
-  ret = gnutls_certificate_set_x509_simple_pkcs12_file (x509cred,
-                                                        file,
-                                                        GNUTLS_X509_FMT_DER,
-                                                        password);
-  if (ret < 0)
-    fail ("x509_pkcs12 failed %d: %s\n", ret, gnutls_strerror (ret));
+	gnutls_global_set_log_function(tls_log_func);
+	if (debug)
+		gnutls_global_set_log_level(4711);
 
-  if (debug)
-    success ("Read file OK\n");
+	for (i = 0; files[i].file != NULL; i++) {
 
-  gnutls_certificate_free_credentials (x509cred);
+		ret = gnutls_certificate_allocate_credentials(&x509cred);
+		if (ret < 0)
+			fail("gnutls_certificate_allocate_credentials failed %d\n", ret);
 
-  /* try now if we can read correctly from a pkcs12 file that
-   * contains two certificates (one unrelated with key)
-   */
-  ret = gnutls_certificate_allocate_credentials (&x509cred);
-  if (ret < 0)
-    fail ("gnutls_certificate_allocate_credentials failed %d\n", ret);
+		path = getenv("PKCS12PATH");
+		if (!path)
+			path = "pkcs12-decode/";
 
-  file = getenv ("PKCS12FILE_2");
-  password = getenv ("PKCS12PASSWORD_2");
+		snprintf(file, sizeof(file), "%s/%s", path, files[i].file);
 
-  if (!file)
-    file = "pkcs12-decode/pkcs12_2certs.p12";
-  if (!password)
-    password = "";
+		if (debug)
+			success
+			    ("Reading PKCS#12 blob from `%s' using password `%s'.\n",
+			     file, files[i].pass);
+		ret =
+		    gnutls_certificate_set_x509_simple_pkcs12_file(x509cred,
+								   file,
+								   GNUTLS_X509_FMT_DER,
+								   files[i].
+								   pass);
+		if (ret < 0)
+			fail("x509_pkcs12 failed %d: %s\n", ret,
+			     gnutls_strerror(ret));
 
-  if (debug)
-    success ("Reading PKCS#12 blob from `%s' using password `%s'.\n",
-             file, password);
-  ret = gnutls_certificate_set_x509_simple_pkcs12_file (x509cred,
-                                                        file,
-                                                        GNUTLS_X509_FMT_DER,
-                                                        password);
-  if (ret < 0)
-    fail ("x509_pkcs12 failed %d: %s\n", ret, gnutls_strerror (ret));
+		if (debug)
+			success("Read file OK\n");
 
-  if (debug)
-    success ("Read file OK\n");
+		gnutls_certificate_free_credentials(x509cred);
+	}
 
-  gnutls_certificate_free_credentials (x509cred);
-
-  gnutls_global_deinit ();
+	gnutls_global_deinit();
 }

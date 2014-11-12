@@ -16,6 +16,9 @@ produce a Message Authentication Code (MAC) of data.  This will
 effectively use the current crypto backend in use by gnutls or the
 cryptographic accelerator in use.
 
+Note that despite the name of this function, it can be used
+for other MAC algorithms than HMAC.
+
 @strong{Returns:} Zero or a negative error code on error.
 
 @strong{Since:} 2.10.0

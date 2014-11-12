@@ -14,7 +14,8 @@
 This function will verify the given signed data, using the
 parameters from the certificate.
 
-Deprecated. Please use @code{gnutls_pubkey_verify_data()} .
+Deprecated. This function cannot be easily used securely. 
+Use @code{gnutls_pubkey_verify_data2()}  instead.
 
 @strong{Returns:} In case of a verification failure @code{GNUTLS_E_PK_SIG_VERIFY_FAILED}  
 is returned, and zero or positive code on success.

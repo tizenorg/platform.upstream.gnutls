@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+AM_CFLAGS = $(NETTLE_CFLAGS)
+
 AM_CPPFLAGS = \
 	-I$(srcdir)/../../gl		\
 	-I$(builddir)/../../gl		\
@@ -33,7 +35,7 @@ endif
 noinst_LTLIBRARIES = libminiopencdk.la
 
 libminiopencdk_la_SOURCES = armor.c filters.h keydb.h types.h	\
-	kbnode.c main.h packet.h sig-check.c hash.c \
+	kbnode.c main.h packet.h sig-check.c \
 	keydb.c pubkey.c stream.c write-packet.c misc.c	seskey.c \
 	context.h literal.c new-packet.c read-packet.c stream.h opencdk.h
 

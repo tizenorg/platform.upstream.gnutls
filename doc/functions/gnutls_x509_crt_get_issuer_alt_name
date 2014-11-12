@@ -11,7 +11,7 @@
 
 @var{ian_size}: holds the size of ian.
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function retrieves the Issuer Alternative Name (2.5.29.18),
 contained in the given certificate in the X509v3 Certificate

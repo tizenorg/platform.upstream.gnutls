@@ -5,9 +5,10 @@ GEN_TEX_OBJECTS = cha-preface.tex cha-library.tex cha-intro-tls.tex cha-cert-aut
   cha-cert-auth.tex cha-gtls-app.tex sec-tls-app.tex cha-programs.tex cha-support.tex \
   cha-functions.tex error_codes.tex cha-ciphersuites.tex algorithms.tex cha-shared-key.tex \
   cha-errors.tex alerts.tex cha-internals.tex cha-gtls-examples.tex cha-upgrade.tex \
-  invoke-certtool.tex invoke-gnutls-cli.tex invoke-gnutls-serv.tex \
+  invoke-certtool.tex invoke-gnutls-cli.tex invoke-gnutls-serv.tex cha-tokens.tex \
   invoke-srptool.tex invoke-psktool.tex invoke-gnutls-cli-debug.tex \
-  invoke-p11tool.tex invoke-ocsptool.tex
+  invoke-p11tool.tex invoke-ocsptool.tex invoke-tpmtool.tex invoke-danetool.tex \
+  cha-auth.tex
 
 invoke-certtool.tex: ../invoke-certtool.texi
 	../scripts/mytexi2latex $< > $@
@@ -15,7 +16,19 @@ invoke-certtool.tex: ../invoke-certtool.texi
 cha-upgrade.tex: ../cha-upgrade.texi
 	../scripts/mytexi2latex $< > $@
 
+cha-tokens.tex: ../cha-tokens.texi
+	../scripts/mytexi2latex $< > $@
+
+cha-auth.tex: ../cha-auth.texi
+	../scripts/mytexi2latex $< > $@
+
 invoke-gnutls-cli.tex: ../invoke-gnutls-cli.texi
+	../scripts/mytexi2latex $< > $@
+
+invoke-tpmtool.tex: ../invoke-tpmtool.texi
+	../scripts/mytexi2latex $< > $@
+
+invoke-danetool.tex: ../invoke-danetool.texi
 	../scripts/mytexi2latex $< > $@
 
 invoke-gnutls-serv.tex: ../invoke-gnutls-serv.texi
@@ -108,7 +121,7 @@ gnutls-api.tex: $(srcdir)/../../lib/*.c $(srcdir)/../../lib/ext/*.c $(srcdir)/..
 	rm -f $@-tmp
 	mv -f $@-tmp2 $@
 
-gnutls-enums.tex: $(srcdir)/../../lib/includes/gnutls/*.h
+gnutls-enums.tex: $(srcdir)/../../lib/includes/gnutls/*.h $(srcdir)/../../libdane/includes/gnutls/*.h 
 	echo "" > $@-tmp
 	for i in $^; do \
 		echo -n "Creating documentation for file $$i... " && \
@@ -130,6 +143,18 @@ x509-api.tex: $(srcdir)/../../lib/x509/*.c
 	rm -f $@-tmp
 	mv -f $@-tmp2 $@
 
+dane-api.tex: $(srcdir)/../../libdane/*.c
+	echo "" > $@-tmp
+	for i in $^; do \
+		echo -n "Creating documentation for file $$i... " && \
+		$(srcdir)/../scripts/gdoc -tex $$i >> $@-tmp && \
+		echo "ok"; \
+	done
+	$(srcdir)/../scripts/sort1.pl < $@-tmp > $@-tmp2 2>/dev/null
+	$(srcdir)/../scripts/split.pl functions < $@-tmp 2>/dev/null
+	rm -f $@-tmp
+	mv -f $@-tmp2 $@
+
 pgp-api.tex: $(srcdir)/../../lib/openpgp/*.c
 	echo "" > $@-tmp
 	for i in $^; do \
@@ -142,7 +167,7 @@ pgp-api.tex: $(srcdir)/../../lib/openpgp/*.c
 	rm -f $@-tmp
 	mv -f $@-tmp2 $@
 
-SOURCE_GEN_FILES =  pgp-api.tex x509-api.tex gnutls-api.tex gnutls-enums.tex
+SOURCE_GEN_FILES =  pgp-api.tex x509-api.tex gnutls-api.tex gnutls-enums.tex dane-api.tex
 
 PDF_FILES = gnutls-client-server-use-case.pdf gnutls-crypto-layers.pdf \
 	gnutls-handshake-sequence.pdf gnutls-handshake-state.pdf \

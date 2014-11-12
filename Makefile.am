@@ -21,25 +21,46 @@
 
 DISTCHECK_CONFIGURE_FLAGS = --enable-gtk-doc --disable-valgrind-tests
 
-SUBDIRS = gl lib extra po
+SUBDIRS = gl lib extra
 
-SUBDIRS += src doc tests
+if ENABLE_DANE
+SUBDIRS += libdane
+endif
+
+SUBDIRS += po src
+if ENABLE_DOC
+SUBDIRS += doc
+endif
+if ENABLE_TESTS
+SUBDIRS += tests
+endif
 
 if HAVE_GUILE
 SUBDIRS += guile
 endif
 
-ACLOCAL_AMFLAGS = -I m4 -I gl/m4 -I src/libopts/m4
+ACLOCAL_AMFLAGS = -I m4 -I gl/m4 -I src/libopts/m4 -I src/gl/m4
 
 EXTRA_DIST = cfg.mk maint.mk .clcopying
 
 dist-hook: 
+	make -C doc/ compare-makefile
+	make -C doc/ compare-exported
+	make -C doc/manpages compare-makefile
+	@echo "*****************************************************************"
+	@echo "Checking symbol changes. If the next step fails, verify that the"
+	@echo "symbols added or removed are correct and copy symbols.last.tmp as"
+	@echo "symbols.last"
+	@echo "*****************************************************************"
+	objdump -T $(srcdir)/lib/.libs/libgnutls.so.28  | grep -v ' \*UND\*' | awk '{print $$7 "@" $$6;}' | sort -u >symbols.last.tmp
+	diff -u symbols.last symbols.last.tmp >/dev/null 2>&1
+	rm -f symbols.last.tmp
 	rm -f ChangeLog
 	make ChangeLog
-	make -C doc/ compare-makefile
 	cp -f ChangeLog $(distdir)/
 	sed 's/\@VERSION\@/$(VERSION)/g' -i $(distdir)/src/args-std.def
-	sed 's/\@\@VERSION\@\@/$(VERSION)/g' -i $(distdir)/doc/invoke-*.texi
+	sed 's/\@YEAR\@/$(YEAR)/g' -i $(distdir)/src/args-std.def
+	sed 's/\@PACKAGE_BUGREPORT\@/$(PACKAGE_BUGREPORT)/g' -i $(distdir)/src/args-std.def
 	cd $(distdir)/src/ && for i in *.def;do \
 		if test x"$$i" = x"args-std.def";then  continue; fi; \
 		autogen $$i; \
@@ -49,3 +70,7 @@ dist-hook:
 		rm -f $$i.tmp; \
 		mv -f *.1 ../doc/manpages/; \
 	done
+	cd $(distdir)/src/ && for i in *-args.c *-args.h;do \
+		mv $$i $$i.bak; \
+	done
+	touch $(distdir)/doc/*.html $(distdir)/doc/*.pdf $(distdir)/doc/*.info

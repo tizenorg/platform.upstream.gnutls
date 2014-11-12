@@ -7,15 +7,11 @@
 
 @var{data}: is a pointer to a datum that will hold the session.
 
-Returns all session parameters, in order to support resuming.  The
-client should call this, and keep the returned session, if he wants
-to resume that current version later by calling
-@code{gnutls_session_set_data()} .  This function must be called after a
-successful handshake.  The returned datum must be freed with
-@code{gnutls_free()} .
-
-Resuming sessions is really useful and speedups connections after
-a successful one.
+Returns all session parameters needed to be stored to support resumption.
+The client should call this, and store the returned session data. A session
+may be resumed later by calling @code{gnutls_session_set_data()} .  
+This function must be called after a successful handshake. 
+The returned  @code{data} are allocated and must be released using @code{gnutls_free()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise
 an error code is returned.

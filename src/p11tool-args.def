@@ -2,11 +2,16 @@ AutoGen Definitions options;
 prog-name     = p11tool;
 prog-title    = "GnuTLS PKCS #11 tool";
 prog-desc     = "Program to handle PKCS #11 smart cards and security modules.\n";
-detail    = "Program that allows handling data from PKCS #11 smart cards
+detail    = "Program that allows operations on PKCS #11 smart cards
 and security modules. 
 
-To use PKCS #11 tokens with gnutls the configuration file 
-/etc/gnutls/pkcs11.conf has to exist and contain a number of lines of the form 'load=/usr/lib/opensc-pkcs11.so'.
+To use PKCS #11 tokens with GnuTLS the p11-kit configuration files need to be setup.
+That is create a .module file in /etc/pkcs11/modules with the contents 'module: /path/to/pkcs11.so'.
+Alternatively the configuration file /etc/gnutls/pkcs11.conf has to exist and contain a number
+of lines of the form 'load=/usr/lib/opensc-pkcs11.so'.
+
+You can provide the PIN to be used for the PKCS #11 operations with the environment variable
+GNUTLS_PIN.
 ";
 
 short-usage   = "p11tool [options] [url]\np11tool --help for usage instructions.\n";
@@ -27,6 +32,12 @@ flag = {
     name      = export;
     descrip   = "Export the object specified by the URL";
     doc = "";
+};
+
+flag = {
+    name      = export-chain;
+    descrip   = "Export the certificate specified by the URL and its chain of trust";
+    doc = "Exports the certificate specified by the URL and generates its chain of trust based on the stored certificates in the module.";
 };
 
 flag = {
@@ -56,7 +67,17 @@ flag = {
 flag = {
     name      = list-all-privkeys;
     descrip   = "List all available private keys in a token";
-    doc = "";
+    doc = "Lists all the private keys in a token that match the specified URL.";
+};
+
+flag = {
+    name      = list-privkeys;
+    aliases   = list-all-privkeys;
+};
+
+flag = {
+    name      = list-keys;
+    aliases   = list-all-privkeys;
 };
 
 flag = {
@@ -81,6 +102,13 @@ flag = {
     name      = delete;
     descrip   = "Deletes the objects matching the PKCS #11 URL";
     doc = "";
+};
+
+flag = {
+    name      = generate-random;
+    descrip   = "Generate random data";
+    arg-type  = number;
+    doc = "Asks the token to generate a number of bytes of random bytes.";
 };
 
 flag = {
@@ -116,6 +144,14 @@ flag = {
 };
 
 flag = {
+    name      = ca;
+    disable   = "no";
+    disabled;
+    descrip   = "Marks the object to be written as a CA";
+    doc = "";
+};
+
+flag = {
     name      = private;
     disable   = "no";
     enabled;
@@ -125,10 +161,23 @@ flag = {
 
 flag = {
     name      = login;
-    descrip   = "Force login to token";
+    descrip   = "Force (user) login to token";
     disabled;
     disable   = "no";
     doc       = "";
+};
+
+flag = {
+    name      = so-login;
+    descrip   = "Force security officer login to token";
+    disabled;
+    disable   = "no";
+    doc       = "Forces login to the token as security officer (admin).";
+};
+
+flag = {
+    name      = admin-login;
+    aliases   = so-login;
 };
 
 flag = {
@@ -189,7 +238,7 @@ flag = {
     arg-type  = string;
     arg-name  = "Security parameter";
     descrip   = "Specify the security level";
-    doc      = "This is alternative to the bits option. Available options are [low, legacy, normal, high, ultra].";
+    doc      = "This is alternative to the bits option. Available options are [low, legacy, medium, high, ultra].";
 };
 
 
@@ -204,6 +253,19 @@ flag = {
 flag = {
     name      = inraw;
     aliases   = inder;
+};
+
+flag = {
+    name      = outder;
+    descrip   = "Use DER format for output certificates, private keys, and DH parameters";
+    disabled;
+    disable   = "no";
+    doc       = "The output will be in DER or RAW format.";
+};
+
+flag = {
+    name      = outraw;
+    aliases   = outder;
 };
 
 flag = {
@@ -246,6 +308,21 @@ $ p11tool --login --write "pkcs11:URL" --load-certificate cert.pem \
 @end example
 Note that some tokens require the same label to be used for the certificate
 and its corresponding private key.
+
+To generate an RSA private key inside the token use:
+@example
+$ p11tool --login --generate-rsa --bits 1024 --label "MyNewKey" \
+          --outfile MyNewKey.pub "pkcs11:TOKEN-URL"
+@end example
+The bits parameter in the above example is explicitly set because some
+tokens only support limited choices in the bit length. The output file is the
+corresponding public key. This key can be used to general a certificate
+request with certtool.
+@example
+certtool --generate-request --load-privkey "pkcs11:KEY-URL" \
+   --load-pubkey MyNewKey.pub --outfile request.pem
+@end example
+
 _EOT_;
 };
 

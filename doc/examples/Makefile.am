@@ -23,6 +23,8 @@ AM_CFLAGS = $(WARN_CFLAGS) $(WERROR_CFLAGS)
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/lib/includes -I$(top_builddir)/lib/includes	\
 	-I$(top_srcdir)/extra/includes \
+	-I$(top_srcdir)/src/gl \
+	-I$(top_builddir)/src/gl \
 	-I$(top_srcdir)/gl \
 	-I$(top_builddir)/gl
 
@@ -35,13 +37,19 @@ AM_LDFLAGS = -no-install
 LDADD = libexamples.la				\
 	../../lib/libgnutls.la			\
 	../../gl/libgnu.la			\
+	../../src/gl/libgnu_gpl.la		\
 	$(LIBSOCKET) $(INET_NTOP_LIB) $(INET_PTON_LIB)
 
-CXX_LDADD = $(LDADD) \
-	../../lib/libgnutlsxx.la
+CXX_LDADD = ../../lib/libgnutlsxx.la \
+	$(LDADD)
 
 noinst_PROGRAMS = ex-client-resume ex-client-dtls
 noinst_PROGRAMS += ex-cert-select ex-client-x509
+noinst_PROGRAMS += ex-serv-dtls
+noinst_PROGRAMS += print-ciphersuites
+if ENABLE_OCSP
+noinst_PROGRAMS += ex-serv-x509
+endif
 
 if ENABLE_CXX
 ex_cxx_SOURCES = ex-cxx.cpp
@@ -78,5 +86,4 @@ endif
 
 libexamples_la_SOURCES = examples.h ex-alert.c ex-pkcs12.c \
 	ex-session-info.c ex-x509-info.c ex-verify.c	\
-	tcp.c udp.c ex-pkcs11-list.c verify.c ex-verify-ssh.c \
-	ex-serv-dtls.c print-ciphersuites.c
+	tcp.c udp.c ex-pkcs11-list.c verify.c ex-verify-ssh.c

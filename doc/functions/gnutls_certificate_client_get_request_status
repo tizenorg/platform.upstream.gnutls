@@ -8,6 +8,5 @@
 Get whether client certificate is requested or not.
 
 @strong{Returns:} 0 if the peer (server) did not request client
-authentication or 1 otherwise, or a negative error code in case of
-error.
+authentication or 1 otherwise.
 @end deftypefun

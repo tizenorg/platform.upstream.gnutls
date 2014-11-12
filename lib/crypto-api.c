@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -25,13 +25,14 @@
 #include <gnutls_cipher_int.h>
 #include <gnutls_datum.h>
 #include <gnutls/crypto.h>
+#include <algorithms.h>
 #include <random.h>
 #include <crypto.h>
+#include <fips.h>
 
-typedef struct api_cipher_hd_st
-{
-  cipher_hd_st ctx_enc;
-  cipher_hd_st ctx_dec;
+typedef struct api_cipher_hd_st {
+	cipher_hd_st ctx_enc;
+	cipher_hd_st ctx_dec;
 } api_cipher_hd_st;
 
 /**
@@ -51,27 +52,34 @@ typedef struct api_cipher_hd_st
  * Since: 2.10.0
  **/
 int
-gnutls_cipher_init (gnutls_cipher_hd_t * handle,
-                    gnutls_cipher_algorithm_t cipher,
-                    const gnutls_datum_t * key, const gnutls_datum_t * iv)
+gnutls_cipher_init(gnutls_cipher_hd_t * handle,
+		   gnutls_cipher_algorithm_t cipher,
+		   const gnutls_datum_t * key, const gnutls_datum_t * iv)
 {
-api_cipher_hd_st * h;
-int ret;
+	api_cipher_hd_st *h;
+	int ret;
+	const cipher_entry_st* e;
 
-  *handle = gnutls_calloc (1, sizeof (api_cipher_hd_st));
-  if (*handle == NULL)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
+	e = cipher_to_entry(cipher);
+	if (e == NULL)
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
-  h = *handle;
-  ret = _gnutls_cipher_init (&h->ctx_enc, cipher, key, iv, 1);
+	*handle = gnutls_calloc(1, sizeof(api_cipher_hd_st));
+	if (*handle == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_MEMORY_ERROR;
+	}
 
-  if (ret >= 0 && _gnutls_cipher_is_aead( &h->ctx_enc) == 0) /* AEAD ciphers are stream - so far */
-    ret = _gnutls_cipher_init (&h->ctx_dec, cipher, key, iv, 0);
+	h = *handle;
+	ret =
+	    _gnutls_cipher_init(&h->ctx_enc, e, key,
+				iv, 1);
 
-  return ret;
+	if (ret >= 0 && _gnutls_cipher_is_block(e) != 0)
+		ret =
+		    _gnutls_cipher_init(&h->ctx_dec, e, key, iv, 0);
+
+	return ret;
 }
 
 /**
@@ -89,16 +97,16 @@ int ret;
  * Since: 3.0
  **/
 int
-gnutls_cipher_tag (gnutls_cipher_hd_t handle, void *tag, size_t tag_size)
+gnutls_cipher_tag(gnutls_cipher_hd_t handle, void *tag, size_t tag_size)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)==0)
-    return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	if (_gnutls_cipher_is_aead(&h->ctx_enc) == 0)
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
-  _gnutls_cipher_tag( &h->ctx_enc, tag, tag_size);
-  
-  return 0;
+	_gnutls_cipher_tag(&h->ctx_enc, tag, tag_size);
+
+	return 0;
 }
 
 /**
@@ -117,16 +125,17 @@ api_cipher_hd_st * h = handle;
  * Since: 3.0
  **/
 int
-gnutls_cipher_add_auth (gnutls_cipher_hd_t handle, const void *text, size_t text_size)
+gnutls_cipher_add_auth(gnutls_cipher_hd_t handle, const void *text,
+		       size_t text_size)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)==0)
-    return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	if (_gnutls_cipher_is_aead(&h->ctx_enc) == 0)
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
-  _gnutls_cipher_auth( &h->ctx_enc, text, text_size);
-  
-  return 0;
+	_gnutls_cipher_auth(&h->ctx_enc, text, text_size);
+
+	return 0;
 }
 
 /**
@@ -141,14 +150,14 @@ api_cipher_hd_st * h = handle;
  * Since: 3.0
  **/
 void
-gnutls_cipher_set_iv (gnutls_cipher_hd_t handle, void *iv, size_t ivlen)
+gnutls_cipher_set_iv(gnutls_cipher_hd_t handle, void *iv, size_t ivlen)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  _gnutls_cipher_setiv( &h->ctx_enc, iv, ivlen);
+	_gnutls_cipher_setiv(&h->ctx_enc, iv, ivlen);
 
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)==0)
-    _gnutls_cipher_setiv( &h->ctx_dec, iv, ivlen);
+	if (_gnutls_cipher_is_block(h->ctx_enc.e) != 0)
+		_gnutls_cipher_setiv(&h->ctx_dec, iv, ivlen);
 }
 
 /**
@@ -165,11 +174,12 @@ api_cipher_hd_st * h = handle;
  * Since: 2.10.0
  **/
 int
-gnutls_cipher_encrypt (gnutls_cipher_hd_t handle, void *text, size_t textlen)
+gnutls_cipher_encrypt(gnutls_cipher_hd_t handle, void *text,
+		      size_t textlen)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  return _gnutls_cipher_encrypt (&h->ctx_enc, text, textlen);
+	return _gnutls_cipher_encrypt(&h->ctx_enc, text, textlen);
 }
 
 /**
@@ -181,20 +191,25 @@ api_cipher_hd_st * h = handle;
  * This function will decrypt the given data using the algorithm
  * specified by the context.
  *
+ * Note that in AEAD ciphers, this will not check the tag. You will
+ * need to compare the tag sent with the value returned from gnutls_cipher_tag().
+ *
  * Returns: Zero or a negative error code on error.
  *
  * Since: 2.10.0
  **/
 int
-gnutls_cipher_decrypt (gnutls_cipher_hd_t handle, void *ciphertext,
-                       size_t ciphertextlen)
+gnutls_cipher_decrypt(gnutls_cipher_hd_t handle, void *ciphertext,
+		      size_t ciphertextlen)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)!=0)
-    return _gnutls_cipher_decrypt (&h->ctx_enc, ciphertext, ciphertextlen);
-  else
-    return _gnutls_cipher_decrypt (&h->ctx_dec, ciphertext, ciphertextlen);
+	if (_gnutls_cipher_is_block(h->ctx_enc.e) == 0)
+		return _gnutls_cipher_decrypt(&h->ctx_enc, ciphertext,
+					      ciphertextlen);
+	else
+		return _gnutls_cipher_decrypt(&h->ctx_dec, ciphertext,
+					      ciphertextlen);
 }
 
 /**
@@ -213,13 +228,14 @@ api_cipher_hd_st * h = handle;
  * Since: 2.12.0
  **/
 int
-gnutls_cipher_encrypt2 (gnutls_cipher_hd_t handle, const void *text, size_t textlen,
-                        void *ciphertext, size_t ciphertextlen)
+gnutls_cipher_encrypt2(gnutls_cipher_hd_t handle, const void *text,
+		       size_t textlen, void *ciphertext,
+		       size_t ciphertextlen)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  return _gnutls_cipher_encrypt2 (&h->ctx_enc, text, textlen,
-                                  ciphertext, ciphertextlen);
+	return _gnutls_cipher_encrypt2(&h->ctx_enc, text, textlen,
+				       ciphertext, ciphertextlen);
 }
 
 /**
@@ -233,22 +249,27 @@ api_cipher_hd_st * h = handle;
  * This function will decrypt the given data using the algorithm
  * specified by the context.
  *
+ * Note that in AEAD ciphers, this will not check the tag. You will
+ * need to compare the tag sent with the value returned from gnutls_cipher_tag().
+ *
  * Returns: Zero or a negative error code on error.
  *
  * Since: 2.12.0
  **/
 int
-gnutls_cipher_decrypt2 (gnutls_cipher_hd_t handle, const void *ciphertext,
-                        size_t ciphertextlen, void *text, size_t textlen)
+gnutls_cipher_decrypt2(gnutls_cipher_hd_t handle, const void *ciphertext,
+		       size_t ciphertextlen, void *text, size_t textlen)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)!=0)
-    return _gnutls_cipher_decrypt2 (&h->ctx_enc, ciphertext,
-                                  ciphertextlen, text, textlen);
-  else
-    return _gnutls_cipher_decrypt2 (&h->ctx_dec, ciphertext,
-                                  ciphertextlen, text, textlen);
+	if (_gnutls_cipher_is_block(h->ctx_enc.e) == 0)
+		return _gnutls_cipher_decrypt2(&h->ctx_enc, ciphertext,
+					       ciphertextlen, text,
+					       textlen);
+	else
+		return _gnutls_cipher_decrypt2(&h->ctx_dec, ciphertext,
+					       ciphertextlen, text,
+					       textlen);
 }
 
 /**
@@ -260,15 +281,14 @@ api_cipher_hd_st * h = handle;
  *
  * Since: 2.10.0
  **/
-void
-gnutls_cipher_deinit (gnutls_cipher_hd_t handle)
+void gnutls_cipher_deinit(gnutls_cipher_hd_t handle)
 {
-api_cipher_hd_st * h = handle;
+	api_cipher_hd_st *h = handle;
 
-  _gnutls_cipher_deinit (&h->ctx_enc);
-  if (_gnutls_cipher_is_aead( &h->ctx_enc)==0)
-    _gnutls_cipher_deinit (&h->ctx_dec);
-  gnutls_free (handle);
+	_gnutls_cipher_deinit(&h->ctx_enc);
+	if (_gnutls_cipher_is_block(h->ctx_enc.e) != 0)
+		_gnutls_cipher_deinit(&h->ctx_dec);
+	gnutls_free(handle);
 }
 
 
@@ -286,23 +306,53 @@ api_cipher_hd_st * h = handle;
  * effectively use the current crypto backend in use by gnutls or the
  * cryptographic accelerator in use.
  *
+ * Note that despite the name of this function, it can be used
+ * for other MAC algorithms than HMAC.
+ *
  * Returns: Zero or a negative error code on error.
  *
  * Since: 2.10.0
  **/
 int
-gnutls_hmac_init (gnutls_hmac_hd_t * dig,
-                  gnutls_mac_algorithm_t algorithm,
-                  const void *key, size_t keylen)
+gnutls_hmac_init(gnutls_hmac_hd_t * dig,
+		 gnutls_mac_algorithm_t algorithm,
+		 const void *key, size_t keylen)
 {
-  *dig = gnutls_malloc (sizeof (digest_hd_st));
-  if (*dig == NULL)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
+#ifdef ENABLE_FIPS140
+	/* MD5 is only allowed internally for TLS */
+	if (_gnutls_fips_mode_enabled() != 0 &&
+		_gnutls_get_lib_state() != LIB_STATE_SELFTEST) {
 
-  return _gnutls_hmac_init (((digest_hd_st *) * dig), algorithm, key, keylen);
+		if (algorithm == GNUTLS_MAC_MD5)
+			return gnutls_assert_val(GNUTLS_E_UNWANTED_ALGORITHM);
+	}
+#endif
+
+	*dig = gnutls_malloc(sizeof(mac_hd_st));
+	if (*dig == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_MEMORY_ERROR;
+	}
+
+	return _gnutls_mac_init(((mac_hd_st *) * dig),
+				mac_to_entry(algorithm), key, keylen);
+}
+
+/**
+ * gnutls_hmac_set_nonce:
+ * @handle: is a #gnutls_cipher_hd_t structure.
+ * @nonce: the data to set as nonce
+ * @nonce_len: The length of data
+ *
+ * This function will set the nonce in the MAC algorithm.
+ *
+ * Since: 3.2.0
+ **/
+void
+gnutls_hmac_set_nonce(gnutls_hmac_hd_t handle, const void *nonce,
+		      size_t nonce_len)
+{
+	_gnutls_mac_set_nonce((mac_hd_st *) handle, nonce, nonce_len);
 }
 
 /**
@@ -318,10 +368,9 @@ gnutls_hmac_init (gnutls_hmac_hd_t * dig,
  *
  * Since: 2.10.0
  **/
-int
-gnutls_hmac (gnutls_hmac_hd_t handle, const void *text, size_t textlen)
+int gnutls_hmac(gnutls_hmac_hd_t handle, const void *text, size_t textlen)
 {
-  return _gnutls_hmac ((digest_hd_st *) handle, text, textlen);
+	return _gnutls_mac((mac_hd_st *) handle, text, textlen);
 }
 
 /**
@@ -329,14 +378,14 @@ gnutls_hmac (gnutls_hmac_hd_t handle, const void *text, size_t textlen)
  * @handle: is a #gnutls_hmac_hd_t structure.
  * @digest: is the output value of the MAC
  *
- * This function will output the current MAC value.
+ * This function will output the current MAC value
+ * and reset the state of the MAC.
  *
  * Since: 2.10.0
  **/
-void
-gnutls_hmac_output (gnutls_hmac_hd_t handle, void *digest)
+void gnutls_hmac_output(gnutls_hmac_hd_t handle, void *digest)
 {
-  _gnutls_hmac_output ((digest_hd_st *) handle, digest);
+	_gnutls_mac_output((mac_hd_st *) handle, digest);
 }
 
 /**
@@ -349,11 +398,10 @@ gnutls_hmac_output (gnutls_hmac_hd_t handle, void *digest)
  *
  * Since: 2.10.0
  **/
-void
-gnutls_hmac_deinit (gnutls_hmac_hd_t handle, void *digest)
+void gnutls_hmac_deinit(gnutls_hmac_hd_t handle, void *digest)
 {
-  _gnutls_hmac_deinit ((digest_hd_st *) handle, digest);
-  gnutls_free (handle);
+	_gnutls_mac_deinit((mac_hd_st *) handle, digest);
+	gnutls_free(handle);
 }
 
 /**
@@ -367,10 +415,9 @@ gnutls_hmac_deinit (gnutls_hmac_hd_t handle, void *digest)
  *
  * Since: 2.10.0
  **/
-int
-gnutls_hmac_get_len (gnutls_mac_algorithm_t algorithm)
+int gnutls_hmac_get_len(gnutls_mac_algorithm_t algorithm)
 {
-  return _gnutls_hmac_get_algo_len (algorithm);
+	return _gnutls_mac_get_algo_len(mac_to_entry(algorithm));
 }
 
 /**
@@ -390,11 +437,12 @@ gnutls_hmac_get_len (gnutls_mac_algorithm_t algorithm)
  * Since: 2.10.0
  **/
 int
-gnutls_hmac_fast (gnutls_mac_algorithm_t algorithm,
-                  const void *key, size_t keylen,
-                  const void *text, size_t textlen, void *digest)
+gnutls_hmac_fast(gnutls_mac_algorithm_t algorithm,
+		 const void *key, size_t keylen,
+		 const void *text, size_t textlen, void *digest)
 {
-  return _gnutls_hmac_fast (algorithm, key, keylen, text, textlen, digest);
+	return _gnutls_mac_fast(algorithm, key, keylen, text, textlen,
+				digest);
 }
 
 /* HASH */
@@ -414,16 +462,27 @@ gnutls_hmac_fast (gnutls_mac_algorithm_t algorithm,
  * Since: 2.10.0
  **/
 int
-gnutls_hash_init (gnutls_hash_hd_t * dig, gnutls_digest_algorithm_t algorithm)
+gnutls_hash_init(gnutls_hash_hd_t * dig,
+		 gnutls_digest_algorithm_t algorithm)
 {
-  *dig = gnutls_malloc (sizeof (digest_hd_st));
-  if (*dig == NULL)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
+#ifdef ENABLE_FIPS140
+	/* MD5 is only allowed internally for TLS */
+	if (_gnutls_fips_mode_enabled() != 0 &&
+		_gnutls_get_lib_state() != LIB_STATE_SELFTEST) {
 
-  return _gnutls_hash_init (((digest_hd_st *) * dig), algorithm);
+		if (algorithm == GNUTLS_DIG_MD5)
+			return gnutls_assert_val(GNUTLS_E_UNWANTED_ALGORITHM);
+	}
+#endif
+
+	*dig = gnutls_malloc(sizeof(digest_hd_st));
+	if (*dig == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_MEMORY_ERROR;
+	}
+
+	return _gnutls_hash_init(((digest_hd_st *) * dig),
+				 hash_to_entry(algorithm));
 }
 
 /**
@@ -439,10 +498,9 @@ gnutls_hash_init (gnutls_hash_hd_t * dig, gnutls_digest_algorithm_t algorithm)
  *
  * Since: 2.10.0
  **/
-int
-gnutls_hash (gnutls_hash_hd_t handle, const void *text, size_t textlen)
+int gnutls_hash(gnutls_hash_hd_t handle, const void *text, size_t textlen)
 {
-  return _gnutls_hash ((digest_hd_st *) handle, text, textlen);
+	return _gnutls_hash((digest_hd_st *) handle, text, textlen);
 }
 
 /**
@@ -450,14 +508,14 @@ gnutls_hash (gnutls_hash_hd_t handle, const void *text, size_t textlen)
  * @handle: is a #gnutls_hash_hd_t structure.
  * @digest: is the output value of the hash
  *
- * This function will output the current hash value.
+ * This function will output the current hash value
+ * and reset the state of the hash.
  *
  * Since: 2.10.0
  **/
-void
-gnutls_hash_output (gnutls_hash_hd_t handle, void *digest)
+void gnutls_hash_output(gnutls_hash_hd_t handle, void *digest)
 {
-  _gnutls_hash_output ((digest_hd_st *) handle, digest);
+	_gnutls_hash_output((digest_hd_st *) handle, digest);
 }
 
 /**
@@ -470,11 +528,10 @@ gnutls_hash_output (gnutls_hash_hd_t handle, void *digest)
  *
  * Since: 2.10.0
  **/
-void
-gnutls_hash_deinit (gnutls_hash_hd_t handle, void *digest)
+void gnutls_hash_deinit(gnutls_hash_hd_t handle, void *digest)
 {
-  _gnutls_hash_deinit ((digest_hd_st *) handle, digest);
-  gnutls_free (handle);
+	_gnutls_hash_deinit((digest_hd_st *) handle, digest);
+	gnutls_free(handle);
 }
 
 /**
@@ -488,10 +545,9 @@ gnutls_hash_deinit (gnutls_hash_hd_t handle, void *digest)
  *
  * Since: 2.10.0
  **/
-int
-gnutls_hash_get_len (gnutls_digest_algorithm_t algorithm)
+int gnutls_hash_get_len(gnutls_digest_algorithm_t algorithm)
 {
-  return _gnutls_hash_get_algo_len (algorithm);
+	return _gnutls_hash_get_algo_len(hash_to_entry(algorithm));
 }
 
 /**
@@ -509,10 +565,10 @@ gnutls_hash_get_len (gnutls_digest_algorithm_t algorithm)
  * Since: 2.10.0
  **/
 int
-gnutls_hash_fast (gnutls_digest_algorithm_t algorithm,
-                  const void *text, size_t textlen, void *digest)
+gnutls_hash_fast(gnutls_digest_algorithm_t algorithm,
+		 const void *text, size_t textlen, void *digest)
 {
-  return _gnutls_hash_fast (algorithm, text, textlen, digest);
+	return _gnutls_hash_fast(algorithm, text, textlen, digest);
 }
 
 /**
@@ -521,33 +577,39 @@ gnutls_hash_fast (gnutls_digest_algorithm_t algorithm,
  * created key.
  * @key_size: The number of bytes of the key.
  *
- * Generates a random key of @key_bytes size.
+ * Generates a random key of @key_size bytes.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, or an
  * error code.
  *
  * Since: 3.0
  **/
-int
-gnutls_key_generate (gnutls_datum_t * key, unsigned int key_size)
+int gnutls_key_generate(gnutls_datum_t * key, unsigned int key_size)
 {
-  int ret;
+	int ret;
 
-  key->size = key_size;
-  key->data = gnutls_malloc (key->size);
-  if (!key->data)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
+#ifdef ENABLE_FIPS140
+	/* The FIPS140 approved RNGs are not allowed to be used
+	 * to extract key sizes longer than their original seed.
+	 */
+	if (_gnutls_fips_mode_enabled() != 0 &&
+	    key_size > FIPS140_RND_KEY_SIZE)
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+#endif
 
-  ret = _gnutls_rnd (GNUTLS_RND_RANDOM, key->data, key->size);
-  if (ret < 0)
-    {
-      gnutls_assert ();
-      _gnutls_free_datum (key);
-      return ret;
-    }
+	key->size = key_size;
+	key->data = gnutls_malloc(key->size);
+	if (!key->data) {
+		gnutls_assert();
+		return GNUTLS_E_MEMORY_ERROR;
+	}
 
-  return 0;
+	ret = _gnutls_rnd(GNUTLS_RND_RANDOM, key->data, key->size);
+	if (ret < 0) {
+		gnutls_assert();
+		_gnutls_free_datum(key);
+		return ret;
+	}
+
+	return 0;
 }

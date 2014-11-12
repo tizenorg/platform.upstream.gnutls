@@ -9,7 +9,7 @@
 
 @var{ret_size}: Holds the size of the result field.
 
-@var{critical}: will be non (0) if the extension is marked as critical (may be null)
+@var{critical}: will be non-zero if the extension is marked as critical (may be null)
 
 This function will return the X.509v3 certificate's subject key
 identifier.  This is obtained by the X.509 Subject Key identifier

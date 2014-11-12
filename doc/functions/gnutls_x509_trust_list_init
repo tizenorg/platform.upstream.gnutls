@@ -12,5 +12,5 @@ This function will initialize an X.509 trust list structure.
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
 
-@strong{Since:} 3.0
+@strong{Since:} 3.0.0
 @end deftypefun

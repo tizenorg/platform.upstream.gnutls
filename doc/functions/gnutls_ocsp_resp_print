@@ -12,8 +12,8 @@
 This function will pretty print a OCSP response, suitable for
 display to a human.
 
-If the format is @code{GNUTLS_PRINT_FULL}  then all fields of the response
-will be output, on multiple lines.
+If the format is @code{GNUTLS_OCSP_PRINT_FULL}  then all fields of the
+response will be output, on multiple lines.
 
 The output  @code{out} ->data needs to be deallocate using @code{gnutls_free()} .
 

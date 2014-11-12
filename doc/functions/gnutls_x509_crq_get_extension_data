@@ -5,7 +5,7 @@
 @deftypefun {int} {gnutls_x509_crq_get_extension_data} (gnutls_x509_crq_t @var{crq}, int @var{indx}, void * @var{data}, size_t * @var{sizeof_data})
 @var{crq}: should contain a @code{gnutls_x509_crq_t}  structure
 
-@var{indx}: Specifies which extension OID to send. Use (0) to get the first one.
+@var{indx}: Specifies which extension number to get. Use (0) to get the first one.
 
 @var{data}: a pointer to a structure to hold the data (may be null)
 

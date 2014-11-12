@@ -9,7 +9,7 @@
 
 @var{ret_size}: Holds the size of the result field.
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 (may be null)
 
 This function will return the CRL number extension.  This is

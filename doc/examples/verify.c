@@ -10,82 +10,55 @@
 
 #include "examples.h"
 
-int verify_certificate_callback (gnutls_session_t session)
+/* The example below demonstrates the usage of the more powerful
+ * gnutls_certificate_verify_peers() which can be used to check
+ * the hostname, as well as the key purpose OID of the peer's
+ * certificate. */
+int verify_certificate_callback(gnutls_session_t session)
 {
-  unsigned int status;
-  const gnutls_datum_t *cert_list;
-  unsigned int cert_list_size;
-  int ret;
-  gnutls_x509_crt_t cert;
-  const char *hostname;
+        unsigned int status;
+        int ret, type;
+        const char *hostname;
+        gnutls_datum_t out;
+        gnutls_typed_vdata_st data[2];
 
-  /* read hostname */
-  hostname = gnutls_session_get_ptr (session);
+        /* read hostname */
+        hostname = gnutls_session_get_ptr(session);
 
-  /* This verification function uses the trusted CAs in the credentials
-   * structure. So you must have installed one or more CA certificates.
-   */
-  ret = gnutls_certificate_verify_peers2 (session, &status);
-  if (ret < 0)
-    {
-      printf ("Error\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+        /* This verification function uses the trusted CAs in the credentials
+         * structure. So you must have installed one or more CA certificates.
+         */
+        data[0].type = GNUTLS_DT_DNS_HOSTNAME;
+        data[0].data = (void*)hostname;
+        data[0].size = 0;
 
-  if (status & GNUTLS_CERT_INVALID)
-    printf ("The certificate is not trusted.\n");
+        data[1].type = GNUTLS_DT_KEY_PURPOSE_OID;
+        data[1].data = (void*)GNUTLS_KP_TLS_WWW_SERVER;
+        data[1].size = 0;
+        ret = gnutls_certificate_verify_peers(session, data, 2,
+                                              &status);
+        if (ret < 0) {
+                printf("Error\n");
+                return GNUTLS_E_CERTIFICATE_ERROR;
+        }
 
-  if (status & GNUTLS_CERT_SIGNER_NOT_FOUND)
-    printf ("The certificate hasn't got a known issuer.\n");
+        type = gnutls_certificate_type_get(session);
 
-  if (status & GNUTLS_CERT_REVOKED)
-    printf ("The certificate has been revoked.\n");
+        ret =
+            gnutls_certificate_verification_status_print(status, type,
+                                                         &out, 0);
+        if (ret < 0) {
+                printf("Error\n");
+                return GNUTLS_E_CERTIFICATE_ERROR;
+        }
 
-  if (status & GNUTLS_CERT_EXPIRED)
-    printf ("The certificate has expired\n");
+        printf("%s", out.data);
 
-  if (status & GNUTLS_CERT_NOT_ACTIVATED)
-    printf ("The certificate is not yet activated\n");
+        gnutls_free(out.data);
 
-  /* Up to here the process is the same for X.509 certificates and
-   * OpenPGP keys. From now on X.509 certificates are assumed. This can
-   * be easily extended to work with openpgp keys as well.
-   */
-  if (gnutls_certificate_type_get (session) != GNUTLS_CRT_X509)
-    return GNUTLS_E_CERTIFICATE_ERROR;
+        if (status != 0)        /* Certificate is not trusted */
+                return GNUTLS_E_CERTIFICATE_ERROR;
 
-  if (gnutls_x509_crt_init (&cert) < 0)
-    {
-      printf ("error in initialization\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
-
-  cert_list = gnutls_certificate_get_peers (session, &cert_list_size);
-  if (cert_list == NULL)
-    {
-      printf ("No certificate was found!\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
-
-  /* This is not a real world example, since we only check the first 
-   * certificate in the given chain.
-   */
-  if (gnutls_x509_crt_import (cert, &cert_list[0], GNUTLS_X509_FMT_DER) < 0)
-    {
-      printf ("error parsing certificate\n");
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
-
-
-  if (!gnutls_x509_crt_check_hostname (cert, hostname))
-    {
-      printf ("The certificate's owner does not match hostname '%s'\n",
-              hostname);
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
-
-  gnutls_x509_crt_deinit (cert);
-
-  /* notify gnutls to continue handshake normally */
-  return 0;
+        /* notify gnutls to continue handshake normally */
+        return 0;
 }

@@ -8,6 +8,6 @@
 @var{ptr}: is the user pointer
 
 This function will set (associate) the user given pointer  @code{ptr} to
-the session structure.  This is pointer can be accessed with
+the session structure.  This pointer can be accessed with
 @code{gnutls_session_get_ptr()} .
 @end deftypefun

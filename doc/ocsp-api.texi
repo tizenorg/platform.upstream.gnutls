@@ -205,8 +205,8 @@ negative error value.
 This function will pretty print a OCSP request, suitable for
 display to a human.
 
-If the format is @code{GNUTLS_PRINT_FULL}  then all fields of the request
-will be output, on multiple lines.
+If the format is @code{GNUTLS_OCSP_PRINT_FULL}  then all fields of the
+request will be output, on multiple lines.
 
 The output  @code{out} ->data needs to be deallocate using @code{gnutls_free()} .
 
@@ -276,6 +276,8 @@ is about the provided certificate.
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error code is returned.  
+
+@strong{Since:} 3.1.3
 @end deftypefun
 
 @subheading gnutls_ocsp_resp_deinit
@@ -480,32 +482,8 @@ on error.
 
 This function will return the certificate information of the
  @code{indx} 'ed response in the Basic OCSP Response  @code{resp} .  The
-information returned corresponds to the SingleResponse structure
-except the final singleExtensions, reproduced here for illustration:
-
-<informalexample><programlisting>
-SingleResponse ::= SEQUENCE @{
-certID                       CertID,
-certStatus                   CertStatus,
-thisUpdate                   GeneralizedTime,
-nextUpdate         [0]       EXPLICIT GeneralizedTime OPTIONAL,
-singleExtensions   [1]       EXPLICIT Extensions OPTIONAL @}
-
-CertID          ::=     SEQUENCE @{
-hashAlgorithm       AlgorithmIdentifier,
-issuerNameHash      OCTET STRING, -- Hash of Issuer's DN
-issuerKeyHash       OCTET STRING, -- Hash of Issuers public key
-serialNumber        CertificateSerialNumber @}
-
-CertStatus ::= CHOICE @{
-good                [0]     IMPLICIT NULL,
-revoked             [1]     IMPLICIT RevokedInfo,
-unknown             [2]     IMPLICIT UnknownInfo @}
-
-RevokedInfo ::= SEQUENCE @{
-revocationTime              GeneralizedTime,
-revocationReason    [0]     EXPLICIT CRLReason OPTIONAL @}
-</programlisting></informalexample>
+information returned corresponds to the OCSP SingleResponse structure
+except the final singleExtensions.
 
 Each of the pointers to output variables may be NULL to indicate
 that the caller is not interested in that value.
@@ -578,8 +556,8 @@ negative error value.
 This function will pretty print a OCSP response, suitable for
 display to a human.
 
-If the format is @code{GNUTLS_PRINT_FULL}  then all fields of the response
-will be output, on multiple lines.
+If the format is @code{GNUTLS_OCSP_PRINT_FULL}  then all fields of the
+response will be output, on multiple lines.
 
 The output  @code{out} ->data needs to be deallocate using @code{gnutls_free()} .
 

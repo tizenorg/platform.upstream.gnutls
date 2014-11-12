@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS)
+AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS) $(NETTLE_CFLAGS)
 AM_CPPFLAGS = \
 	-I$(srcdir)/../../gl		\
 	-I$(builddir)/../../gl		\
@@ -38,4 +38,14 @@ libgnutls_ext_la_SOURCES = max_record.c cert_type.c \
 	server_name.c signature.c safe_renegotiation.c \
 	max_record.h cert_type.h server_name.h srp.h \
 	session_ticket.h signature.h safe_renegotiation.h \
-	session_ticket.c srp.c ecc.c ecc.h
+	session_ticket.c srp.c ecc.c ecc.h heartbeat.c heartbeat.h \
+	status_request.h status_request.c \
+	dumbfw.c dumbfw.h
+
+if ENABLE_ALPN
+libgnutls_ext_la_SOURCES += alpn.c alpn.h
+endif
+
+if ENABLE_DTLS_SRTP
+libgnutls_ext_la_SOURCES += srtp.c srtp.h
+endif

@@ -1,18 +1,18 @@
 /* Provide a more complete sys/time.h.
 
-   Copyright (C) 2007-2013 Free Software Foundation, Inc.
+   Copyright (C) 2007-2014 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3, or (at your option)
+   it under the terms of the GNU Lesser General Public License as published by
+   the Free Software Foundation; either version 2.1, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   GNU Lesser General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
+   You should have received a copy of the GNU Lesser General Public License
    along with this program; if not, see <http://www.gnu.org/licenses/>.  */
 
 /* Written by Paul Eggert.  */
@@ -24,11 +24,12 @@
 #endif
 @PRAGMA_COLUMNS@
 
-/* On Cygwin, <sys/time.h> includes itself recursively via <sys/select.h>.
+/* On Cygwin and on many BSDish systems, <sys/time.h> includes itself
+   recursively via <sys/select.h>.
    Simply delegate to the system's header in this case; it is a no-op.
    Without this extra ifdef, the C++ gettimeofday declaration below
    would be a forward declaration in gnulib's nested <sys/time.h>.  */
-#ifdef _CYGWIN_SYS_TIME_H
+#if defined _CYGWIN_SYS_TIME_H || defined _SYS_TIME_H || defined _SYS_TIME_H_
 # @INCLUDE_NEXT@ @NEXT_SYS_TIME_H@
 #else
 

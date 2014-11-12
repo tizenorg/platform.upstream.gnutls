@@ -20,7 +20,7 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 SUBDIRS = . rsa-md5-collision pkcs1-padding pkcs8-decode pkcs12-decode	\
-	userid cert-tests key-id sha2 safe-renegotiation dsa scripts ecdsa \
+	userid cert-tests key-tests sha2 safe-renegotiation dsa scripts ecdsa \
 	slow dtls srp
 
 if ENABLE_OPENPGP
@@ -31,7 +31,11 @@ if WANT_TEST_SUITE
 SUBDIRS += suite
 endif
 
-EXTRA_DIST = suppressions.valgrind eagain-common.h
+EXTRA_DIST = suppressions.valgrind eagain-common.h test-chains.h \
+	certs/ca-cert-ecc.pem  certs/cert-ecc256.pem  certs/cert-ecc521.pem \
+	certs/cert-rsa-2432.pem certs/ecc384.pem certs/ecc.pem \
+	certs/ca-ecc.pem certs/cert-ecc384.pem certs/cert-ecc.pem certs/ecc256.pem \
+	certs/ecc521.pem certs/rsa-2432.pem
 
 AM_CFLAGS = $(WARN_CFLAGS) $(WERROR_CFLAGS)
 AM_CPPFLAGS = \
@@ -59,24 +63,33 @@ noinst_LTLIBRARIES = libutils.la
 libutils_la_SOURCES = utils.h utils.c
 libutils_la_LIBADD = ../gl/libgnu.la
 
-ctests = mini-deflate simple gc set_pkcs12_cred certder certuniqueid	\
-	 mpi certificate_set_x509_crl dn parse_ca moredn mini		\
-	 hostname-check cve-2008-4989 pkcs12_s2k chainverify		\
+ctests = mini-record-2 simple gc set_pkcs12_cred certder certuniqueid	\
+	 mpi certificate_set_x509_crl dn parse_ca moredn record-sizes \
+	 hostname-check cve-2008-4989 pkcs12_s2k chainverify record-sizes-range \
 	 crq_key_id x509sign-verify cve-2009-1415 cve-2009-1416		\
 	 crq_apis init_roundtrip pkcs12_s2k_pem dn2 mini-eagain		\
 	 nul-in-x509-names x509_altname pkcs12_encode mini-x509		\
 	 mini-rehandshake rng-fork mini-eagain-dtls resume-dtls \
-	 x509cert x509cert-tl infoaccess rsa-encrypt-decrypt \
-	 mini-loss-time mini-tdb mini-dtls-rehandshake mini-record \
-	 mini-termination mini-x509-cas mini-overhead
+	 x509cert x509cert-tl infoaccess mini-dtls-hello-verify \
+	 mini-tdb mini-dtls-rehandshake mini-alpn mini-dtls-large \
+	 mini-termination mini-x509-cas mini-x509-2 pkcs12_simple \
+	 mini-emsgsize-dtls chainverify-unsorted mini-overhead \
+	 mini-dtls-heartbeat mini-x509-callbacks key-openssl priorities	\
+	 mini-dtls-srtp rsa-encrypt-decrypt mini-loss-time \
+	 mini-record mini-dtls-record mini-handshake-timeout mini-record-range \
+	 mini-cert-status mini-rsa-psk global-init sec-params \
+	 fips-test mini-global-load name-constraints x509-extensions \
+	 long-session-id mini-x509-callbacks-intr
 
 if ENABLE_OCSP
 ctests += ocsp
 endif
 
 if ENABLE_OPENSSL
+if !ENABLE_FIPS140
 ctests +=  openssl
-openssl_LDADD = $(LDADD) ../extra/libgnutls-openssl.la
+openssl_LDADD = ../extra/libgnutls-openssl.la $(LDADD)
+endif
 endif
 
 if ENABLE_OPENPGP
@@ -99,15 +112,18 @@ dist_check_SCRIPTS = rfc2253-escape-test
 TESTS = $(ctests) $(dist_check_SCRIPTS)
 
 TESTS_ENVIRONMENT =						\
+	LC_ALL="C"						\
 	CAFILE=$(srcdir)/cert-tests/ca-certs.pem		\
+	PKCS12_MANY_CERTS_FILE=$(srcdir)/pkcs12-decode/pkcs12_5certs.p12	\
 	PKCS12FILE=$(srcdir)/pkcs12-decode/client.p12		\
 	PKCS12PASSWORD=foobar					\
 	PKCS12FILE_2=$(srcdir)/pkcs12-decode/pkcs12_2certs.p12	\
 	PKCS12PASSWORD_2=""					\
+	PKCS12PATH=$(srcdir)/pkcs12-decode/			\
 	EXEEXT=$(EXEEXT)					\
+	top_builddir="$(top_builddir)"				\
 	srcdir="$(srcdir)"
 
 if WANT_TEST_SUITE
-TESTS_ENVIRONMENT +=						\
-	$(VALGRIND)
+LOG_COMPILER = $(VALGRIND)
 endif

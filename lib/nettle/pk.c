@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2012 Free Software Foundation, Inc.
+ * Copyright (C) 2013 Nikos Mavrogiannopoulos
  *
  * Author: Nikos Mavrogiannopoulos
  *
@@ -7,7 +8,7 @@
  *
  * The GNUTLS library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -30,1074 +31,1601 @@
 #include <gnutls_errors.h>
 #include <gnutls_datum.h>
 #include <gnutls_global.h>
+#include <gnutls_sig.h>
 #include <gnutls_num.h>
 #include <x509/x509_int.h>
 #include <x509/common.h>
 #include <random.h>
 #include <gnutls_pk.h>
 #include <nettle/dsa.h>
+#ifdef ENABLE_FIPS140
+# include <dsa-fips.h>
+# include <rsa-fips.h>
+#endif
 #include <nettle/rsa.h>
-#include <random.h>
 #include <gnutls/crypto.h>
-#include "ecc.h"
+#include <nettle/bignum.h>
+#include <nettle/ecc.h>
+#include <nettle/ecdsa.h>
+#include <nettle/ecc-curve.h>
+#include <gnettle.h>
+#include <fips.h>
 
-#define TOMPZ(x) (*((mpz_t*)(x)))
+static inline const struct ecc_curve *get_supported_curve(int curve);
 
-static inline int is_supported_curve(int curve);
-
-static void
-rnd_func (void *_ctx, unsigned length, uint8_t * data)
+static void rnd_func(void *_ctx, unsigned length, uint8_t * data)
 {
-  _gnutls_rnd (GNUTLS_RND_RANDOM, data, length);
+	if (_gnutls_rnd(GNUTLS_RND_RANDOM, data, length) < 0) {
+#ifdef ENABLE_FIPS140
+		_gnutls_switch_lib_state(LIB_STATE_ERROR);
+#else
+		abort();
+#endif
+	}
 }
 
 static void
-_dsa_params_to_pubkey (const gnutls_pk_params_st * pk_params,
-                       struct dsa_public_key *pub)
+ecc_scalar_zclear (struct ecc_scalar *s)
 {
-  memcpy (&pub->p, pk_params->params[0], sizeof (mpz_t));
-  memcpy (&pub->q, pk_params->params[1], sizeof (mpz_t));
-  memcpy (&pub->g, pk_params->params[2], sizeof (mpz_t));
-  memcpy (&pub->y, pk_params->params[3], sizeof (mpz_t));
-}
-
-static void
-_dsa_params_to_privkey (const gnutls_pk_params_st * pk_params,
-                        struct dsa_private_key *pub)
-{
-  memcpy (&pub->x, pk_params->params[4], sizeof (mpz_t));
-}
-
-static void
-_rsa_params_to_privkey (const gnutls_pk_params_st * pk_params,
-                        struct rsa_private_key *priv)
-{
-  memcpy (&priv->d, pk_params->params[2], sizeof (mpz_t));
-  memcpy (&priv->p, pk_params->params[3], sizeof (mpz_t));
-  memcpy (&priv->q, pk_params->params[4], sizeof (mpz_t));
-  memcpy (&priv->c, pk_params->params[5], sizeof (mpz_t));
-  memcpy (&priv->a, pk_params->params[6], sizeof (mpz_t));
-  memcpy (&priv->b, pk_params->params[7], sizeof (mpz_t));
-
+        memset(s->p, 0, ecc_size(s->ecc)*sizeof(mp_limb_t));
+        ecc_scalar_clear(s);
 }
 
 static void 
+ecc_point_zclear (struct ecc_point *p)
+{
+        memset(p->p, 0, ecc_size_a(p->ecc)*sizeof(mp_limb_t));
+        ecc_point_clear(p);
+}
+  
+
+static void
+_dsa_params_to_pubkey(const gnutls_pk_params_st * pk_params,
+		      struct dsa_public_key *pub)
+{
+	memcpy(pub->p, pk_params->params[DSA_P], SIZEOF_MPZT);
+
+	if (pk_params->params[DSA_Q])
+		memcpy(&pub->q, pk_params->params[DSA_Q], sizeof(mpz_t));
+	memcpy(pub->g, pk_params->params[DSA_G], SIZEOF_MPZT);
+
+	if (pk_params->params[DSA_Y] != NULL)
+		memcpy(pub->y, pk_params->params[DSA_Y], SIZEOF_MPZT);
+}
+
+static void
+_dsa_params_to_privkey(const gnutls_pk_params_st * pk_params,
+		       struct dsa_private_key *pub)
+{
+	memcpy(pub->x, pk_params->params[4], SIZEOF_MPZT);
+}
+
+static void
+_rsa_params_to_privkey(const gnutls_pk_params_st * pk_params,
+		       struct rsa_private_key *priv)
+{
+	memcpy(priv->d, pk_params->params[2], SIZEOF_MPZT);
+	memcpy(priv->p, pk_params->params[3], SIZEOF_MPZT);
+	memcpy(priv->q, pk_params->params[4], SIZEOF_MPZT);
+	memcpy(priv->c, pk_params->params[5], SIZEOF_MPZT);
+	memcpy(priv->a, pk_params->params[6], SIZEOF_MPZT);
+	memcpy(priv->b, pk_params->params[7], SIZEOF_MPZT);
+	priv->size =
+	    nettle_mpz_sizeinbase_256_u(TOMPZ
+					(pk_params->params[RSA_MODULUS]));
+}
+
+static void
+_rsa_params_to_pubkey(const gnutls_pk_params_st * pk_params,
+		      struct rsa_public_key *pub)
+{
+	memcpy(pub->n, pk_params->params[RSA_MODULUS], SIZEOF_MPZT);
+	memcpy(pub->e, pk_params->params[RSA_PUB], SIZEOF_MPZT);
+	pub->size = nettle_mpz_sizeinbase_256_u(pub->n);
+}
+
+static int
 _ecc_params_to_privkey(const gnutls_pk_params_st * pk_params,
-                       ecc_key * priv)
+		       struct ecc_scalar *priv,
+		       const struct ecc_curve *curve)
 {
-        priv->type = PK_PRIVATE;
-        memcpy(&priv->prime, pk_params->params[ECC_PRIME], sizeof(mpz_t));
-        memcpy(&priv->order, pk_params->params[ECC_ORDER], sizeof(mpz_t));
-        memcpy(&priv->A, pk_params->params[ECC_A], sizeof(mpz_t));
-        memcpy(&priv->B, pk_params->params[ECC_B], sizeof(mpz_t));
-        memcpy(&priv->Gx, pk_params->params[ECC_GX], sizeof(mpz_t));
-        memcpy(&priv->Gy, pk_params->params[ECC_GY], sizeof(mpz_t));
-        memcpy(&priv->pubkey.x, pk_params->params[ECC_X], sizeof(mpz_t));
-        memcpy(&priv->pubkey.y, pk_params->params[ECC_Y], sizeof(mpz_t));
-        memcpy(&priv->k, pk_params->params[ECC_K], sizeof(mpz_t));
-        mpz_init_set_ui(priv->pubkey.z, 1);
+	ecc_scalar_init(priv, curve);
+	if (ecc_scalar_set(priv, pk_params->params[ECC_K]) == 0) {
+		ecc_scalar_clear(priv);
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	}
+
+	return 0;
 }
 
-static void _ecc_params_clear(ecc_key * key)
-{
-  mpz_clear(key->pubkey.z);
-}
-
-static void 
+static int
 _ecc_params_to_pubkey(const gnutls_pk_params_st * pk_params,
-                       ecc_key * pub)
+		      struct ecc_point *pub, const struct ecc_curve *curve)
 {
-        pub->type = PK_PUBLIC;
-        memcpy(&pub->prime, pk_params->params[ECC_PRIME], sizeof(mpz_t));
-        memcpy(&pub->order, pk_params->params[ECC_ORDER], sizeof(mpz_t));
-        memcpy(&pub->A, pk_params->params[ECC_A], sizeof(mpz_t));
-        memcpy(&pub->B, pk_params->params[ECC_B], sizeof(mpz_t));
-        memcpy(&pub->Gx, pk_params->params[ECC_GX], sizeof(mpz_t));
-        memcpy(&pub->Gy, pk_params->params[ECC_GY], sizeof(mpz_t));
-        memcpy(&pub->pubkey.x, pk_params->params[ECC_X], sizeof(mpz_t));
-        memcpy(&pub->pubkey.y, pk_params->params[ECC_Y], sizeof(mpz_t));
-        mpz_init_set_ui(pub->pubkey.z, 1);
+	ecc_point_init(pub, curve);
+	if (ecc_point_set
+	    (pub, pk_params->params[ECC_X], pk_params->params[ECC_Y]) == 0) {
+		ecc_point_clear(pub);
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	}
+
+	return 0;
 }
 
-static int _wrap_nettle_pk_derive(gnutls_pk_algorithm_t algo, gnutls_datum_t * out,
-                                  const gnutls_pk_params_st * priv,
-                                  const gnutls_pk_params_st * pub)
+static void
+ecc_shared_secret(struct ecc_scalar *private_key,
+		  struct ecc_point *public_key, void *out, unsigned size)
 {
-  int ret;
+	struct ecc_point r;
+	mpz_t x;
 
-  switch (algo)
-    {
-    case GNUTLS_PK_EC:
-      {
-        ecc_key ecc_pub, ecc_priv;
-        int curve = priv->flags;
-        unsigned long sz;
+	mpz_init(x);
+	ecc_point_init(&r, public_key->ecc);
 
-        out->data = NULL;
+	ecc_point_mul(&r, private_key, public_key);
 
-        if (is_supported_curve(curve) == 0)
-          return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
+	ecc_point_get(&r, x, NULL);
+	nettle_mpz_get_str_256(size, out, x);
 
-        _ecc_params_to_pubkey(pub, &ecc_pub);
-        _ecc_params_to_privkey(priv, &ecc_priv);
-        sz = ECC_BUF_SIZE;
-        
-        if (ecc_projective_check_point(&ecc_pub.pubkey, pub->params[ECC_B], pub->params[ECC_PRIME]) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER);
-            goto ecc_cleanup;
-          }
+	mpz_clear(x);
+	ecc_point_clear(&r);
 
-        out->data = gnutls_malloc(sz);
-        if (out->data == NULL)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-            goto ecc_cleanup;
-          }
+	return;
+}
 
-        ret = ecc_shared_secret(&ecc_priv, &ecc_pub, out->data, &sz);
-        if (ret != 0)
-          ret = gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
+#define MAX_DH_BITS DEFAULT_MAX_VERIFY_BITS
+/* This is used when we have no idea on the structure
+ * of p-1 used by the peer. It is still a conservative
+ * choice, but small than what we've been using before.
+ */
+#define DH_EXPONENT_SIZE(p_size) (2*_gnutls_pk_bits_to_subgroup_bits(p_size))
 
-ecc_cleanup:
-        _ecc_params_clear(&ecc_pub);
-        _ecc_params_clear(&ecc_priv);
+/* This is used for DH or ECDH key derivation. In DH for example
+ * it is given the peers Y and our x, and calculates Y^x 
+ */
+static int _wrap_nettle_pk_derive(gnutls_pk_algorithm_t algo,
+				  gnutls_datum_t * out,
+				  const gnutls_pk_params_st * priv,
+				  const gnutls_pk_params_st * pub)
+{
+	int ret;
 
-        if (ret < 0)
-          {
-            gnutls_free(out->data);
-            return ret;
-          }
+	switch (algo) {
+	case GNUTLS_PK_DH: {
+		bigint_t f, x, prime;
+		bigint_t k = NULL, ff = NULL;
+		unsigned int bits;
 
-        out->size = sz;
-        break;
-      }
-    default:
-      gnutls_assert ();
-      ret = GNUTLS_E_INTERNAL_ERROR;
-      goto cleanup;
-    }
+		f = pub->params[DH_Y];
+		x = priv->params[DH_X];
+		prime = priv->params[DH_P];
 
-  ret = 0;
+		ret = _gnutls_mpi_init_multi(&k, &ff, NULL);
+		if (ret < 0)
+			return gnutls_assert_val(ret);
 
-cleanup:
+		ret = _gnutls_mpi_modm(ff, f, prime);
+		if (ret < 0) {
+			gnutls_assert();
+			goto dh_cleanup;
+		}
 
-  return ret;
+		ret = _gnutls_mpi_add_ui(ff, ff, 1);
+		if (ret < 0) {
+			gnutls_assert();
+			goto dh_cleanup;
+		}
+
+		/* check if f==0,1,p-1. 
+		 * or (ff=f+1) equivalently ff==1,2,p */
+		if ((_gnutls_mpi_cmp_ui(ff, 2) == 0)
+		    || (_gnutls_mpi_cmp_ui(ff, 1) == 0)
+		    || (_gnutls_mpi_cmp(ff, prime) == 0)) {
+			gnutls_assert();
+			ret = GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+			goto dh_cleanup;
+		}
+
+		/* prevent denial of service */
+		bits = _gnutls_mpi_get_nbits(prime);
+		if (bits == 0 || bits > MAX_DH_BITS) {
+			gnutls_assert();
+			ret = GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+			goto dh_cleanup;
+		}
+
+
+		ret = _gnutls_mpi_powm(k, f, x, prime);
+		if (ret < 0) {
+			gnutls_assert();
+			goto dh_cleanup;
+		}
+
+		ret = _gnutls_mpi_dprint(k, out);
+		if (ret < 0) {
+			gnutls_assert();
+			goto dh_cleanup;
+		}
+
+		ret = 0;
+dh_cleanup:
+		_gnutls_mpi_release(&ff);
+		zrelease_temp_mpi_key(&k);
+		if (ret < 0)
+			goto cleanup;
+
+		break;
+	}
+	case GNUTLS_PK_EC:
+		{
+			struct ecc_scalar ecc_priv;
+			struct ecc_point ecc_pub;
+			const struct ecc_curve *curve;
+
+			out->data = NULL;
+
+			curve = get_supported_curve(priv->flags);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
+
+			ret = _ecc_params_to_pubkey(pub, &ecc_pub, curve);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
+
+			ret =
+			    _ecc_params_to_privkey(priv, &ecc_priv, curve);
+			if (ret < 0) {
+				ecc_point_clear(&ecc_pub);
+				return gnutls_assert_val(ret);
+			}
+
+			out->size = gnutls_ecc_curve_get_size(priv->flags);
+			/*ecc_size(curve)*sizeof(mp_limb_t); */
+			out->data = gnutls_malloc(out->size);
+			if (out->data == NULL) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_MEMORY_ERROR);
+				goto ecc_cleanup;
+			}
+
+			ecc_shared_secret(&ecc_priv, &ecc_pub, out->data,
+					  out->size);
+
+		      ecc_cleanup:
+			ecc_point_clear(&ecc_pub);
+			ecc_scalar_zclear(&ecc_priv);
+			if (ret < 0)
+				goto cleanup;
+			break;
+		}
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+		goto cleanup;
+	}
+
+	ret = 0;
+
+      cleanup:
+
+	return ret;
 }
 
 static int
-_wrap_nettle_pk_encrypt (gnutls_pk_algorithm_t algo,
-                         gnutls_datum_t * ciphertext,
-                         const gnutls_datum_t * plaintext,
-                         const gnutls_pk_params_st * pk_params)
+_wrap_nettle_pk_encrypt(gnutls_pk_algorithm_t algo,
+			gnutls_datum_t * ciphertext,
+			const gnutls_datum_t * plaintext,
+			const gnutls_pk_params_st * pk_params)
 {
-  int ret;
+	int ret;
+	mpz_t p;
 
-  switch (algo)
-    {
-    case GNUTLS_PK_RSA:
-      {
-        bigint_t p;
+	mpz_init(p);
 
-        if (_gnutls_mpi_scan_nz (&p, plaintext->data, plaintext->size) != 0)
-          {
-            gnutls_assert ();
-            return GNUTLS_E_MPI_SCAN_FAILED;
-          }
+	switch (algo) {
+	case GNUTLS_PK_RSA:
+		{
+			struct rsa_public_key pub;
 
-        mpz_powm (p, p, TOMPZ (pk_params->params[1]) /*e */ ,
-                  TOMPZ (pk_params->params[0] /*m */ ));
+			_rsa_params_to_pubkey(pk_params, &pub);
 
-        ret = _gnutls_mpi_dprint_size (p, ciphertext, nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])));
-        _gnutls_mpi_release (&p);
+			ret =
+			    rsa_encrypt(&pub, NULL, rnd_func,
+					plaintext->size, plaintext->data,
+					p);
+			if (ret == 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ENCRYPTION_FAILED);
+				goto cleanup;
+			}
 
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
+			ret =
+			    _gnutls_mpi_dprint_size(p, ciphertext,
+						    pub.size);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
 
-        break;
-      }
-    default:
-      gnutls_assert ();
-      ret = GNUTLS_E_INTERNAL_ERROR;
-      goto cleanup;
-    }
+			break;
+		}
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+		goto cleanup;
+	}
 
-  ret = 0;
+	ret = 0;
 
-cleanup:
+      cleanup:
+	mpz_clear(p);
 
-  return ret;
-}
-
-/* returns the blinded c and the inverse of a random
- * number r;
- */
-static bigint_t
-rsa_blind (bigint_t c, bigint_t e, bigint_t n, bigint_t * _ri)
-{
-  bigint_t nc = NULL, r = NULL, ri = NULL;
-
-  /* nc = c*(r^e)
-   * ri = r^(-1)
-   */
-  nc = _gnutls_mpi_alloc_like (n);
-  if (nc == NULL)
-    {
-      gnutls_assert ();
-      return NULL;
-    }
-
-  ri = _gnutls_mpi_alloc_like (n);
-  if (nc == NULL)
-    {
-      gnutls_assert ();
-      goto fail;
-    }
-
-  r = _gnutls_mpi_randomize (NULL, _gnutls_mpi_get_nbits (n),
-                             GNUTLS_RND_NONCE);
-  if (r == NULL)
-    {
-      gnutls_assert ();
-      goto fail;
-    }
-
-  /* invert r */
-  if (mpz_invert (ri, r, n) == 0)
-    {
-      gnutls_assert ();
-      goto fail;
-    }
-
-  /* r = r^e */
-
-  _gnutls_mpi_powm (r, r, e, n);
-
-  _gnutls_mpi_mulm (nc, c, r, n);
-
-  *_ri = ri;
-
-  _gnutls_mpi_release (&r);
-
-  return nc;
-fail:
-  _gnutls_mpi_release (&nc);
-  _gnutls_mpi_release (&r);
-  return NULL;
-}
-
-/* c = c*ri mod n
- */
-static inline void
-rsa_unblind (bigint_t c, bigint_t ri, bigint_t n)
-{
-  _gnutls_mpi_mulm (c, c, ri, n);
+	FAIL_IF_LIB_ERROR;
+	return ret;
 }
 
 static int
-_wrap_nettle_pk_decrypt (gnutls_pk_algorithm_t algo,
-                         gnutls_datum_t * plaintext,
-                         const gnutls_datum_t * ciphertext,
-                         const gnutls_pk_params_st * pk_params)
+_wrap_nettle_pk_decrypt(gnutls_pk_algorithm_t algo,
+			gnutls_datum_t * plaintext,
+			const gnutls_datum_t * ciphertext,
+			const gnutls_pk_params_st * pk_params)
 {
-  int ret;
+	int ret;
 
-  /* make a sexp from pkey */
-  switch (algo)
-    {
-    case GNUTLS_PK_RSA:
-      {
-        struct rsa_private_key priv;
-        bigint_t c, ri, nc;
-        
-        if (ciphertext->size != nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])))
-          {
-            gnutls_assert ();
-            return GNUTLS_E_DECRYPTION_FAILED;
-          }
+	plaintext->data = NULL;
 
-        if (_gnutls_mpi_scan_nz (&c, ciphertext->data, ciphertext->size) != 0)
-          {
-            gnutls_assert ();
-            return GNUTLS_E_MPI_SCAN_FAILED;
-          }
+	/* make a sexp from pkey */
+	switch (algo) {
+	case GNUTLS_PK_RSA:
+		{
+			struct rsa_private_key priv;
+			struct rsa_public_key pub;
+			unsigned length;
+			bigint_t c;
 
-        nc = rsa_blind (c, pk_params->params[1] /*e */ ,
-                        pk_params->params[0] /*m */ , &ri);
-        _gnutls_mpi_release (&c);
-        if (nc == NULL)
-          {
-            gnutls_assert ();
-            return GNUTLS_E_MEMORY_ERROR;
-          }
+			_rsa_params_to_privkey(pk_params, &priv);
+			_rsa_params_to_pubkey(pk_params, &pub);
 
-        memset(&priv, 0, sizeof(priv));
-        _rsa_params_to_privkey (pk_params, &priv);
+			if (ciphertext->size != pub.size)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_DECRYPTION_FAILED);
 
-        rsa_compute_root (&priv, TOMPZ (nc), TOMPZ (nc));
+			if (_gnutls_mpi_init_scan_nz
+			    (&c, ciphertext->data,
+			     ciphertext->size) != 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_MPI_SCAN_FAILED);
+				goto cleanup;
+			}
 
-        rsa_unblind (nc, ri, pk_params->params[0] /*m */ );
+			length = pub.size;
+			plaintext->data = gnutls_malloc(length);
+			if (plaintext->data == NULL) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_MEMORY_ERROR);
+				goto cleanup;
+			}
 
-        ret = _gnutls_mpi_dprint_size (nc, plaintext, ciphertext->size);
+			ret =
+			    rsa_decrypt_tr(&pub, &priv, NULL, rnd_func,
+					   &length, plaintext->data,
+					   TOMPZ(c));
+			_gnutls_mpi_release(&c);
+			plaintext->size = length;
 
-        _gnutls_mpi_release (&nc);
-        _gnutls_mpi_release (&ri);
+			if (ret == 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_DECRYPTION_FAILED);
+				goto cleanup;
+			}
 
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
+			break;
+		}
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+		goto cleanup;
+	}
 
-        break;
-      }
-    default:
-      gnutls_assert ();
-      ret = GNUTLS_E_INTERNAL_ERROR;
-      goto cleanup;
-    }
+	ret = 0;
 
-  ret = 0;
+      cleanup:
+	if (ret < 0)
+		gnutls_free(plaintext->data);
 
-cleanup:
-
-  return ret;
+	FAIL_IF_LIB_ERROR;
+	return ret;
 }
 
 /* in case of DSA puts into data, r,s
  */
 static int
-_wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
-                      gnutls_datum_t * signature,
-                      const gnutls_datum_t * vdata,
-                      const gnutls_pk_params_st * pk_params)
+_wrap_nettle_pk_sign(gnutls_pk_algorithm_t algo,
+		     gnutls_datum_t * signature,
+		     const gnutls_datum_t * vdata,
+		     const gnutls_pk_params_st * pk_params)
 {
-  int ret;
-  unsigned int hash;
-  unsigned int hash_len;
+	int ret;
+	unsigned int hash_len;
+	const mac_entry_st *me;
 
-  switch (algo)
-    {
-    case GNUTLS_PK_EC: /* we do ECDSA */
-      {
-        ecc_key priv;
-        struct dsa_signature sig;
+	switch (algo) {
+	case GNUTLS_PK_EC:	/* we do ECDSA */
+		{
+			struct ecc_scalar priv;
+			struct dsa_signature sig;
+			int curve_id = pk_params->flags;
+			const struct ecc_curve *curve;
 
-        _ecc_params_to_privkey(pk_params, &priv);
+			curve = get_supported_curve(curve_id);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
 
-        dsa_signature_init (&sig);
+			ret =
+			    _ecc_params_to_privkey(pk_params, &priv,
+						   curve);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
 
-        hash = _gnutls_dsa_q_to_hash (algo, pk_params, &hash_len);
-        if (hash_len > vdata->size)
-          {
-            gnutls_assert ();
-            _gnutls_debug_log("Security level of algorithm requires hash %s(%d) or better\n", gnutls_mac_get_name(hash), hash_len);
-            hash_len = vdata->size;
-          }
+			dsa_signature_init(&sig);
 
-        ret = ecc_sign_hash(vdata->data, hash_len, 
-                            &sig, NULL, rnd_func, &priv);
-        if (ret != 0)
-          {
-            gnutls_assert ();
-            ret = GNUTLS_E_PK_SIGN_FAILED;
-            goto ecdsa_fail;
-          }
+			me = _gnutls_dsa_q_to_hash(algo, pk_params,
+						   &hash_len);
 
-        ret = _gnutls_encode_ber_rs (signature, &sig.r, &sig.s);
+			if (hash_len > vdata->size) {
+				gnutls_assert();
+				_gnutls_debug_log
+				    ("Security level of algorithm requires hash %s(%d) or better\n",
+				     _gnutls_mac_get_name(me), hash_len);
+				hash_len = vdata->size;
+			}
 
-      ecdsa_fail:
-        dsa_signature_clear (&sig);
-        _ecc_params_clear( &priv);
+			ecdsa_sign(&priv, NULL, rnd_func, hash_len,
+				   vdata->data, &sig);
 
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
-        break;
-      }
-    case GNUTLS_PK_DSA:
-      {
-        struct dsa_public_key pub;
-        struct dsa_private_key priv;
-        struct dsa_signature sig;
+			ret =
+			    _gnutls_encode_ber_rs(signature, &sig.r,
+						  &sig.s);
 
-        memset(&priv, 0, sizeof(priv));
-        memset(&pub, 0, sizeof(pub));
-        _dsa_params_to_pubkey (pk_params, &pub);
-        _dsa_params_to_privkey (pk_params, &priv);
+			dsa_signature_clear(&sig);
+			ecc_scalar_zclear(&priv);
 
-        dsa_signature_init (&sig);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
+			break;
+		}
+	case GNUTLS_PK_DSA:
+		{
+			struct dsa_public_key pub;
+			struct dsa_private_key priv;
+			struct dsa_signature sig;
 
-        hash = _gnutls_dsa_q_to_hash (algo, pk_params, &hash_len);
-        if (hash_len > vdata->size)
-          {
-            gnutls_assert ();
-            _gnutls_debug_log("Security level of algorithm requires hash %s(%d) or better\n", gnutls_mac_get_name(hash), hash_len);
-            hash_len = vdata->size;
-          }
+			memset(&priv, 0, sizeof(priv));
+			memset(&pub, 0, sizeof(pub));
+			_dsa_params_to_pubkey(pk_params, &pub);
+			_dsa_params_to_privkey(pk_params, &priv);
 
-        ret =
-          _dsa_sign (&pub, &priv, NULL, rnd_func,
-                     hash_len, vdata->data, &sig);
-        if (ret == 0)
-          {
-            gnutls_assert ();
-            ret = GNUTLS_E_PK_SIGN_FAILED;
-            goto dsa_fail;
-          }
+			dsa_signature_init(&sig);
 
-        ret = _gnutls_encode_ber_rs (signature, &sig.r, &sig.s);
+			me = _gnutls_dsa_q_to_hash(algo, pk_params,
+						   &hash_len);
 
-      dsa_fail:
-        dsa_signature_clear (&sig);
+			if (hash_len > vdata->size) {
+				gnutls_assert();
+				_gnutls_debug_log
+				    ("Security level of algorithm requires hash %s(%d) or better (have: %d)\n",
+				     _gnutls_mac_get_name(me), hash_len, (int)vdata->size);
+				hash_len = vdata->size;
+			}
 
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
-        break;
-      }
-    case GNUTLS_PK_RSA:
-      {
-        struct rsa_private_key priv;
-        bigint_t hash, nc, ri;
+			ret =
+			    _dsa_sign(&pub, &priv, NULL, rnd_func,
+				      hash_len, vdata->data, &sig);
+			if (ret == 0) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_SIGN_FAILED;
+				goto dsa_fail;
+			}
 
-        if (_gnutls_mpi_scan_nz (&hash, vdata->data, vdata->size) != 0)
-          {
-            gnutls_assert ();
-            return GNUTLS_E_MPI_SCAN_FAILED;
-          }
+			ret =
+			    _gnutls_encode_ber_rs(signature, &sig.r,
+						  &sig.s);
 
-        memset(&priv, 0, sizeof(priv));
-        _rsa_params_to_privkey (pk_params, &priv);
+		      dsa_fail:
+			dsa_signature_clear(&sig);
 
-        nc = rsa_blind (hash, pk_params->params[1] /*e */ ,
-                        pk_params->params[0] /*m */ , &ri);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
+			break;
+		}
+	case GNUTLS_PK_RSA:
+		{
+			struct rsa_private_key priv;
+			struct rsa_public_key pub;
+			mpz_t s;
 
-        _gnutls_mpi_release (&hash);
+			_rsa_params_to_privkey(pk_params, &priv);
+			_rsa_params_to_pubkey(pk_params, &pub);
 
-        if (nc == NULL)
-          {
-            gnutls_assert ();
-            ret = GNUTLS_E_MEMORY_ERROR;
-            goto rsa_fail;
-          }
+			mpz_init(s);
 
-        rsa_compute_root (&priv, TOMPZ (nc), TOMPZ (nc));
+			ret =
+			    rsa_pkcs1_sign_tr(&pub, &priv, NULL, rnd_func,
+					      vdata->size, vdata->data, s);
+			if (ret == 0) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_SIGN_FAILED;
+				goto rsa_fail;
+			}
 
-        rsa_unblind (nc, ri, pk_params->params[0] /*m */ );
+			ret =
+			    _gnutls_mpi_dprint_size(s, signature,
+						    pub.size);
 
-        ret = _gnutls_mpi_dprint_size (nc, signature, nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])));
+		      rsa_fail:
+			mpz_clear(s);
 
-rsa_fail:
-        _gnutls_mpi_release (&nc);
-        _gnutls_mpi_release (&ri);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
 
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
+			break;
+		}
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+		goto cleanup;
+	}
 
-        break;
-      }
-    default:
-      gnutls_assert ();
-      ret = GNUTLS_E_INTERNAL_ERROR;
-      goto cleanup;
-    }
+	ret = 0;
 
-  ret = 0;
+      cleanup:
 
-cleanup:
-
-  return ret;
+	FAIL_IF_LIB_ERROR;
+	return ret;
 }
 
 static int
-_int_rsa_verify (const gnutls_pk_params_st * pk_params,
-                 bigint_t m, bigint_t s)
+_wrap_nettle_pk_verify(gnutls_pk_algorithm_t algo,
+		       const gnutls_datum_t * vdata,
+		       const gnutls_datum_t * signature,
+		       const gnutls_pk_params_st * pk_params)
 {
-  int res;
+	int ret;
+	unsigned int hash_len;
+	bigint_t tmp[2] = { NULL, NULL };
 
-  mpz_t m1;
+	switch (algo) {
+	case GNUTLS_PK_EC:	/* ECDSA */
+		{
+			struct ecc_point pub;
+			struct dsa_signature sig;
+			int curve_id = pk_params->flags;
+			const struct ecc_curve *curve;
 
-  if ((mpz_sgn (TOMPZ (s)) <= 0)
-      || (mpz_cmp (TOMPZ (s), TOMPZ (pk_params->params[0])) >= 0))
-    return GNUTLS_E_PK_SIG_VERIFY_FAILED;
+			curve = get_supported_curve(curve_id);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
 
-  mpz_init (m1);
+			ret =
+			    _gnutls_decode_ber_rs(signature, &tmp[0],
+						  &tmp[1]);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
 
-  mpz_powm (m1, TOMPZ (s), TOMPZ (pk_params->params[1]),
-            TOMPZ (pk_params->params[0]));
+			ret =
+			    _ecc_params_to_pubkey(pk_params, &pub, curve);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
 
-  res = !mpz_cmp (TOMPZ (m), m1);
+			memcpy(sig.r, tmp[0], SIZEOF_MPZT);
+			memcpy(sig.s, tmp[1], SIZEOF_MPZT);
 
-  mpz_clear (m1);
+			_gnutls_dsa_q_to_hash(algo, pk_params, &hash_len);
 
-  if (res == 0)
-    res = GNUTLS_E_PK_SIG_VERIFY_FAILED;
-  else
-    res = 0;
+			if (hash_len > vdata->size)
+				hash_len = vdata->size;
 
-  return res;
+			ret =
+			    ecdsa_verify(&pub, hash_len, vdata->data,
+					 &sig);
+			if (ret == 0) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
+			} else
+				ret = 0;
+
+			ecc_point_clear(&pub);
+			break;
+		}
+	case GNUTLS_PK_DSA:
+		{
+			struct dsa_public_key pub;
+			struct dsa_signature sig;
+
+			ret =
+			    _gnutls_decode_ber_rs(signature, &tmp[0],
+						  &tmp[1]);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
+			memset(&pub, 0, sizeof(pub));
+			_dsa_params_to_pubkey(pk_params, &pub);
+			memcpy(sig.r, tmp[0], SIZEOF_MPZT);
+			memcpy(sig.s, tmp[1], SIZEOF_MPZT);
+
+			_gnutls_dsa_q_to_hash(algo, pk_params, &hash_len);
+
+			if (hash_len > vdata->size)
+				hash_len = vdata->size;
+
+			ret =
+			    _dsa_verify(&pub, hash_len, vdata->data, &sig);
+			if (ret == 0) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
+			} else
+				ret = 0;
+
+			break;
+		}
+	case GNUTLS_PK_RSA:
+		{
+			struct rsa_public_key pub;
+
+			_rsa_params_to_pubkey(pk_params, &pub);
+
+			if (signature->size != pub.size)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_PK_SIG_VERIFY_FAILED);
+
+			ret =
+			    _gnutls_mpi_init_scan_nz(&tmp[0], signature->data,
+						signature->size);
+			if (ret < 0) {
+				gnutls_assert();
+				goto cleanup;
+			}
+
+			ret =
+			    rsa_pkcs1_verify(&pub, vdata->size,
+					     vdata->data, TOMPZ(tmp[0]));
+			if (ret == 0)
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_PK_SIG_VERIFY_FAILED);
+			else
+				ret = 0;
+
+			break;
+		}
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+		goto cleanup;
+	}
+
+      cleanup:
+
+	_gnutls_mpi_release(&tmp[0]);
+	_gnutls_mpi_release(&tmp[1]);
+	return ret;
+}
+
+static inline const struct ecc_curve *get_supported_curve(int curve)
+{
+	switch (curve) {
+#ifdef ENABLE_NON_SUITEB_CURVES
+	case GNUTLS_ECC_CURVE_SECP192R1:
+		return &nettle_secp_192r1;
+	case GNUTLS_ECC_CURVE_SECP224R1:
+		return &nettle_secp_224r1;
+#endif
+	case GNUTLS_ECC_CURVE_SECP256R1:
+		return &nettle_secp_256r1;
+	case GNUTLS_ECC_CURVE_SECP384R1:
+		return &nettle_secp_384r1;
+	case GNUTLS_ECC_CURVE_SECP521R1:
+		return &nettle_secp_521r1;
+	default:
+		return NULL;
+	}
+}
+
+static int _wrap_nettle_pk_curve_exists(gnutls_ecc_curve_t curve)
+{
+	return ((get_supported_curve(curve)!=NULL)?1:0);
+}
+
+/* Generates algorithm's parameters. That is:
+ *  For DSA: p, q, and g are generated.
+ *  For RSA: nothing
+ *  For ECDSA: just checks the curve is ok
+ */
+static int
+wrap_nettle_pk_generate_params(gnutls_pk_algorithm_t algo,
+			       unsigned int level /*bits or curve*/ ,
+			       gnutls_pk_params_st * params)
+{
+	int ret;
+	unsigned int i, q_bits;
+
+	params->algo = algo;
+
+	switch (algo) {
+	case GNUTLS_PK_DSA:
+	case GNUTLS_PK_DH:
+		{
+			struct dsa_public_key pub;
+			struct dsa_private_key priv;
+#ifdef ENABLE_FIPS140
+			struct dss_params_validation_seeds cert;
+			unsigned index;
+#endif
+
+			dsa_public_key_init(&pub);
+			dsa_private_key_init(&priv);
+
+			if (GNUTLS_BITS_HAVE_SUBGROUP(level)) {
+				q_bits = GNUTLS_BITS_TO_SUBGROUP(level);
+				level = GNUTLS_BITS_TO_GROUP(level);
+			} else {
+				q_bits = _gnutls_pk_bits_to_subgroup_bits(level);
+			}
+
+			if (q_bits == 0)
+				return gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
+
+#ifdef ENABLE_FIPS140
+			if (algo==GNUTLS_PK_DSA)
+				index = 1;
+			else
+				index = 2;
+
+			ret =
+			    dsa_generate_dss_pqg(&pub, &cert,
+			    			 index,
+						 NULL, rnd_func, 
+						 NULL, NULL,
+						 level, q_bits);
+			if (ret != 1) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_GENERATION_ERROR;
+				goto dsa_fail;
+			}
+
+			/* verify the generated parameters */
+			ret = dsa_validate_dss_pqg(&pub, &cert, index);
+			if (ret != 1) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_GENERATION_ERROR;
+				goto dsa_fail;
+			}
+#else
+			/* unfortunately nettle only accepts 160 or 256
+			 * q_bits size. The check below makes sure we handle
+			 * cases in between by rounding up, but fail when
+			 * larger numbers are requested. */
+			if (q_bits < 160)
+				q_bits = 160;
+			else if (q_bits > 160 && q_bits <= 256)
+				q_bits = 256;
+			ret =
+			    dsa_generate_keypair(&pub, &priv,
+						 NULL, rnd_func, 
+						 NULL, NULL,
+						 level, q_bits);
+			if (ret != 1) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_GENERATION_ERROR;
+				goto dsa_fail;
+			}
+#endif
+
+			params->params_nr = 0;
+			
+			ret = _gnutls_mpi_init_multi(&params->params[DSA_P], &params->params[DSA_Q],
+					&params->params[DSA_G], NULL);
+			if (ret < 0) {
+				gnutls_assert();
+				goto dsa_fail;
+			}
+			params->params_nr = 3;
+
+			mpz_set(TOMPZ(params->params[DSA_P]), pub.p);
+			mpz_set(TOMPZ(params->params[DSA_Q]), pub.q);
+			mpz_set(TOMPZ(params->params[DSA_G]), pub.g);
+
+			ret = 0;
+
+		      dsa_fail:
+			dsa_private_key_clear(&priv);
+			dsa_public_key_clear(&pub);
+
+			if (ret < 0)
+				goto fail;
+
+			break;
+		}
+	case GNUTLS_PK_RSA:
+	case GNUTLS_PK_EC:
+		ret = 0;
+		break;
+	default:
+		gnutls_assert();
+		return GNUTLS_E_INVALID_REQUEST;
+	}
+
+	FAIL_IF_LIB_ERROR;
+	return 0;
+
+      fail:
+
+	for (i = 0; i < params->params_nr; i++) {
+		_gnutls_mpi_release(&params->params[i]);
+	}
+	params->params_nr = 0;
+
+	FAIL_IF_LIB_ERROR;
+	return ret;
+}
+
+/* To generate a DH key either q must be set in the params or
+ * level should be set to the number of required bits.
+ */
+static int
+wrap_nettle_pk_generate_keys(gnutls_pk_algorithm_t algo,
+			       unsigned int level /*bits */ ,
+			       gnutls_pk_params_st * params)
+{
+	int ret;
+	unsigned int i;
+
+	switch (algo) {
+	case GNUTLS_PK_DSA:
+#ifdef ENABLE_FIPS140
+		{
+			struct dsa_public_key pub;
+			struct dsa_private_key priv;
+
+			if (params->params[DSA_Q] == NULL)
+				return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
+			_dsa_params_to_pubkey(params, &pub);
+
+			dsa_private_key_init(&priv);
+			mpz_init(pub.y);
+
+			ret =
+			    dsa_generate_dss_keypair(&pub, &priv, 
+						 NULL, rnd_func, 
+						 NULL, NULL);
+			if (ret != 1) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_GENERATION_ERROR;
+				goto dsa_fail;
+			}
+
+			ret = _gnutls_mpi_init_multi(&params->params[DSA_Y], &params->params[DSA_X], NULL);
+			if (ret < 0) {
+				gnutls_assert();
+				goto dsa_fail;
+			}
+
+			mpz_set(TOMPZ(params->params[DSA_Y]), pub.y);
+			mpz_set(TOMPZ(params->params[DSA_X]), priv.x);
+			params->params_nr += 2;
+
+		      dsa_fail:
+			dsa_private_key_clear(&priv);
+			mpz_clear(pub.y);
+
+			if (ret < 0)
+				goto fail;
+
+			break;
+		}
+#endif
+	case GNUTLS_PK_DH:
+		{
+			struct dsa_public_key pub;
+			mpz_t r;
+			mpz_t x, y;
+			int max_tries;
+			unsigned have_q = 0;
+
+			if (algo != params->algo)
+				return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
+			_dsa_params_to_pubkey(params, &pub);
+
+			if (params->params[DSA_Q] != NULL)
+				have_q = 1;
+
+			if (algo == GNUTLS_PK_DSA && have_q == 0)
+				return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
+			mpz_init(r);
+			mpz_init(x);
+			mpz_init(y);
+
+			max_tries = 3;
+			do {
+				if (have_q) {
+					mpz_set(r, pub.q);
+					mpz_sub_ui(r, r, 2);
+					nettle_mpz_random(x, NULL, rnd_func, r);
+					mpz_add_ui(x, x, 1);
+				} else {
+					unsigned size = mpz_sizeinbase(pub.p, 2);
+					if (level == 0)
+						level = MIN(size, DH_EXPONENT_SIZE(size));
+					nettle_mpz_random_size(x, NULL, rnd_func, level);
+
+					if (level >= size)
+						mpz_mod(x, x, pub.p);
+				}
+
+				mpz_powm(y, pub.g, x, pub.p);
+
+				max_tries--;
+				if (max_tries <= 0) {
+					gnutls_assert();
+					ret = GNUTLS_E_RANDOM_FAILED;
+					goto dh_fail;
+				}
+			} while(mpz_cmp_ui(y, 1) == 0);
+
+			ret = _gnutls_mpi_init_multi(&params->params[DSA_Y], &params->params[DSA_X], NULL);
+			if (ret < 0) {
+				gnutls_assert();
+				goto dh_fail;
+			}
+
+			mpz_set(TOMPZ(params->params[DSA_Y]), y);
+			mpz_set(TOMPZ(params->params[DSA_X]), x);
+			params->params_nr += 2;
+
+			ret = 0;
+
+		      dh_fail:
+			mpz_clear(r);
+			mpz_clear(x);
+			mpz_clear(y);
+
+			if (ret < 0)
+				goto fail;
+
+			break;
+		}
+	case GNUTLS_PK_RSA:
+		{
+			struct rsa_public_key pub;
+			struct rsa_private_key priv;
+
+			rsa_public_key_init(&pub);
+			rsa_private_key_init(&priv);
+
+			mpz_set_ui(pub.e, 65537);
+#ifdef ENABLE_FIPS140
+			ret =
+			    rsa_generate_fips186_4_keypair(&pub, &priv, NULL,
+						 rnd_func, NULL, NULL,
+						 level);
+#else
+			ret =
+			    rsa_generate_keypair(&pub, &priv, NULL,
+						 rnd_func, NULL, NULL,
+						 level, 0);
+#endif
+			if (ret != 1) {
+				gnutls_assert();
+				ret = GNUTLS_E_PK_GENERATION_ERROR;
+				goto rsa_fail;
+			}
+
+			params->params_nr = 0;
+			for (i = 0; i < RSA_PRIVATE_PARAMS; i++) {
+				ret = _gnutls_mpi_init(&params->params[i]);
+				if (ret < 0) {
+					gnutls_assert();
+					goto rsa_fail;
+				}
+				params->params_nr++;
+			}
+
+			mpz_set(TOMPZ(params->params[0]), pub.n);
+			mpz_set(TOMPZ(params->params[1]), pub.e);
+			mpz_set(TOMPZ(params->params[2]), priv.d);
+			mpz_set(TOMPZ(params->params[3]), priv.p);
+			mpz_set(TOMPZ(params->params[4]), priv.q);
+			mpz_set(TOMPZ(params->params[5]), priv.c);
+			mpz_set(TOMPZ(params->params[6]), priv.a);
+			mpz_set(TOMPZ(params->params[7]), priv.b);
+
+			ret = 0;
+
+		      rsa_fail:
+			rsa_private_key_clear(&priv);
+			rsa_public_key_clear(&pub);
+
+			if (ret < 0)
+				goto fail;
+
+			break;
+		}
+	case GNUTLS_PK_EC:
+		{
+			struct ecc_scalar key;
+			struct ecc_point pub;
+			const struct ecc_curve *curve;
+
+			curve = get_supported_curve(level);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
+
+			ecc_scalar_init(&key, curve);
+			ecc_point_init(&pub, curve);
+
+			ecdsa_generate_keypair(&pub, &key, NULL, rnd_func);
+
+			ret = _gnutls_mpi_init_multi(&params->params[ECC_X], &params->params[ECC_Y], 
+					&params->params[ECC_K], NULL);
+			if (ret < 0) {
+				gnutls_assert();
+				goto ecc_fail;
+			}
+
+			params->flags = level;
+			params->params_nr = ECC_PRIVATE_PARAMS;
+
+			ecc_point_get(&pub, TOMPZ(params->params[ECC_X]),
+				      TOMPZ(params->params[ECC_Y]));
+			ecc_scalar_get(&key, TOMPZ(params->params[ECC_K]));
+
+			ret = 0;
+
+		      ecc_fail:
+			ecc_point_clear(&pub);
+			ecc_scalar_clear(&key);
+
+			if (ret < 0)
+				goto fail;
+
+			break;
+		}
+	default:
+		gnutls_assert();
+		return GNUTLS_E_INVALID_REQUEST;
+	}
+
+	FAIL_IF_LIB_ERROR;
+	return 0;
+
+      fail:
+
+	for (i = 0; i < params->params_nr; i++) {
+		_gnutls_mpi_release(&params->params[i]);
+	}
+	params->params_nr = 0;
+
+	FAIL_IF_LIB_ERROR;
+	return ret;
 }
 
 static int
-_wrap_nettle_pk_verify (gnutls_pk_algorithm_t algo,
-                        const gnutls_datum_t * vdata,
-                        const gnutls_datum_t * signature,
-                        const gnutls_pk_params_st * pk_params)
+wrap_nettle_pk_verify_priv_params(gnutls_pk_algorithm_t algo,
+			     const gnutls_pk_params_st * params)
 {
-  int ret;
-  unsigned int hash_len;
-  bigint_t tmp[2] = { NULL, NULL };
+	int ret;
 
-  switch (algo)
-    {
-    case GNUTLS_PK_EC: /* ECDSA */
-      {
-        ecc_key pub;
-        struct dsa_signature sig;
-        int stat;
+	switch (algo) {
+	case GNUTLS_PK_RSA:
+		{
+			bigint_t t1 = NULL, t2 = NULL;
 
-        ret = _gnutls_decode_ber_rs (signature, &tmp[0], &tmp[1]);
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
+			if (params->params_nr != RSA_PRIVATE_PARAMS)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_INVALID_REQUEST);
 
-        _ecc_params_to_pubkey(pk_params, &pub);
-        memcpy (&sig.r, tmp[0], sizeof (sig.r));
-        memcpy (&sig.s, tmp[1], sizeof (sig.s));
+			ret = _gnutls_mpi_init_multi(&t1, &t2, NULL);
+			if (ret < 0)
+				return
+				    gnutls_assert_val(ret);
 
-        _gnutls_dsa_q_to_hash (algo, pk_params, &hash_len);
-        if (hash_len > vdata->size)
-          hash_len = vdata->size;
+			_gnutls_mpi_mulm(t1, params->params[RSA_PRIME1],
+					 params->params[RSA_PRIME2],
+					 params->params[RSA_MODULUS]);
+			if (_gnutls_mpi_cmp_ui(t1, 0) != 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto rsa_cleanup;
+			}
 
-        ret = ecc_verify_hash(&sig, vdata->data, hash_len, &stat, &pub);
-        if (ret != 0 || stat != 1)
-          {
-            gnutls_assert();
-            ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
-          }
-        else
-          ret = 0;
+			mpz_invert(TOMPZ(t1),
+				   TOMPZ(params->params[RSA_PRIME2]),
+				   TOMPZ(params->params[RSA_PRIME1]));
+			if (_gnutls_mpi_cmp(t1, params->params[RSA_COEF])
+			    != 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto rsa_cleanup;
+			}
 
-        _gnutls_mpi_release (&tmp[0]);
-        _gnutls_mpi_release (&tmp[1]);
-        _ecc_params_clear( &pub);
-        break;
-      }
-    case GNUTLS_PK_DSA:
-      {
-        struct dsa_public_key pub;
-        struct dsa_signature sig;
+			/* [RSA_PRIME1] = d % p-1, [RSA_PRIME2] = d % q-1 */
+			_gnutls_mpi_sub_ui(t1, params->params[RSA_PRIME1],
+					   1);
+			ret = _gnutls_mpi_modm(t2, params->params[RSA_PRIV], t1);
+			if (ret < 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_MEMORY_ERROR);
+				goto rsa_cleanup;
+			}
 
-        ret = _gnutls_decode_ber_rs (signature, &tmp[0], &tmp[1]);
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
-        memset(&pub, 0, sizeof(pub));
-        _dsa_params_to_pubkey (pk_params, &pub);
-        memcpy (&sig.r, tmp[0], sizeof (sig.r));
-        memcpy (&sig.s, tmp[1], sizeof (sig.s));
+			if (_gnutls_mpi_cmp(params->params[RSA_E1], t2) !=
+			    0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto rsa_cleanup;
+			}
 
-        _gnutls_dsa_q_to_hash (algo, pk_params, &hash_len);
-        if (hash_len > vdata->size)
-          hash_len = vdata->size;
+			_gnutls_mpi_sub_ui(t1, params->params[RSA_PRIME2],
+					   1);
 
-        ret = _dsa_verify (&pub, hash_len, vdata->data, &sig);
-        if (ret == 0)
-          {
-            gnutls_assert();
-            ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
-          }
-        else
-          ret = 0;
+			ret = _gnutls_mpi_modm(t2, params->params[RSA_PRIV], t1);
+			if (ret < 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_MEMORY_ERROR);
+				goto rsa_cleanup;
+			}
 
-        _gnutls_mpi_release (&tmp[0]);
-        _gnutls_mpi_release (&tmp[1]);
-        break;
-      }
-    case GNUTLS_PK_RSA:
-      {
-        bigint_t hash;
+			if (_gnutls_mpi_cmp(params->params[RSA_E2], t2) !=
+			    0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto rsa_cleanup;
+			}
 
-        if (signature->size != nettle_mpz_sizeinbase_256_u(TOMPZ (pk_params->params[0])))
-          {
-            gnutls_assert ();
-            return GNUTLS_E_PK_SIG_VERIFY_FAILED;
-          }
+			ret = 0;
 
-        if (_gnutls_mpi_scan_nz (&hash, vdata->data, vdata->size) != 0)
-          {
-            gnutls_assert ();
-            return GNUTLS_E_MPI_SCAN_FAILED;
-          }
-        
-        ret = _gnutls_mpi_scan_nz (&tmp[0], signature->data, signature->size);
-        if (ret < 0)
-          {
-            gnutls_assert ();
-            goto cleanup;
-          }
+		      rsa_cleanup:
+			zrelease_mpi_key(&t1);
+			zrelease_mpi_key(&t2);
+		}
 
-        ret = _int_rsa_verify (pk_params, hash, tmp[0]);
-        _gnutls_mpi_release (&tmp[0]);
-        _gnutls_mpi_release (&hash);
-        break;
-      }
-    default:
-      gnutls_assert ();
-      ret = GNUTLS_E_INTERNAL_ERROR;
-      goto cleanup;
-    }
+		break;
+	case GNUTLS_PK_DSA:
+		{
+			bigint_t t1 = NULL;
 
-cleanup:
+			if (params->params_nr != DSA_PRIVATE_PARAMS)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_INVALID_REQUEST);
 
-  return ret;
+			ret = _gnutls_mpi_init(&t1);
+			if (ret < 0)
+				return
+				    gnutls_assert_val(ret);
+
+			ret = _gnutls_mpi_powm(t1, params->params[DSA_G],
+					 params->params[DSA_X],
+					 params->params[DSA_P]);
+			if (ret < 0) {
+				gnutls_assert();
+				goto dsa_cleanup;
+			}
+
+			if (_gnutls_mpi_cmp(t1, params->params[DSA_Y]) !=
+			    0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto dsa_cleanup;
+			}
+
+			ret = 0;
+
+		      dsa_cleanup:
+			zrelease_mpi_key(&t1);
+		}
+
+		break;
+	case GNUTLS_PK_EC:
+		{
+			struct ecc_point r, pub;
+			struct ecc_scalar priv;
+			mpz_t x1, y1, x2, y2;
+			const struct ecc_curve *curve;
+
+			if (params->params_nr != ECC_PRIVATE_PARAMS)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_INVALID_REQUEST);
+
+			curve = get_supported_curve(params->flags);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
+
+			ret = _ecc_params_to_pubkey(params, &pub, curve);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
+
+			ret = _ecc_params_to_privkey(params, &priv, curve);
+			if (ret < 0) {
+				ecc_point_clear(&pub);
+				return gnutls_assert_val(ret);
+			}
+
+			ecc_point_init(&r, curve);
+			/* verify that x,y lie on the curve */
+			ret =
+			    ecc_point_set(&r, TOMPZ(params->params[ECC_X]),
+					  TOMPZ(params->params[ECC_Y]));
+			if (ret == 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto ecc_cleanup;
+			}
+			ecc_point_clear(&r);
+
+			ecc_point_init(&r, curve);
+			ecc_point_mul_g(&r, &priv);
+
+			mpz_init(x1);
+			mpz_init(y1);
+			ecc_point_get(&r, x1, y1);
+			ecc_point_zclear(&r);
+
+			mpz_init(x2);
+			mpz_init(y2);
+			ecc_point_get(&pub, x2, y2);
+
+			/* verify that k*(Gx,Gy)=(x,y) */
+			if (mpz_cmp(x1, x2) != 0 || mpz_cmp(y1, y2) != 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto ecc_cleanup;
+			}
+
+			ret = 0;
+
+		      ecc_cleanup:
+			ecc_scalar_zclear(&priv);
+			ecc_point_clear(&pub);
+		}
+		break;
+	default:
+		ret = gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	}
+
+	return ret;
 }
-
-static inline int is_supported_curve(int curve)
-{
-  if (gnutls_ecc_curve_get_name(curve) != NULL)
-    return 1;
-  else
-    return 0;
-}
-
 
 static int
-wrap_nettle_pk_generate_params (gnutls_pk_algorithm_t algo,
-                                unsigned int level /*bits */ ,
-                                gnutls_pk_params_st * params)
+wrap_nettle_pk_verify_pub_params(gnutls_pk_algorithm_t algo,
+			     const gnutls_pk_params_st * params)
 {
-  int ret;
-  unsigned int i, q_bits;
+	int ret;
 
-  memset(params, 0, sizeof(*params));
+	switch (algo) {
+	case GNUTLS_PK_RSA:
+	case GNUTLS_PK_DSA:
+		return 0;
+	case GNUTLS_PK_EC:
+		{
+			/* just verify that x and y lie on the curve */
+			struct ecc_point r, pub;
+			const struct ecc_curve *curve;
 
-  switch (algo)
-    {
+			if (params->params_nr != ECC_PUBLIC_PARAMS)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_INVALID_REQUEST);
 
-    case GNUTLS_PK_DSA:
-      {
-        struct dsa_public_key pub;
-        struct dsa_private_key priv;
+			curve = get_supported_curve(params->flags);
+			if (curve == NULL)
+				return
+				    gnutls_assert_val
+				    (GNUTLS_E_ECC_UNSUPPORTED_CURVE);
 
-        dsa_public_key_init (&pub);
-        dsa_private_key_init (&priv);
+			ret = _ecc_params_to_pubkey(params, &pub, curve);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
 
-        /* the best would be to use _gnutls_pk_bits_to_subgroup_bits()
-         * but we do NIST DSA here */
-        if (level <= 1024)
-          q_bits = 160;
-        else
-          q_bits = 256;
+			ecc_point_init(&r, curve);
+			/* verify that x,y lie on the curve */
+			ret =
+			    ecc_point_set(&r, TOMPZ(params->params[ECC_X]),
+					  TOMPZ(params->params[ECC_Y]));
+			if (ret == 0) {
+				ret =
+				    gnutls_assert_val
+				    (GNUTLS_E_ILLEGAL_PARAMETER);
+				goto ecc_cleanup;
+			}
+			ecc_point_clear(&r);
 
-        ret =
-          dsa_generate_keypair (&pub, &priv, NULL,
-                                rnd_func, NULL, NULL, level, q_bits);
-        if (ret != 1)
-          {
-            gnutls_assert ();
-            ret = GNUTLS_E_INTERNAL_ERROR;
-            goto dsa_fail;
-          }
+			ret = 0;
 
-        params->params_nr = 0;
-        for (i = 0; i < DSA_PRIVATE_PARAMS; i++)
-          {
-            params->params[i] = _gnutls_mpi_alloc_like (&pub.p);
-            if (params->params[i] == NULL)
-              {
-                ret = GNUTLS_E_MEMORY_ERROR;
-                goto dsa_fail;
-              }
-            params->params_nr++;
-          }
+		      ecc_cleanup:
+			ecc_point_clear(&pub);
+		}
+		break;
+	default:
+		ret = gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	}
 
-        ret = 0;
-        _gnutls_mpi_set (params->params[0], pub.p);
-        _gnutls_mpi_set (params->params[1], pub.q);
-        _gnutls_mpi_set (params->params[2], pub.g);
-        _gnutls_mpi_set (params->params[3], pub.y);
-        _gnutls_mpi_set (params->params[4], priv.x);
+	return ret;
+}
 
-dsa_fail:
-        dsa_private_key_clear (&priv);
-        dsa_public_key_clear (&pub);
+static int calc_rsa_exp(gnutls_pk_params_st * params)
+{
+	bigint_t tmp;
+	int ret;
+	
+	if (params->params_nr < RSA_PRIVATE_PARAMS - 2) {
+		gnutls_assert();
+		return GNUTLS_E_INTERNAL_ERROR;
+	}
+	
+	params->params[6] = params->params[7] = NULL;
 
-        if (ret < 0)
-          goto fail;
+	ret = _gnutls_mpi_init_multi(&tmp, &params->params[6], &params->params[7], NULL);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
 
-        break;
-      }
-    case GNUTLS_PK_RSA:
-      {
-        struct rsa_public_key pub;
-        struct rsa_private_key priv;
+	/* [6] = d % p-1, [7] = d % q-1 */
+	_gnutls_mpi_sub_ui(tmp, params->params[3], 1);
+	ret =
+	    _gnutls_mpi_modm(params->params[6], params->params[2] /*d */ , tmp);
+	if (ret < 0)
+		goto fail;
 
-        rsa_public_key_init (&pub);
-        rsa_private_key_init (&priv);
+	_gnutls_mpi_sub_ui(tmp, params->params[4], 1);
+	ret =
+	    _gnutls_mpi_modm(params->params[7], params->params[2] /*d */ , tmp);
+	if (ret < 0)
+		goto fail;
 
-        _gnutls_mpi_set_ui (&pub.e, 65537);
+	zrelease_mpi_key(&tmp);
 
-        ret =
-          rsa_generate_keypair (&pub, &priv, NULL,
-                                rnd_func, NULL, NULL, level, 0);
-        if (ret != 1)
-          {
-            gnutls_assert ();
-            ret = GNUTLS_E_INTERNAL_ERROR;
-            goto rsa_fail;
-          }
-
-        params->params_nr = 0;
-        for (i = 0; i < RSA_PRIVATE_PARAMS; i++)
-          {
-            params->params[i] = _gnutls_mpi_alloc_like (&pub.n);
-            if (params->params[i] == NULL)
-              {
-                ret = GNUTLS_E_MEMORY_ERROR;
-                goto rsa_fail;
-              }
-            params->params_nr++;
-
-          }
-          
-        ret = 0;
-
-        _gnutls_mpi_set (params->params[0], pub.n);
-        _gnutls_mpi_set (params->params[1], pub.e);
-        _gnutls_mpi_set (params->params[2], priv.d);
-        _gnutls_mpi_set (params->params[3], priv.p);
-        _gnutls_mpi_set (params->params[4], priv.q);
-        _gnutls_mpi_set (params->params[5], priv.c);
-        _gnutls_mpi_set (params->params[6], priv.a);
-        _gnutls_mpi_set (params->params[7], priv.b);
-
-rsa_fail:
-        rsa_private_key_clear (&priv);
-        rsa_public_key_clear (&pub);
-
-        if (ret < 0)
-          goto fail;
-
-        break;
-      }
-    case GNUTLS_PK_EC:
-      {
-        ecc_key key;
-        ecc_set_type tls_ecc_set;
-        const gnutls_ecc_curve_entry_st *st;
-
-        st = _gnutls_ecc_curve_get_params(level);
-        if (st == NULL)
-          return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
-        
-        tls_ecc_set.size = st->size;
-        tls_ecc_set.prime = st->prime;
-        tls_ecc_set.order = st->order;
-        tls_ecc_set.Gx = st->Gx;
-        tls_ecc_set.Gy = st->Gy;
-        tls_ecc_set.A = st->A;
-        tls_ecc_set.B = st->B;
-
-        ret = ecc_make_key(NULL, rnd_func, &key, &tls_ecc_set);
-        if (ret != 0)
-          return gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
-
-        params->params_nr = 0;
-        for (i = 0; i < ECC_PRIVATE_PARAMS; i++)
-          {
-            params->params[i] = _gnutls_mpi_alloc_like(&key.prime);
-            if (params->params[i] == NULL)
-              {
-                ret = GNUTLS_E_MEMORY_ERROR;
-                goto ecc_fail;
-              }
-            params->params_nr++;
-          }
-        params->flags = level;
-
-        mpz_set(TOMPZ(params->params[ECC_PRIME]), key.prime);
-        mpz_set(TOMPZ(params->params[ECC_ORDER]), key.order);
-        mpz_set(TOMPZ(params->params[ECC_A]), key.A);
-        mpz_set(TOMPZ(params->params[ECC_B]), key.B);
-        mpz_set(TOMPZ(params->params[ECC_GX]), key.Gx);
-        mpz_set(TOMPZ(params->params[ECC_GY]), key.Gy);
-        mpz_set(TOMPZ(params->params[ECC_X]), key.pubkey.x);
-        mpz_set(TOMPZ(params->params[ECC_Y]), key.pubkey.y);
-        mpz_set(TOMPZ(params->params[ECC_K]), key.k);
-        
-ecc_fail:
-        ecc_free(&key);
-        
-        if (ret < 0)
-          goto fail;
-
-        break;
-      }
-    default:
-      gnutls_assert ();
-      return GNUTLS_E_INVALID_REQUEST;
-    }
-
-  return 0;
+	return 0;
 
 fail:
+	zrelease_mpi_key(&tmp);
+	zrelease_mpi_key(&params->params[6]);
+	zrelease_mpi_key(&params->params[7]);
 
-  for (i = 0; i < params->params_nr; i++)
-    {
-      _gnutls_mpi_release (&params->params[i]);
-    }
-  params->params_nr = 0;
-
-  return ret;
-}
-
-static int
-wrap_nettle_pk_verify_params (gnutls_pk_algorithm_t algo,
-                              const gnutls_pk_params_st * params)
-{
-  int ret;
-
-  switch (algo)
-    {
-    case GNUTLS_PK_RSA:
-      {
-        bigint_t t1 = NULL, t2 = NULL;
-
-        if (params->params_nr != RSA_PRIVATE_PARAMS)
-          return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-        
-        t1 = _gnutls_mpi_new (256);
-        if (t1 == NULL)
-          return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-
-        _gnutls_mpi_mulm (t1, params->params[RSA_PRIME1], params->params[RSA_PRIME2], params->params[RSA_MODULUS]);
-        if (_gnutls_mpi_cmp_ui(t1, 0) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto rsa_cleanup;
-          }
-
-        mpz_invert (TOMPZ(t1), TOMPZ (params->params[RSA_PRIME2]), TOMPZ (params->params[RSA_PRIME1]));
-        if (_gnutls_mpi_cmp(t1, params->params[RSA_COEF]) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto rsa_cleanup;
-          }
-
-        /* [RSA_PRIME1] = d % p-1, [RSA_PRIME2] = d % q-1 */
-        _gnutls_mpi_sub_ui (t1, params->params[RSA_PRIME1], 1);
-        t2 = _gnutls_mpi_mod (params->params[RSA_PRIV], t1);
-        if (t2 == NULL)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-            goto rsa_cleanup;
-          }
-  
-        if (_gnutls_mpi_cmp(params->params[RSA_E1], t2) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto rsa_cleanup;
-          }
-        
-        _gnutls_mpi_sub_ui (t1, params->params[RSA_PRIME2], 1);
-        _gnutls_mpi_release(&t2);
-
-        t2 = _gnutls_mpi_mod (params->params[RSA_PRIV], t1);
-        if (t2 == NULL)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-            goto rsa_cleanup;
-          }
-  
-        if (_gnutls_mpi_cmp(params->params[RSA_E2], t2) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto rsa_cleanup;
-          }
-        
-        ret = 0;
-
-rsa_cleanup:
-        _gnutls_mpi_release(&t1);
-        _gnutls_mpi_release(&t2);
-      }
-
-      break;
-    case GNUTLS_PK_DSA:
-      {
-        bigint_t t1 = NULL;
-
-        if (params->params_nr != DSA_PRIVATE_PARAMS)
-          return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-        
-        t1 = _gnutls_mpi_new (256);
-        if (t1 == NULL)
-          return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-
-        _gnutls_mpi_powm (t1, params->params[DSA_G], params->params[DSA_X], params->params[DSA_P]);
-
-        if (_gnutls_mpi_cmp(t1, params->params[DSA_Y]) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto dsa_cleanup;
-          }
-
-        ret = 0;
-
-dsa_cleanup:
-        _gnutls_mpi_release(&t1);
-      }
-
-      break;
-    case GNUTLS_PK_EC:
-      {
-        int curve = params->flags;
-        ecc_key ecc_priv;
-        ecc_point *R;
-        ecc_point zero;
-
-        if (params->params_nr != ECC_PRIVATE_PARAMS)
-          return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-
-        if (is_supported_curve(curve) == 0)
-          return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
-
-        _ecc_params_to_privkey(params, &ecc_priv);
-        R = ecc_new_point();
-
-        /* verify that x,y lie on the curve */
-        ret = ecc_projective_check_point(&ecc_priv.pubkey, TOMPZ(params->params[ECC_B]), params->params[ECC_PRIME]);
-        if (ret != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto ecc_cleanup;
-          }
-
-        memcpy(&zero.x, ecc_priv.Gx, sizeof(mpz_t));
-        memcpy(&zero.y, ecc_priv.Gy, sizeof(mpz_t));
-        memcpy(&zero.z, ecc_priv.pubkey.z, sizeof(mpz_t)); /* z = 1 */
-
-        /* verify that k*(Gx,Gy)=(x,y) */
-        ret = ecc_mulmod(ecc_priv.k, &zero, R, TOMPZ(params->params[ECC_A]), TOMPZ(params->params[ECC_PRIME]), 1);
-        if (ret != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto ecc_cleanup;
-          }
-
-        if (mpz_cmp(ecc_priv.pubkey.x, R->x) != 0 || mpz_cmp(ecc_priv.pubkey.y, R->y) != 0)
-          {
-            ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
-            goto ecc_cleanup;
-          }
-        
-        ret = 0;
-
-ecc_cleanup:
-        _ecc_params_clear(&ecc_priv);
-        ecc_del_point(R);
-      }  
-      break;
-    default:
-      ret = gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-    }
-
-  return ret;
-}
-
-static int calc_rsa_exp (gnutls_pk_params_st* params)
-{
-  bigint_t tmp = _gnutls_mpi_alloc_like (params->params[0]);
-
-  if (params->params_nr < RSA_PRIVATE_PARAMS - 2)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_INTERNAL_ERROR;
-    }
-
-  if (tmp == NULL)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
-
-  /* [6] = d % p-1, [7] = d % q-1 */
-  _gnutls_mpi_sub_ui (tmp, params->params[3], 1);
-  params->params[6] = _gnutls_mpi_mod (params->params[2] /*d */ , tmp);
-
-  _gnutls_mpi_sub_ui (tmp, params->params[4], 1);
-  params->params[7] = _gnutls_mpi_mod (params->params[2] /*d */ , tmp);
-
-  _gnutls_mpi_release (&tmp);
-
-  if (params->params[7] == NULL || params->params[6] == NULL)
-    {
-      gnutls_assert ();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
-
-  return 0;
+	return ret;
 }
 
 
 static int
-wrap_nettle_pk_fixup (gnutls_pk_algorithm_t algo,
-                      gnutls_direction_t direction,
-                      gnutls_pk_params_st * params)
+wrap_nettle_pk_fixup(gnutls_pk_algorithm_t algo,
+		     gnutls_direction_t direction,
+		     gnutls_pk_params_st * params)
 {
-  int result;
+	int ret;
 
-  if (direction == GNUTLS_IMPORT && algo == GNUTLS_PK_RSA)
-    {
-      /* do not trust the generated values. Some old private keys
-       * generated by us have mess on the values. Those were very
-       * old but it seemed some of the shipped example private
-       * keys were as old.
-       */
-      mpz_invert (TOMPZ (params->params[RSA_COEF]),
-                  TOMPZ (params->params[RSA_PRIME2]), TOMPZ (params->params[RSA_PRIME1]));
+	if (direction == GNUTLS_IMPORT && algo == GNUTLS_PK_RSA) {
+		/* do not trust the generated values. Some old private keys
+		 * generated by us have mess on the values. Those were very
+		 * old but it seemed some of the shipped example private
+		 * keys were as old.
+		 */
+		if (params->params_nr < RSA_PRIVATE_PARAMS - 3)
+			return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
-      /* calculate exp1 [6] and exp2 [7] */
-      _gnutls_mpi_release (&params->params[RSA_E1]);
-      _gnutls_mpi_release (&params->params[RSA_E2]);
+		if (params->params[RSA_COEF] == NULL) {
+			ret = _gnutls_mpi_init(&params->params[RSA_COEF]);
+			if (ret < 0)
+				return gnutls_assert_val(ret);
+		}
+		mpz_invert(TOMPZ(params->params[RSA_COEF]),
+			   TOMPZ(params->params[RSA_PRIME2]),
+			   TOMPZ(params->params[RSA_PRIME1]));
 
-      result = calc_rsa_exp (params);
-      if (result < 0)
-        {
-          gnutls_assert ();
-          return result;
-        }
-      params->params_nr = RSA_PRIVATE_PARAMS;
-    }
+		/* calculate exp1 [6] and exp2 [7] */
+		zrelease_mpi_key(&params->params[RSA_E1]);
+		zrelease_mpi_key(&params->params[RSA_E2]);
 
-  return 0;
+		ret = calc_rsa_exp(params);
+		if (ret < 0)
+			return gnutls_assert_val(ret);
+
+		params->params_nr = RSA_PRIVATE_PARAMS;
+	}
+
+	return 0;
 }
+
+static int
+extract_digest_info(const struct rsa_public_key *key,
+		    gnutls_datum_t * di, uint8_t ** rdi,
+		    const mpz_t signature)
+{
+	unsigned i;
+	int ret;
+	mpz_t m;
+	uint8_t *em;
+
+	if (key->size == 0)
+		return 0;
+
+	em = gnutls_malloc(key->size);
+	if (em == NULL)
+		return 0;
+
+	mpz_init(m);
+
+	mpz_powm(m, signature, key->e, key->n);
+
+	nettle_mpz_get_str_256(key->size, em, m);
+	mpz_clear(m);
+
+	if (em[0] != 0 || em[1] != 1) {
+		ret = 0;
+		goto cleanup;
+	}
+
+	for (i = 2; i < key->size; i++) {
+		if (em[i] == 0 && i > 2)
+			break;
+
+		if (em[i] != 0xff) {
+			ret = 0;
+			goto cleanup;
+		}
+	}
+
+	i++;
+
+	*rdi = em;
+
+	di->data = &em[i];
+	di->size = key->size - i;
+
+	return 1;
+
+cleanup:
+        memset(em, 0, sizeof(key->size));
+	gnutls_free(em);
+
+	return ret;
+}
+
+/* Given a signature and parameters, it should return
+ * the hash algorithm used in the signature. This is a kludge
+ * but until we deprecate gnutls_pubkey_get_verify_algorithm()
+ * we depend on it.
+ */
+static int wrap_nettle_hash_algorithm(gnutls_pk_algorithm_t pk,
+				      const gnutls_datum_t * sig,
+				      gnutls_pk_params_st * issuer_params,
+				      gnutls_digest_algorithm_t *
+				      hash_algo)
+{
+	uint8_t digest[MAX_HASH_SIZE];
+	uint8_t *rdi = NULL;
+	gnutls_datum_t di;
+	unsigned digest_size;
+	mpz_t s;
+	struct rsa_public_key pub;
+	const mac_entry_st *me;
+	int ret;
+
+	mpz_init(s);
+
+	switch (pk) {
+	case GNUTLS_PK_DSA:
+	case GNUTLS_PK_EC:
+
+		me = _gnutls_dsa_q_to_hash(pk, issuer_params, NULL);
+		if (hash_algo)
+			*hash_algo = (gnutls_digest_algorithm_t)me->id;
+
+		ret = 0;
+		break;
+	case GNUTLS_PK_RSA:
+		if (sig == NULL) {	/* return a sensible algorithm */
+			if (hash_algo)
+				*hash_algo = GNUTLS_DIG_SHA256;
+			return 0;
+		}
+
+		_rsa_params_to_pubkey(issuer_params, &pub);
+
+		digest_size = sizeof(digest);
+
+		nettle_mpz_set_str_256_u(s, sig->size, sig->data);
+
+		ret = extract_digest_info(&pub, &di, &rdi, s);
+		if (ret == 0) {
+			ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
+			gnutls_assert();
+			goto cleanup;
+		}
+
+		digest_size = sizeof(digest);
+		if ((ret =
+		     decode_ber_digest_info(&di, hash_algo, digest,
+					    &digest_size)) < 0) {
+			gnutls_assert();
+			goto cleanup;
+		}
+
+		if (digest_size !=
+		    _gnutls_hash_get_algo_len(mac_to_entry(
+		    	(gnutls_mac_algorithm_t)*hash_algo))) {
+			gnutls_assert();
+			ret = GNUTLS_E_PK_SIG_VERIFY_FAILED;
+			goto cleanup;
+		}
+
+		ret = 0;
+		break;
+
+	default:
+		gnutls_assert();
+		ret = GNUTLS_E_INTERNAL_ERROR;
+	}
+
+      cleanup:
+	mpz_clear(s);
+	gnutls_free(rdi);
+	return ret;
+
+}
+
 
 int crypto_pk_prio = INT_MAX;
 
 gnutls_crypto_pk_st _gnutls_pk_ops = {
-  .encrypt = _wrap_nettle_pk_encrypt,
-  .decrypt = _wrap_nettle_pk_decrypt,
-  .sign = _wrap_nettle_pk_sign,
-  .verify = _wrap_nettle_pk_verify,
-  .verify_params = wrap_nettle_pk_verify_params,
-  .generate = wrap_nettle_pk_generate_params,
-  .pk_fixup_private_params = wrap_nettle_pk_fixup,
-  .derive = _wrap_nettle_pk_derive,
+	.hash_algorithm = wrap_nettle_hash_algorithm,
+	.encrypt = _wrap_nettle_pk_encrypt,
+	.decrypt = _wrap_nettle_pk_decrypt,
+	.sign = _wrap_nettle_pk_sign,
+	.verify = _wrap_nettle_pk_verify,
+	.verify_priv_params = wrap_nettle_pk_verify_priv_params,
+	.verify_pub_params = wrap_nettle_pk_verify_pub_params,
+	.generate_params = wrap_nettle_pk_generate_params,
+	.generate_keys = wrap_nettle_pk_generate_keys,
+	.pk_fixup_private_params = wrap_nettle_pk_fixup,
+	.derive = _wrap_nettle_pk_derive,
+	.curve_exists = _wrap_nettle_pk_curve_exists,
 };

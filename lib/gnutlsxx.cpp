@@ -7,7 +7,7 @@
  *
  * The GnuTLS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 3 of
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
@@ -448,6 +448,11 @@ namespace gnutls
     gnutls_transport_set_push_function (s, push_func);
   }
 
+  void session::set_transport_vec_push_function (gnutls_vec_push_func vec_push_func)
+  {
+    gnutls_transport_set_vec_push_function (s, vec_push_func);
+  }
+
   void session::set_transport_pull_function (gnutls_pull_func pull_func)
   {
     gnutls_transport_set_pull_function (s, pull_func);
@@ -501,6 +506,7 @@ namespace gnutls
     RETWRAP (gnutls_dh_get_pubkey (s, &raw_key));
   }
 
+#ifdef ENABLE_RSA_EXPORT
   void session::get_rsa_export_pubkey (gnutls_datum_t & exponent,
 				       gnutls_datum_t & modulus) const
   {
@@ -511,6 +517,13 @@ namespace gnutls
   {
     return RETWRAP (gnutls_rsa_export_get_modulus_bits (s));
   }
+
+  void certificate_credentials::
+    set_rsa_export_params (const rsa_params & params)
+  {
+    gnutls_certificate_set_rsa_export_params (cred, params.get_params_t ());
+  }
+#endif
 
   void server_session::
     set_certificate_request (gnutls_certificate_request_t req)
@@ -611,12 +624,6 @@ namespace gnutls
   void certificate_credentials::set_dh_params (const dh_params & params)
   {
     gnutls_certificate_set_dh_params (cred, params.get_params_t ());
-  }
-
-  void certificate_credentials::
-    set_rsa_export_params (const rsa_params & params)
-  {
-    gnutls_certificate_set_rsa_export_params (cred, params.get_params_t ());
   }
 
   void certificate_credentials::set_verify_flags (unsigned int flags)
@@ -922,6 +929,7 @@ psk_server_credentials::psk_server_credentials ():credentials
 
 // RSA
 
+#ifdef ENABLE_RSA_EXPORT
   rsa_params::rsa_params ()
   {
     RETWRAP (gnutls_rsa_params_init (&params));
@@ -991,5 +999,5 @@ psk_server_credentials::psk_server_credentials ():credentials
     RETWRAP (gnutls_rsa_params_export_raw
 	     (params, &m, &e, &d, &p, &q, &u, NULL));
   }
-
+#endif
 }				// namespace gnutls

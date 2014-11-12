@@ -13,7 +13,7 @@
 
 @var{buf_size}: initially holds the size of  @code{buf} 
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 
 This function will return the extension specified by the OID in the
 certificate.  The extensions will be returned as binary data DER

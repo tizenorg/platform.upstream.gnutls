@@ -1,5 +1,5 @@
 @node Certificate authentication
-@chapter Certificate authentication
+@section Certificate authentication
 @cindex certificate authentication
 
 The most known authentication method of @acronym{TLS} are certificates.
@@ -19,12 +19,6 @@ shown in @ref{tab:key-exchange}.
 @item RSA @tab
 The RSA algorithm is used to encrypt a key and send it to the peer.
 The certificate must allow the key to be used for encryption.
-
-@item RSA_@-EXPORT @tab
-The RSA algorithm is used to encrypt a key and send it to the peer.
-In the EXPORT algorithm, the server signs temporary RSA parameters of
-512 bits --- which are considered weak --- and sends them to the
-client.
 
 @item DHE_@-RSA @tab
 The RSA algorithm is used to sign ephemeral Diffie-Hellman parameters
@@ -50,8 +44,8 @@ of the Digital Signature Standard (DSS).
 @item ECDHE_@-ECDSA @tab
 The Elliptic curve DSA algorithm is used to sign ephemeral elliptic
 curve Diffie-Hellman parameters which are sent to the peer. The 
-certificate must contain ECDSA parameters to use this key exchange 
-algorithm. 
+certificate must contain ECDSA parameters (i.e., EC and marked for signing) 
+to use this key exchange algorithm. 
 
 @end multitable
 @caption{Supported key exchange algorithms.}
@@ -60,11 +54,12 @@ algorithm.
 @menu
 * X.509 certificates::
 * OpenPGP certificates::
+* Advanced certificate verification::
 * Digital signatures::
 @end menu
 
 @node X.509 certificates
-@section @acronym{X.509} certificates
+@subsection @acronym{X.509} certificates
 @cindex X.509 certificates
 
 The @acronym{X.509} protocols rely on a hierarchical trust model. In
@@ -73,26 +68,27 @@ entities.  Usually more than one certification authorities exist, and
 certification authorities may certify other authorities to issue
 certificates as well, following a hierarchical model.
 
-@float Figure,fig:x509
+@float Figure,fig-x509
 @image{gnutls-x509,7cm}
 @caption{An example of the X.509 hierarchical trust model.}
 @end float
 
 One needs to trust one or more CAs for his secure communications. In
 that case only the certificates issued by the trusted authorities are
-acceptable.  The framework is illustrated on @ref{fig:x509}.
+acceptable.  The framework is illustrated on @ref{fig-x509}.
 
 @menu
 * X.509 certificate structure::
 * Importing an X.509 certificate::
 * X.509 distinguished names::
+* X.509 extensions::
+* X.509 public and private keys::
 * Verifying X.509 certificate paths::
 * Verifying a certificate in the context of TLS session::
-* Verifying a certificate using trust on first use authentication::
 @end menu
 
 @node X.509 certificate structure
-@subsection @acronym{X.509} certificate structure
+@subsubsection @acronym{X.509} certificate structure
 
 An @acronym{X.509} certificate usually contains information about the
 certificate holder, the signer, a unique serial number, expiration
@@ -143,60 +139,17 @@ The @emph{validity} dates are there to indicate the date that the
 specific certificate was activated and the date the certificate's key
 would be considered invalid.
 
-Certificate @emph{extensions} are there to include information about
-the certificate's subject that did not fit in the typical certificate
-fields. Those may be e-mail addresses, flags that indicate whether the
-belongs to a CA etc.  All the supported @acronym{X.509} version 3
-extensions are shown in @ref{tab:x509-ext}.
-
-@float Table,tab:x509-ext
-@multitable @columnfractions .3 .2 .4
-
-@headitem Extension @tab OID @tab Description
-
-@item Subject key id @tab 2.5.29.14 @tab
-An identifier of the key of the subject.
-
-@item Authority key id @tab 2.5.29.35 @tab
-An identifier of the authority's key used to sign the certificate.
-
-@item Subject alternative name @tab 2.5.29.17 @tab
-Alternative names to subject's distinguished name.
-
-@item Key usage @tab 2.5.29.15 @tab
-Constraints the key's usage of the certificate.
-
-@item Extended key usage @tab 2.5.29.37 @tab
-Constraints the purpose of the certificate.
-
-@item Basic constraints @tab 2.5.29.19 @tab
-Indicates whether this is a CA certificate or not, and specify the
-maximum path lengths of certificate chains.
-
-@item CRL distribution points @tab 2.5.29.31 @tab
-This extension is set by the CA, in order to inform about the issued
-CRLs.
-
-@item Proxy Certification Information @tab 1.3.6.1.5.5.7.1.14 @tab
-Proxy Certificates includes this extension that contains the OID of
-the proxy policy language used, and can specify limits on the maximum
-lengths of proxy chains.  Proxy Certificates are specified in
-@xcite{RFC3820}.
-
-@end multitable
-@caption{X.509 certificate extensions.}
-@end float
 
 In @acronym{GnuTLS} the @acronym{X.509} certificate structures are
 handled using the @code{gnutls_x509_crt_t} type and the corresponding
 private keys with the @code{gnutls_x509_privkey_t} type.  All the
 available functions for @acronym{X.509} certificate handling have
 their prototypes in @file{gnutls/x509.h}. An example program to
-demonstrate the @acronym{X.509} parsing capabilities can be found at
-@ref{ex:x509-info}.
+demonstrate the @acronym{X.509} parsing capabilities can be found in
+@ref{ex-x509-info}.
 
 @node Importing an X.509 certificate
-@subsection Importing an X.509 certificate
+@subsubsection Importing an X.509 certificate
 
 The certificate structure should be initialized using @funcref{gnutls_x509_crt_init}, and 
 a certificate structure can be imported using @funcref{gnutls_x509_crt_import}. 
@@ -213,35 +166,151 @@ Note that although the functions above apply to @code{gnutls_x509_crt_t} structu
 exist for the CRL structure @code{gnutls_x509_crl_t}.
 
 @node X.509 distinguished names
-@subsection X.509 distinguished names
+@subsubsection X.509 distinguished names
 @cindex X.509 distinguished name
 
 The ``subject'' of an X.509 certificate is not described by
 a single name, but rather with a distinguished name. This in
 X.509 terminology is a list of strings each associated an object
-identifier. To make things simple GnuTLS provides @funcref{gnutls_x509_crt_get_dn}
+identifier. To make things simple GnuTLS provides @funcref{gnutls_x509_crt_get_dn2}
 which follows the rules in @xcite{RFC4514} and returns a single
 string. Access to each string by individual object identifiers
 can be accessed using @funcref{gnutls_x509_crt_get_dn_by_oid}.
 
-@showfuncdesc{gnutls_x509_crt_get_dn}
-@showfuncdesc{gnutls_x509_crt_get_dn_by_oid}
-@showfuncdesc{gnutls_x509_crt_get_dn_oid}
-
-The more powerful @funcref{gnutls_x509_crt_get_subject} and 
-@funcref{gnutls_x509_dn_get_rdn_ava} provide efficient access
-to the contents of the distinguished name structure.
-
-@showfuncdesc{gnutls_x509_crt_get_subject}
-@showfuncdesc{gnutls_x509_dn_get_rdn_ava}
+@showfuncdesc{gnutls_x509_crt_get_dn2}
+@showfuncC{gnutls_x509_crt_get_dn,gnutls_x509_crt_get_dn_by_oid,gnutls_x509_crt_get_dn_oid}
 
 Similar functions exist to access the distinguished name
 of the issuer of the certificate.
 
-@showfuncD{gnutls_x509_crt_get_issuer_dn,gnutls_x509_crt_get_issuer_dn_by_oid,gnutls_x509_crt_get_issuer_dn_oid,gnutls_x509_crt_get_issuer}
+@showfuncE{gnutls_x509_crt_get_issuer_dn,gnutls_x509_crt_get_issuer_dn2,gnutls_x509_crt_get_issuer_dn_by_oid,gnutls_x509_crt_get_issuer_dn_oid,gnutls_x509_crt_get_issuer}
+
+The more powerful @funcref{gnutls_x509_crt_get_subject} and 
+@funcref{gnutls_x509_dn_get_rdn_ava} provide efficient but low-level access
+to the contents of the distinguished name structure.
+
+@showfuncB{gnutls_x509_crt_get_subject,gnutls_x509_crt_get_issuer}
+@showfuncdesc{gnutls_x509_dn_get_rdn_ava}
+
+@node X.509 extensions
+@subsubsection X.509 extensions
+@cindex X.509 extensions
+
+X.509 version 3 certificates include a list of extensions that can
+be used to obtain additional information on the subject or the issuer
+of the certificate. Those may be e-mail addresses, flags that indicate whether the
+belongs to a CA etc.  All the supported @acronym{X.509} version 3
+extensions are shown in @ref{tab:x509-ext}.
+
+The certificate extensions access is split into two parts. The first
+requires to retrieve the extension, and the second is the parsing part.
+
+To enumerate and retrieve the DER-encoded extension data available in a certificate the following
+two functions are available.
+@showfuncB{gnutls_x509_crt_get_extension_info,gnutls_x509_crt_get_extension_data2}
+
+After a supported DER-encoded extension is retrieved it can be parsed using the APIs in @code{x509-ext.h}.
+Complex extensions may require initializing an intermediate structure that holds the
+parsed extension data.
+
+Examples of simple parsing functions are shown below.
+@showfuncD{gnutls_x509_ext_import_basic_constraints,gnutls_x509_ext_export_basic_constraints,gnutls_x509_ext_import_key_usage,gnutls_x509_ext_export_key_usage}
+
+More complex extensions, such as Name Constraints, require an intermediate structure, in that
+case @code{gnutls_x509_name_constraints_t} to be initialized in order to store the parsed
+extension data. 
+@showfuncB{gnutls_x509_ext_import_name_constraints,gnutls_x509_ext_export_name_constraints}
+
+After the name constraints are extracted in the structure, the following functions
+can be used to access them.
+
+@showfuncD{gnutls_x509_name_constraints_get_permitted,gnutls_x509_name_constraints_get_excluded,gnutls_x509_name_constraints_add_permitted,gnutls_x509_name_constraints_add_excluded}
+@showfuncB{gnutls_x509_name_constraints_check,gnutls_x509_name_constraints_check_crt}
+
+Other utility functions are listed below.
+@showfuncB{gnutls_x509_name_constraints_init,gnutls_x509_name_constraints_deinit}
+
+Similar functions exist for all of the other supported extensions, listed in @ref{tab:x509-ext}.
+
+@float Table,tab:x509-ext
+@multitable @columnfractions .3 .2 .4
+
+@headitem Extension @tab OID @tab Description
+
+@item Subject key id @tab 2.5.29.14 @tab
+An identifier of the key of the subject.
+
+@item Key usage @tab 2.5.29.15 @tab
+Constraints the key's usage of the certificate.
+
+@item Private key usage period @tab 2.5.29.16 @tab
+Constraints the validity time of the private key.
+
+@item Subject alternative name @tab 2.5.29.17 @tab
+Alternative names to subject's distinguished name.
+
+@item Issuer alternative name @tab 2.5.29.18 @tab
+Alternative names to the issuer's distinguished name.
+
+@item Basic constraints @tab 2.5.29.19 @tab
+Indicates whether this is a CA certificate or not, and specify the
+maximum path lengths of certificate chains.
+
+@item Name constraints @tab 2.5.29.30 @tab
+A field in CA certificates that restricts the scope of the name of
+issued certificates.
+
+@item CRL distribution points @tab 2.5.29.31 @tab
+This extension is set by the CA, in order to inform about the issued
+CRLs.
+
+@item Certificate policy @tab 2.5.29.32 @tab
+This extension is set to indicate the certificate policy as object
+identifier and may contain a descriptive string or URL.
+
+@item Authority key identifier @tab 2.5.29.35 @tab
+An identifier of the key of the issuer of the certificate. That is
+used to distinguish between different keys of the same issuer.
+
+@item Extended key usage @tab 2.5.29.37 @tab
+Constraints the purpose of the certificate.
+
+@item Authority information access @tab 1.3.6.1.5.5.7.1.1 @tab
+Information on services by the issuer of the certificate.
+
+@item Proxy Certification Information @tab 1.3.6.1.5.5.7.1.14 @tab
+Proxy Certificates includes this extension that contains the OID of
+the proxy policy language used, and can specify limits on the maximum
+lengths of proxy chains.  Proxy Certificates are specified in
+@xcite{RFC3820}.
+
+@end multitable
+@caption{Supported X.509 certificate extensions.}
+@end float
+
+Note, that there are also direct APIs to access extensions that may
+be simpler to use for non-complex extensions. They are available
+in @code{x509.h} and some examples are listed below.
+@showfuncD{gnutls_x509_crt_get_basic_constraints,gnutls_x509_crt_set_basic_constraints,gnutls_x509_crt_get_key_usage,gnutls_x509_crt_set_key_usage}
+
+
+@node X.509 public and private keys
+@subsubsection Accessing public and private keys
+
+Each X.509 certificate contains a public key that corresponds to a private key. To
+get a unique identifier of the public key the @funcref{gnutls_x509_crt_get_key_id}
+function is provided. To export the public key or its parameters you may need
+to convert the X.509 structure to a @code{gnutls_pubkey_t}. See 
+@ref{Abstract public keys} for more information.
+
+@showfuncdesc{gnutls_x509_crt_get_key_id}
+
+The private key parameters may be directly accessed by using one of the following functions.
+
+@showfuncE{gnutls_x509_privkey_get_pk_algorithm2,gnutls_x509_privkey_export_rsa_raw2,gnutls_x509_privkey_export_ecc_raw,gnutls_x509_privkey_export_dsa_raw,gnutls_x509_privkey_get_key_id}
 
 @node Verifying X.509 certificate paths
-@subsection Verifying @acronym{X.509} certificate paths
+@subsubsection Verifying @acronym{X.509} certificate paths
 @cindex verifying certificate paths
 
 Verifying certificate paths is important in @acronym{X.509}
@@ -254,6 +323,10 @@ provided.
 @showfuncdesc{gnutls_x509_trust_list_verify_crt}
 @showfuncdesc{gnutls_x509_trust_list_verify_named_crt}
 
+@showfuncdesc{gnutls_x509_trust_list_add_trust_file}
+@showfuncdesc{gnutls_x509_trust_list_add_trust_mem}
+@showfuncdesc{gnutls_x509_trust_list_add_system_trust}
+
 The verification function will verify a given certificate chain against a list of certificate
 authorities and certificate revocation lists, and output
 a bit-wise OR of elements of the @code{gnutls_@-certificate_@-status_t} 
@@ -262,13 +335,13 @@ is always set on a verification error and more detailed flags will also be set w
 
 @showenumdesc{gnutls_certificate_status_t,The @code{gnutls_@-certificate_@-status_t} enumeration.}
 
-An example of certificate verification is shown in @ref{ex:verify2}.
+An example of certificate verification is shown in @ref{ex-verify2}.
 It is also possible to have a set of certificates that
 are trusted for a particular server but not to authorize other certificates.
 This purpose is served by the functions @funcref{gnutls_x509_trust_list_add_named_crt} and @funcref{gnutls_x509_trust_list_verify_named_crt}.
 
 @node Verifying a certificate in the context of TLS session
-@subsection Verifying a certificate in the context of TLS session
+@subsubsection Verifying a certificate in the context of TLS session
 @cindex verifying certificate paths
 @tindex gnutls_certificate_verify_flags
 
@@ -276,66 +349,27 @@ When operating in the context of a TLS session, the trusted certificate
 authority list may also be set using:
 @showfuncC{gnutls_certificate_set_x509_trust_file,gnutls_certificate_set_x509_crl_file,gnutls_certificate_set_x509_system_trust}
 
-Then it is not required to setup a trusted list as above.
-The function @funcref{gnutls_certificate_verify_peers2} 
-may then be used to verify the peer's certificate chain. The flags
+In that case it is not required to setup a trusted list as above, and 
+the function @funcref{gnutls_certificate_verify_peers3} 
+may be used to verify the peer's certificate chain and identity. The flags
 are set similarly to the verification functions in the previous section.
+Note that in certain cases it is required to check the marked purpose of
+the end certificate (e.g. @code{GNUTLS_KP_TLS_WWW_SERVER}); in these case
+@funcref{gnutls_certificate_verify_peers} should be used instead.
 
 There is also the possibility to pass some input to the verification
 functions in the form of flags. For @funcref{gnutls_x509_trust_list_verify_crt} the
 flags are passed straightforward, but
-@funcref{gnutls_certificate_verify_peers2} depends on the flags set by
+@funcref{gnutls_certificate_verify_peers3} depends on the flags set by
 calling @funcref{gnutls_certificate_set_verify_flags}.  All the available
 flags are part of the enumeration
 @code{gnutls_@-certificate_@-verify_@-flags} shown in @ref{gnutls_certificate_verify_flags}.
 
 @showenumdesc{gnutls_certificate_verify_flags,The @code{gnutls_@-certificate_@-verify_@-flags} enumeration.}
 
-Although the verification of a certificate path indicates that the
-certificate is signed by trusted authority, does not reveal anything
-about the peer's identity. It is required to verify if the
-certificate's owner is the one you expect. For more information
-consult @xcite{RFC2818} and section @ref{ex:verify} for an example.
-
-@node Verifying a certificate using trust on first use authentication
-@subsection Verifying a certificate using trust on first use authentication
-@cindex verifying certificate paths
-@cindex SSH-style authentication
-@cindex Trust on first use
-@cindex Key pinning
-@tindex gnutls_certificate_verify_flags
-
-It is possible to use a trust on first use (similar to SSH) authentication 
-method in GnuTLS. That is the concept used by the SSH programs, where the 
-public key of the peer is not verified, or verified in an out-of-bound way,
-but subsequent connections to the same peer require the public key to 
-remain the same.  Such a system in combination with the typical CA 
-verification of a certificate, and OCSP revocation checks,
-can help to provide multiple factor verification, where a single point of
-failure is not enough to compromise the system. For example a server compromise
-may be detected using OCSP, and a CA compromise can be detected using
-the trust on first use method.
-Such a hybrid system with X.509 and trust on first use authentication is 
-shown in @ref{Simple client example with SSH-style certificate verification}.
-
-@showfuncdesc{gnutls_verify_stored_pubkey}
-@showfuncdesc{gnutls_store_pubkey}
-
-In addition to the above the @funcref{gnutls_store_commitment} can be 
-used to implement a key-pinning architecture as in @xcite{KEYPIN}. 
-This provides a way for web server to commit on a public key that is
-not yet active.
-
-@showfuncdesc{gnutls_store_commitment}
-
-The storage and verification functions may be used with the default
-text file based back-end, or another back-end may be specified. That
-should contain storage and retrieval functions and specified as below.
-
-@showfuncE{gnutls_tdb_init,gnutls_tdb_deinit,gnutls_tdb_set_verify_func,gnutls_tdb_set_store_func,gnutls_tdb_set_store_commitment_func}
 
 @node OpenPGP certificates
-@section @acronym{OpenPGP} certificates
+@subsection @acronym{OpenPGP} certificates
 @cindex OpenPGP certificates
 
 The @acronym{OpenPGP} key authentication relies on a distributed trust
@@ -345,10 +379,10 @@ CA. @acronym{OpenPGP} allows anyone to sign anyone else's public
 key. When Alice signs Bob's key, she is introducing Bob's key to
 anyone who trusts Alice. If someone trusts Alice to introduce keys,
 then Alice is a trusted introducer in the mind of that observer.
-For example in @ref{fig:openpgp}, David trusts Alice to be an introducer and Alice
+For example in @ref{fig-openpgp}, David trusts Alice to be an introducer and Alice
 signed Bob's key thus Dave trusts Bob's key to be the real one.
 
-@float Figure,fig:openpgp
+@float Figure,fig-openpgp
 @image{gnutls-pgp,8cm}
 @caption{An example of the OpenPGP trust model.}
 @end float
@@ -366,15 +400,79 @@ only Kevin, for some reason. A reason could be that Bob is lazy
 enough, and signs other people's keys without being sure that they
 belong to the actual owner.
 
-@subsection @acronym{OpenPGP} certificate structure
+@float Table,tab:openpgp-certificate
+@multitable @columnfractions .2 .7
 
-In @acronym{GnuTLS} the @acronym{OpenPGP} key structures
-@xcite{RFC2440} are handled using the @code{gnutls_openpgp_crt_t} type
-and the corresponding private keys with the
+@headitem Field @tab Description
+
+@item version @tab
+The field that indicates the version of the OpenPGP structure.
+
+@item user ID @tab
+An RFC 2822 string that identifies the owner of the key. There may be
+multiple user identifiers in a key.
+
+@item public key @tab
+The main public key of the certificate.
+
+@item expiration @tab
+The expiration time of the main public key.
+
+@item public subkey @tab
+An additional public key of the certificate. There may be multiple subkeys
+in a certificate.
+
+@item public subkey expiration @tab
+The expiration time of the subkey.
+
+@end multitable
+@caption{OpenPGP certificate fields.}
+@end float
+
+
+@subsubsection @acronym{OpenPGP} certificate structure
+
+In @acronym{GnuTLS} the @acronym{OpenPGP} certificate structures
+@xcite{RFC2440} are handled using the @code{gnutls_openpgp_crt_t} type.
+A typical certificate contains the user ID, which is an RFC 2822
+mail and name address, a public key, possibly a number of additional
+public keys (called subkeys), and a number of signatures. The various
+fields are shown in @ref{tab:openpgp-certificate}.
+
+The additional subkeys may provide key for various different purposes,
+e.g. one key to encrypt mail, and another to sign a TLS key exchange.
+Each subkey is identified by a unique key ID.
+The keys that are to be used in a TLS key exchange that requires
+signatures are called authentication keys in the OpenPGP jargon.
+The mapping of TLS key exchange methods to public keys is shown in
+@ref{tab:openpgp-key-exchange}.
+
+@float Table,tab:openpgp-key-exchange
+@multitable @columnfractions .2 .7
+
+@headitem Key exchange @tab Public key requirements
+
+@item RSA @tab
+An RSA public key that allows encryption.
+
+@item DHE_@-RSA @tab
+An RSA public key that is marked for authentication.
+
+@item ECDHE_@-RSA @tab
+An RSA public key that is marked for authentication.
+
+@item DHE_@-DSS @tab
+A DSA public key that is marked for authentication.
+
+@end multitable
+@caption{The types of (sub)keys required for the various TLS key exchange methods.}
+@end float
+
+The corresponding private keys are stored in the
 @code{gnutls_openpgp_privkey_t} type. All the prototypes for the key
-handling functions can be found at @file{gnutls/openpgp.h}.
+handling functions can be found in @file{gnutls/openpgp.h}.
 
-@subsection Verifying an @acronym{OpenPGP} certificate
+@subsubsection Verifying an @acronym{OpenPGP} certificate
 
 The verification functions of @acronym{OpenPGP} keys, included in
 @acronym{GnuTLS}, are simple ones, and do not use the features of the
@@ -397,20 +495,82 @@ of verification status flags is the same as in the @acronym{X.509} certificates
 
 @showfuncdesc{gnutls_openpgp_crt_verify_self}
 
-@subsection Verifying a certificate in the context of a TLS session
+@subsubsection Verifying a certificate in the context of a TLS session
 
 Similarly with X.509 certificates, one needs to specify
 the OpenPGP keyring file in the credentials structure. The certificates
-in this file will be  used by @funcref{gnutls_certificate_verify_peers2}
+in this file will be  used by @funcref{gnutls_certificate_verify_peers3}
 to verify the signatures in the certificate sent by the peer.
 
 @showfuncdesc{gnutls_certificate_set_openpgp_keyring_file}
 
+@node Advanced certificate verification
+@subsection Advanced certificate verification
+@cindex Certificate verification
 
+The verification of X.509 certificates in the HTTPS and other Internet protocols is typically 
+done by loading a trusted list of commercial Certificate Authorities
+(see @funcref{gnutls_certificate_set_x509_system_trust}), and using them as trusted anchors.
+However, there are several examples (eg. the Diginotar incident) where one of these
+authorities was compromised. This risk can be mitigated by using in addition to CA certificate verification,
+other verification methods. In this section we list the available in GnuTLS methods.
 
+@menu
+* Verifying a certificate using trust on first use authentication::
+* Verifying a certificate using DANE::
+@end menu
+
+@node Verifying a certificate using trust on first use authentication
+@subsubsection Verifying a certificate using trust on first use authentication
+@cindex verifying certificate paths
+@cindex SSH-style authentication
+@cindex Trust on first use
+@cindex Key pinning
+
+It is possible to use a trust on first use (TOFU) authentication 
+method in GnuTLS. That is the concept used by the SSH programs, where the 
+public key of the peer is not verified, or verified in an out-of-bound way,
+but subsequent connections to the same peer require the public key to 
+remain the same.  Such a system in combination with the typical CA 
+verification of a certificate, and OCSP revocation checks,
+can help to provide multiple factor verification, where a single point of
+failure is not enough to compromise the system. For example a server compromise
+may be detected using OCSP, and a CA compromise can be detected using
+the trust on first use method.
+Such a hybrid system with X.509 and trust on first use authentication is 
+shown in @ref{Simple client example with SSH-style certificate verification}.
+
+See @ref{Certificate verification} on how to use the available functionality.
+
+@node Verifying a certificate using DANE
+@subsubsection Verifying a certificate using DANE (DNSSEC)
+@cindex verifying certificate paths
+@cindex DANE
+@cindex DNSSEC
+
+The DANE protocol is a protocol that can be used to verify TLS certificates
+using the DNS (or better DNSSEC) protocols. The DNS security extensions (DNSSEC)
+provide an alternative public key infrastructure to the commercial CAs that
+are typically used to sign TLS certificates. The DANE protocol takes advantage
+of the DNSSEC infrastructure to verify TLS certificates. This can be 
+in addition to the verification by CA infrastructure or 
+may even replace it where DNSSEC is fully deployed. Note however, that DNSSEC deployment is
+fairly new and it would be better to use it as an additional verification
+method rather than the only one.
+
+The DANE functionality is provided by the @code{libgnutls-dane} library that is shipped
+with GnuTLS and the function prototypes are in @code{gnutls/dane.h}. 
+See @ref{Certificate verification} for information on how to use the library.
+
+Note however, that the DANE RFC mandates the verification methods
+one should use in addition to the validation via DNSSEC TLSA entries.
+GnuTLS doesn't follow that RFC requirement, and the term DANE verification
+in this manual refers to the TLSA entry verification. In GnuTLS any 
+other verification methods can be used (e.g., PKIX or TOFU) on top of
+DANE.
 
 @node Digital signatures
-@section Digital signatures
+@subsection Digital signatures
 @cindex digital signatures
 
 In this section we will provide some information about digital
@@ -474,7 +634,7 @@ sometime in the future, SHA-1 will be disabled as well.  The collision
 attacks on SHA-1 may also get better, given the new interest in tools
 for creating them.
 
-@subsection Trading security for interoperability
+@subsubsection Trading security for interoperability
 
 If you connect to a server and use GnuTLS' functions to verify the
 certificate chain, and get a @code{GNUTLS_CERT_INSECURE_ALGORITHM}
@@ -493,7 +653,7 @@ certificates self-signed using @code{RSA-MD2} or @code{RSA-MD5}. The
 certificates in the trusted list are considered trusted irrespective
 of the signature.
 
-If you are using @funcref{gnutls_certificate_verify_peers2} to verify the
+If you are using @funcref{gnutls_certificate_verify_peers3} to verify the
 certificate chain, you can call
 @funcref{gnutls_certificate_set_verify_flags} with the flags:
 @itemize
@@ -507,7 +667,7 @@ as in the following example:
                                        GNUTLS_VERIFY_ALLOW_SIGN_RSA_MD5);
 @end example
 
-This will tell the verifier algorithm to enable @code{RSA-MD5} when
+This will signal the verifier algorithm to enable @code{RSA-MD5} when
 verifying the certificates.
 
 If you are using @funcref{gnutls_x509_crt_verify} or

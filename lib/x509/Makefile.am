@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS)
+AM_CFLAGS = $(WERROR_CFLAGS) $(WSTACK_CFLAGS) $(WARN_CFLAGS) $(NETTLE_CFLAGS)
 AM_CPPFLAGS = \
 	-I$(srcdir)/../../gl		\
 	-I$(builddir)/../../gl		\
@@ -49,14 +49,18 @@ libgnutls_x509_la_SOURCES =	\
 	pkcs7.c			\
 	privkey.c		\
 	privkey_pkcs8.c		\
+	privkey_openssl.c	\
 	rfc2818_hostname.c	\
 	sign.c			\
 	verify.c		\
-	x509.c			\
+	x509.c x509_dn.c	\
 	x509_int.h		\
 	x509_write.c		\
+	name_constraints.c	\
 	verify-high.c		\
-	verify-high.h
+	verify-high2.c		\
+	verify-high.h		\
+	x509_ext.c
 
 if ENABLE_OCSP
 libgnutls_x509_la_SOURCES += ocsp.c ocsp_output.c

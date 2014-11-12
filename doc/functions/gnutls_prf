@@ -17,19 +17,20 @@
 
 @var{outsize}: size of pre-allocated output buffer to hold the output.
 
-@var{out}: pre-allocate buffer to hold the generated data.
+@var{out}: pre-allocated buffer to hold the generated data.
 
-Apply the TLS Pseudo-Random-Function (PRF) on the master secret
-and the provided data, seeded with the client and server random fields.
+Applies the TLS Pseudo-Random-Function (PRF) on the master secret
+and the provided data, seeded with the client and server random fields,
+as specified in RFC5705.
 
-The  @code{label} variable usually contain a string denoting the purpose
-for the generated data.  The  @code{server_random_first} indicate whether
+The  @code{label} variable usually contains a string denoting the purpose
+for the generated data.  The  @code{server_random_first} indicates whether
 the client random field or the server random field should be first
-in the seed.  Non-0 indicate that the server random field is first,
+in the seed.  Non-0 indicates that the server random field is first,
 0 that the client random field is first.
 
 The  @code{extra} variable can be used to add more data to the seed, after
-the random variables.  It can be used to tie make sure the
+the random variables.  It can be used to make sure the
 generated output is strongly connected to some additional data
 (e.g., a string used in user authentication).
 

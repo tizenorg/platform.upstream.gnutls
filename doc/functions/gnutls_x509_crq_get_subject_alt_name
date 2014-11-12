@@ -14,7 +14,7 @@ first one, 1 for the second etc.
 
 @var{ret_type}: holds the @code{gnutls_x509_subject_alt_name_t}  name type
 
-@var{critical}: will be non (0) if the extension is marked as critical
+@var{critical}: will be non-zero if the extension is marked as critical
 (may be null)
 
 This function will return the alternative names, contained in the

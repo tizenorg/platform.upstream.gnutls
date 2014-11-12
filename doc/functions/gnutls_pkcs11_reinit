@@ -8,6 +8,9 @@ This function will reinitialize the PKCS 11 subsystem in gnutls.
 This is required by PKCS 11 when an application uses @code{fork()} . The
 reinitialization function must be called on the child.
 
+Note that since GnuTLS 3.3.0, the reinitialization of the PKCS @code{11} 
+subsystem occurs automatically after fork.
+
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
 

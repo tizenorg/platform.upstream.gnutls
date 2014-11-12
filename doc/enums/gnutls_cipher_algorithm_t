@@ -30,6 +30,16 @@ AES in CBC mode with 192-bit keys.
 AES in GCM mode with 128-bit keys.
 @item GNUTLS_@-CIPHER_@-AES_@-256_@-GCM
 AES in GCM mode with 256-bit keys.
+@item GNUTLS_@-CIPHER_@-CAMELLIA_@-192_@-CBC
+Camellia in CBC mode with 192-bit keys.
+@item GNUTLS_@-CIPHER_@-SALSA20_@-256
+-- undescribed --
+@item GNUTLS_@-CIPHER_@-ESTREAM_@-SALSA20_@-256
+-- undescribed --
+@item GNUTLS_@-CIPHER_@-CAMELLIA_@-128_@-GCM
+CAMELLIA in GCM mode with 128-bit keys.
+@item GNUTLS_@-CIPHER_@-CAMELLIA_@-256_@-GCM
+CAMELLIA in GCM mode with 256-bit keys.
 @item GNUTLS_@-CIPHER_@-IDEA_@-PGP_@-CFB
 IDEA in CFB mode.
 @item GNUTLS_@-CIPHER_@-3DES_@-PGP_@-CFB

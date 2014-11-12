@@ -2,7 +2,7 @@
 
 
 
-@deftypefun {int} {gnutls_privkey_import_ext} (gnutls_privkey_t @var{pkey}, gnutls_pk_algorithm_t @var{pk}, void* @var{userdata}, gnutls_privkey_sign_func @var{sign_func}, gnutls_privkey_decrypt_func @var{decrypt_func}, unsigned int @var{flags})
+@deftypefun {int} {gnutls_privkey_import_ext} (gnutls_privkey_t @var{pkey}, gnutls_pk_algorithm_t @var{pk}, void * @var{userdata}, gnutls_privkey_sign_func @var{sign_func}, gnutls_privkey_decrypt_func @var{decrypt_func}, unsigned int @var{flags})
 @var{pkey}: The private key
 
 @var{pk}: The public key algorithm
@@ -18,6 +18,8 @@
 This function will associate the given callbacks with the
 @code{gnutls_privkey_t}  structure. At least one of the two callbacks
 must be non-null.
+
+See also @code{gnutls_privkey_import_ext2()} .
 
 @strong{Returns:} On success, @code{GNUTLS_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
