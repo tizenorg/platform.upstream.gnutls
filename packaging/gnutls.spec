@@ -3,7 +3,7 @@
 %define gnutls_ossl_sover 27
 
 Name:           gnutls
-Version:        3.0.30
+Version:        3.3.5
 Release:        0
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-3.0+ and GPL-3.0+
@@ -11,18 +11,19 @@ Group:          Security/Crypto Libraries
 Url:            http://www.gnutls.org/
 Source0:        http://ftp.gnu.org/gnu/gnutls/%{name}-%{version}.tar.xz
 Source1:        baselibs.conf
-Source1001: 	gnutls.manifest
+Source1001:     gnutls.manifest
 BuildRequires:  automake
 BuildRequires:  gcc-c++
 BuildRequires:  libidn-devel
 BuildRequires:  pkgconfig(nettle) 
 BuildRequires:  libtasn1-devel
-BuildRequires:	gettext-tools
+BuildRequires:  gettext-tools
 BuildRequires:  libtool
 BuildRequires:  p11-kit-devel >= 0.11
 BuildRequires:  pkg-config
 BuildRequires:  xz
 BuildRequires:  zlib-devel
+BuildRequires:  makeinfo
 
 Provides: gnutls-utils = %{version}-%{release}
 
@@ -103,15 +104,14 @@ cp %{SOURCE1001} .
 echo %{_includedir}/%{name}/abstract.h
 
 %build
-autoreconf -if
-%configure \
+%reconfigure \
         --disable-static \
         --with-pic \
         --disable-rpath \
         --disable-silent-rules \
-	--with-default-trust-store-dir=/etc/ssl/certs \
+        --with-default-trust-store-dir=/etc/ssl/certs \
         --with-sysroot=/%{?_sysroot}
-make %{?_smp_mflags}
+%__make %{?_smp_mflags}
 
 # 17-ago-2011, Test suite passes in factory, just not
 #in the build system due to some broken code requiring both networking
@@ -150,8 +150,8 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_bindir}/gnutls-serv
 %{_bindir}/ocsptool
 %{_bindir}/psktool
-%{_bindir}/p11tool
 %{_bindir}/srptool
+%{_bindir}/danetool
 %{_mandir}/man1/*
 
 %files -n libgnutls
@@ -183,6 +183,9 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_includedir}/%{name}/pkcs11.h
 %{_includedir}/%{name}/pkcs12.h
 %{_includedir}/%{name}/x509.h
+%{_includedir}/%{name}/x509-ext.h
+%{_includedir}/%{name}/self-test.h
+%{_includedir}/%{name}/tpm.h
 %{_libdir}/libgnutls.so
 %{_libdir}/pkgconfig/gnutls.pc
 %{_mandir}/man3/*
@@ -202,5 +205,3 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_libdir}/libgnutls-openssl.so
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/openssl.h
-
-%changelog
