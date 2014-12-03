@@ -15,6 +15,7 @@ Source1001: 	gnutls.manifest
 BuildRequires:  automake
 BuildRequires:  gcc-c++
 BuildRequires:  libidn-devel
+BuildRequires:  makeinfo
 BuildRequires:  pkgconfig(nettle) 
 BuildRequires:  libtasn1-devel
 BuildRequires:	gettext-tools
