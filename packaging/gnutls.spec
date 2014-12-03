@@ -3,22 +3,24 @@
 %define gnutls_ossl_sover 27
 
 Name:           gnutls
-Version:        3.0.30
+Version:        3.3.5
 Release:        0
 Summary:        The GNU Transport Layer Security Library
-License:        LGPL-3.0+ and GPL-3.0+
+License:        LGPL-3.0+ or GPL-3.0+
 Group:          Security/Crypto Libraries
 Url:            http://www.gnutls.org/
 Source0:        http://ftp.gnu.org/gnu/gnutls/%{name}-%{version}.tar.xz
 Source1:        baselibs.conf
-Source1001: 	gnutls.manifest
+Source1001:     gnutls.manifest
 BuildRequires:  automake
+BuildRequires:  byacc
 BuildRequires:  gcc-c++
+BuildRequires:  gperf
 BuildRequires:  libidn-devel
 BuildRequires:  makeinfo
-BuildRequires:  pkgconfig(nettle) 
+BuildRequires:  pkgconfig(nettle)
 BuildRequires:  libtasn1-devel
-BuildRequires:	gettext-tools
+BuildRequires:  gettext-tools
 BuildRequires:  libtool
 BuildRequires:  p11-kit-devel >= 0.11
 BuildRequires:  pkg-config
@@ -104,15 +106,17 @@ cp %{SOURCE1001} .
 echo %{_includedir}/%{name}/abstract.h
 
 %build
-autoreconf -if
-%configure \
+touch ChangeLog
+
+%reconfigure \
         --disable-static \
         --with-pic \
         --disable-rpath \
         --disable-silent-rules \
-	--with-default-trust-store-dir=/etc/ssl/certs \
+        --with-default-trust-store-dir=/etc/ssl/certs \
         --with-sysroot=/%{?_sysroot}
-make %{?_smp_mflags}
+
+%__make %{?_smp_mflags}
 
 # 17-ago-2011, Test suite passes in factory, just not
 #in the build system due to some broken code requiring both networking
@@ -144,20 +148,17 @@ rm -f %{buildroot}%{_libdir}/*.la
 %manifest %{name}.manifest
 %defattr(-, root, root)
 %license COPYING
-%{_bindir}/certtool
+%{_bindir}/*tool
 %{_bindir}/crywrap
 %{_bindir}/gnutls-cli
 %{_bindir}/gnutls-cli-debug
 %{_bindir}/gnutls-serv
-%{_bindir}/ocsptool
-%{_bindir}/psktool
-%{_bindir}/p11tool
-%{_bindir}/srptool
 %{_mandir}/man1/*
 
 %files -n libgnutls
 %manifest %{name}.manifest
 %defattr(-,root,root)
+%license COPYING
 %{_libdir}/libgnutls.so.*
 
 %files -n libgnutls-openssl
@@ -174,18 +175,9 @@ rm -f %{buildroot}%{_libdir}/*.la
 %manifest %{name}.manifest
 %defattr(-, root, root)
 %dir %{_includedir}/%{name}
-%{_includedir}/%{name}/abstract.h
-%{_includedir}/%{name}/crypto.h
-%{_includedir}/%{name}/compat.h
-%{_includedir}/%{name}/dtls.h
-%{_includedir}/%{name}/gnutls.h
-%{_includedir}/%{name}/openpgp.h
-%{_includedir}/%{name}/ocsp.h
-%{_includedir}/%{name}/pkcs11.h
-%{_includedir}/%{name}/pkcs12.h
-%{_includedir}/%{name}/x509.h
-%{_libdir}/libgnutls.so
-%{_libdir}/pkgconfig/gnutls.pc
+%{_includedir}/%{name}/*.h
+%{_libdir}/lib%{name}.so
+%{_libdir}/pkgconfig/%{name}.pc
 %{_mandir}/man3/*
 %{_infodir}/*.*
 %doc doc/examples doc/gnutls.html doc/*.png doc/gnutls.pdf doc/reference/html/*
@@ -203,5 +195,3 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_libdir}/libgnutls-openssl.so
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/openssl.h
-
-%changelog
