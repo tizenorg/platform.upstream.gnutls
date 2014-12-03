@@ -3,7 +3,7 @@
 %define gnutls_ossl_sover 27
 
 Name:           gnutls
-Version:        3.0.30
+Version:        3.3.5
 Release:        0
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-3.0+ and GPL-3.0+
