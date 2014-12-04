@@ -1,6 +1,15 @@
 Code-Review+1: John Whiteman <john.l.whiteman@intel.com>
 Code-Review+2: Casey Schaufler <casey.schaufler@intel.com>
 Verified+1: Philippe Coval <philippe.coval@open.eurogiciel.org>
+Submitted-by: John Whiteman <john.l.whiteman@intel.com>
+Submitted-at: Thu, 04 Dec 2014 13:41:28 -0800
+Reviewed-on: https://review.tizen.org/gerrit/31266
+Project: platform/upstream/gnutls
+Branch: refs/heads/tizen
+
+Code-Review+1: John Whiteman <john.l.whiteman@intel.com>
+Code-Review+2: Casey Schaufler <casey.schaufler@intel.com>
+Verified+1: Philippe Coval <philippe.coval@open.eurogiciel.org>
 Reviewed-on: https://review.tizen.org/gerrit/31266
 Project: platform/upstream/gnutls
 Branch: refs/heads/tizen
