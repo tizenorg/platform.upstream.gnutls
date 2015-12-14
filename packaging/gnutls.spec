@@ -109,7 +109,7 @@ echo %{_includedir}/%{name}/abstract.h
         --with-pic \
         --disable-rpath \
         --disable-silent-rules \
-        --with-default-trust-store-dir=/etc/ssl/certs \
+        --with-default-trust-store-file=/etc/ssl/ca-bundle.pem \
         --with-sysroot=/%{?_sysroot}
 %__make %{?_smp_mflags}
 
