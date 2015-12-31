@@ -115,7 +115,6 @@ rm -f %{buildroot}%{_libdir}/*.la
 %files -f libgnutls.lang
 %manifest %{name}.manifest
 %defattr(-, root, root)
-%doc COPYING
 %{_bindir}/certtool
 %{_bindir}/crywrap
 %{_bindir}/gnutls-cli
