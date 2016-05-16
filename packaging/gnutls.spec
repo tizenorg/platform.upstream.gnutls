@@ -19,7 +19,6 @@ BuildRequires:  pkgconfig(nettle)
 BuildRequires:  libtasn1-devel
 BuildRequires:  gettext-tools
 BuildRequires:  libtool
-BuildRequires:  p11-kit-devel >= 0.11
 BuildRequires:  pkg-config
 BuildRequires:  xz
 BuildRequires:  zlib-devel
