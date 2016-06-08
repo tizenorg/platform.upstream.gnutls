@@ -217,23 +217,6 @@ void gnutls_pk_params_clear(gnutls_pk_params_st * p)
 	}
 }
 
-int
-_gnutls_pk_get_hash_algorithm(gnutls_pk_algorithm_t pk,
-			      gnutls_pk_params_st * params,
-			      gnutls_digest_algorithm_t * dig,
-			      unsigned int *mand)
-{
-	if (mand) {
-		if (pk == GNUTLS_PK_DSA)
-			*mand = 1;
-		else
-			*mand = 0;
-	}
-
-	return _gnutls_x509_verify_algorithm(dig, NULL, pk, params);
-
-}
-
 /* Writes the digest information and the digest in a DER encoded
  * structure. The digest info is allocated and stored into the info structure.
  */
@@ -360,7 +343,7 @@ decode_ber_digest_info(const gnutls_datum_t * info,
 		return _gnutls_asn2err(result);
 	}
 
-	*hash = _gnutls_x509_oid_to_digest(str);
+	*hash = gnutls_oid_to_digest(str);
 
 	if (*hash == GNUTLS_DIG_UNKNOWN) {
 
@@ -439,57 +422,75 @@ _gnutls_params_get_rsa_raw(const gnutls_pk_params_st* params,
 	}
 
 	/* D */
-	if (d) {
+	if (d && params->params[2]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[2], d);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (d) {
+		d->data = NULL;
+		d->size = 0;
 	}
 
 	/* P */
-	if (p) {
+	if (p && params->params[3]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[3], p);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (p) {
+		p->data = NULL;
+		p->size = 0;
 	}
 
 	/* Q */
-	if (q) {
+	if (q && params->params[4]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[4], q);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (q) {
+		q->data = NULL;
+		q->size = 0;
 	}
 
 	/* U */
-	if (u) {
+	if (u && params->params[5]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[5], u);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (u) {
+		u->data = NULL;
+		u->size = 0;
 	}
 
 	/* E1 */
-	if (e1) {
+	if (e1 && params->params[6]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[6], e1);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (e1) {
+		e1->data = NULL;
+		e1->size = 0;
 	}
 
 	/* E2 */
-	if (e2) {
+	if (e2 && params->params[7]) {
 		ret = _gnutls_mpi_dprint_lz(params->params[7], e2);
 		if (ret < 0) {
 			gnutls_assert();
 			goto error;
 		}
+	} else if (e2) {
+		e2->data = NULL;
+		e2->size = 0;
 	}
 
 	return 0;

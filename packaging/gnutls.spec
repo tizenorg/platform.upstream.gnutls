@@ -3,7 +3,7 @@
 %define gnutls_ossl_sover 27
 
 Name:           gnutls
-Version:        3.3.5
+Version:        3.4.11
 Release:        0
 Summary:        The GNU Transport Layer Security Library
 License:        LGPL-2.1+
@@ -81,6 +81,7 @@ echo %{_includedir}/%{name}/abstract.h
 
 %build
 %reconfigure \
+        --without-p11-kit \
         --disable-static \
         --with-pic \
         --disable-rpath \
@@ -122,7 +123,6 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_bindir}/ocsptool
 %{_bindir}/psktool
 %{_bindir}/srptool
-%{_bindir}/danetool
 %{_mandir}/man1/*
 
 %files -n libgnutls
@@ -152,6 +152,9 @@ rm -f %{buildroot}%{_libdir}/*.la
 %{_includedir}/%{name}/x509-ext.h
 %{_includedir}/%{name}/self-test.h
 %{_includedir}/%{name}/tpm.h
+%{_includedir}/%{name}/pkcs7.h
+%{_includedir}/%{name}/system-keys.h
+%{_includedir}/%{name}/urls.h
 %{_libdir}/libgnutls.so
 %{_libdir}/pkgconfig/gnutls.pc
 %{_mandir}/man3/*

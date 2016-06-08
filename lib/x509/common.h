@@ -75,11 +75,14 @@
 #define ASN1_NULL_SIZE 2
 
 int _gnutls_x509_set_time(ASN1_TYPE c2, const char *where, time_t tim,
-			  int general);
+			  int force_general);
+int
+_gnutls_x509_set_raw_time(ASN1_TYPE c2, const char *where, time_t tim);
 
 int _gnutls_x509_decode_string(unsigned int etype,
 			       const uint8_t * der, size_t der_size,
-			       gnutls_datum_t * output);
+			       gnutls_datum_t * output,
+			       unsigned allow_ber);
 
 int _gnutls_x509_encode_string(unsigned int etype,
 			       const void *input_data, size_t input_size,
@@ -117,8 +120,11 @@ int _gnutls_x509_export_int_named2(ASN1_TYPE asn1_data, const char *name,
 
 int _gnutls_x509_read_value(ASN1_TYPE c, const char *root,
 			    gnutls_datum_t * ret);
+int _gnutls_x509_read_null_value(ASN1_TYPE c, const char *root,
+			    gnutls_datum_t * ret);
 int _gnutls_x509_read_string(ASN1_TYPE c, const char *root,
-			     gnutls_datum_t * ret, unsigned int etype);
+			     gnutls_datum_t * ret, unsigned int etype,
+			     unsigned allow_ber);
 int _gnutls_x509_write_value(ASN1_TYPE c, const char *root,
 			     const gnutls_datum_t * data);
 
@@ -154,7 +160,8 @@ int _gnutls_x509_encode_PKI_params(gnutls_datum_t * der,
 int _gnutls_asn1_copy_node(ASN1_TYPE * dst, const char *dst_name,
 			   ASN1_TYPE src, const char *src_name);
 
-int _gnutls_x509_get_signed_data(ASN1_TYPE src, const char *src_name,
+int _gnutls_x509_get_signed_data(ASN1_TYPE src, const gnutls_datum_t *der,
+				 const char *src_name,
 				 gnutls_datum_t * signed_data);
 int _gnutls_x509_get_signature(ASN1_TYPE src, const char *src_name,
 			       gnutls_datum_t * signature);
@@ -165,14 +172,34 @@ int _gnutls_get_asn_mpis(ASN1_TYPE asn, const char *root,
 
 int _gnutls_get_key_id(gnutls_pk_algorithm_t pk, gnutls_pk_params_st *,
 		       unsigned char *output_data,
-		       size_t * output_data_size);
+		       size_t * output_data_size, unsigned flags);
 
 void _asnstr_append_name(char *name, size_t name_size, const char *part1,
 			 const char *part2);
 
+/* Given a @c2 which it returns an allocated DER encoding of @whom in @out */
+inline static int
+_gnutls_x509_get_raw_field(ASN1_TYPE c2, const char *whom, gnutls_datum_t *out)
+{
+	return _gnutls_x509_der_encode(c2, whom, out, 0);
+}
+
 int
-_gnutls_x509_get_raw_dn2(ASN1_TYPE c2, gnutls_datum_t * raw,
+_gnutls_x509_get_raw_field2(ASN1_TYPE c2, gnutls_datum_t * raw,
 			 const char *whom, gnutls_datum_t * dn);
+
+bool
+_gnutls_check_if_same_key(gnutls_x509_crt_t cert1,
+			  gnutls_x509_crt_t cert2,
+			  unsigned is_ca);
+
+bool
+_gnutls_check_if_same_key2(gnutls_x509_crt_t cert1,
+			   gnutls_datum_t *cert2bin);
+
+bool
+_gnutls_check_valid_key_id(gnutls_datum_t *key_id,
+			   gnutls_x509_crt_t cert, time_t now);
 
 bool
 _gnutls_check_if_same_cert(gnutls_x509_crt_t cert1,
@@ -182,13 +209,15 @@ bool
 _gnutls_check_if_same_cert2(gnutls_x509_crt_t cert1,
 			    gnutls_datum_t * cert2bin);
 
+bool _gnutls_check_key_purpose(gnutls_x509_crt_t cert, const char *purpose, unsigned no_any);
+
 time_t _gnutls_x509_generalTime2gtime(const char *ttime);
 
-int get_extension(ASN1_TYPE asn, const char *root,
+int _gnutls_get_extension(ASN1_TYPE asn, const char *root,
 		  const char *extension_id, int indx,
 		  gnutls_datum_t * ret, unsigned int *_critical);
 
-int set_extension(ASN1_TYPE asn, const char *root,
+int _gnutls_set_extension(ASN1_TYPE asn, const char *root,
 		  const char *ext_id,
 		  const gnutls_datum_t * ext_data, unsigned int critical);
 
@@ -201,5 +230,28 @@ int _gnutls_copy_string(gnutls_datum_t* str, uint8_t *out, size_t *out_size);
 int _gnutls_copy_data(gnutls_datum_t* str, uint8_t *out, size_t *out_size);
 
 int _san_othername_to_virtual(const char *oid, size_t oid_size);
+
+int _gnutls_x509_decode_ext(const gnutls_datum_t *der, gnutls_x509_ext_st *out);
+int x509_raw_crt_to_raw_pubkey(const gnutls_datum_t * cert,
+			   gnutls_datum_t * rpubkey);
+
+int x509_crt_to_raw_pubkey(gnutls_x509_crt_t crt,
+                           gnutls_datum_t * rpubkey);
+
+typedef void (*gnutls_cert_vfunc)(gnutls_x509_crt_t);
+
+gnutls_x509_crt_t *_gnutls_sort_clist(gnutls_x509_crt_t
+				     sorted[DEFAULT_MAX_VERIFY_DEPTH],
+				     gnutls_x509_crt_t * clist,
+				     unsigned int *clist_size,
+				     gnutls_cert_vfunc func);
+
+int _gnutls_check_if_sorted(gnutls_x509_crt_t * crt, int nr);
+
+inline static int _asn1_strict_der_decode (asn1_node * element, const void *ider,
+		       int len, char *errorDescription)
+{
+	return asn1_der_decoding2(element, ider, &len, ASN1_DECODE_FLAG_STRICT_DER, errorDescription);
+}
 
 #endif

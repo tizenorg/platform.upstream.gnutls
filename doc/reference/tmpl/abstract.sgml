@@ -374,6 +374,8 @@ abstract
 
 </para>
 
+@type: 
+@pk_algorithm: 
 
 <!-- ##### TYPEDEF gnutls_privkey_t ##### -->
 <para>
@@ -512,17 +514,6 @@ abstract
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pubkey_get_verify_algorithm ##### -->
-<para>
-
-</para>
-
-@key: 
-@signature: 
-@hash: 
-@Returns: 
-
-
 <!-- ##### FUNCTION gnutls_pubkey_import ##### -->
 <para>
 
@@ -605,7 +596,7 @@ abstract
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pubkey_import_pkcs11_url ##### -->
+<!-- ##### MACRO gnutls_pubkey_import_pkcs11_url ##### -->
 <para>
 
 </para>
@@ -743,23 +734,20 @@ abstract
 
 </para>
 
+@pk_algorithm: 
+@bits: 
+@params: 
+@openpgp_key_id: 
+@openpgp_key_id_set: 
+@openpgp_key_fpr: 
+@openpgp_key_fpr_set: 
+@key_usage: 
+@pin: 
 
 <!-- ##### TYPEDEF gnutls_pubkey_t ##### -->
 <para>
 
 </para>
-
-
-<!-- ##### FUNCTION gnutls_pubkey_verify_data ##### -->
-<para>
-
-</para>
-
-@pubkey: 
-@flags: 
-@data: 
-@signature: 
-@Returns: 
 
 
 <!-- ##### FUNCTION gnutls_pubkey_verify_data2 ##### -->

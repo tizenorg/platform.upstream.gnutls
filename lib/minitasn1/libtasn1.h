@@ -44,7 +44,7 @@ extern "C"
 {
 #endif
 
-#define ASN1_VERSION "4.0"
+#define ASN1_VERSION "4.8"
 
 #if defined(__GNUC__) && !defined(ASN1_INTERNAL_BUILD)
 # define _ASN1_GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
@@ -185,7 +185,11 @@ extern "C"
 #define ASN1_DELETE_FLAG_ZEROIZE 1
 
 /* Flags used by asn1_der_decoding2(). */
+
+/* This flag would allow arbitrary data past the DER data */
 #define ASN1_DECODE_FLAG_ALLOW_PADDING 1
+/* This flag would ensure that no BER decoding takes place */
+#define ASN1_DECODE_FLAG_STRICT_DER (1<<1)
 
 
   struct asn1_data_node_st
@@ -326,6 +330,13 @@ extern "C"
 				const unsigned char **str,
 				unsigned int *str_len);
 
+  extern ASN1_API
+    int asn1_decode_simple_ber (unsigned int etype, const unsigned char *der,
+				unsigned int der_len,
+				unsigned char **str,
+				unsigned int *str_len,
+				unsigned int *ber_len);
+
   extern ASN1_API int
     asn1_encode_simple_der (unsigned int etype, const unsigned char *str,
 			    unsigned int str_len, unsigned char *tl,
@@ -362,6 +373,11 @@ extern "C"
     asn1_get_bit_der (const unsigned char *der, int der_len,
 		      int *ret_len, unsigned char *str,
 		      int str_size, int *bit_len);
+
+  extern ASN1_API int
+    asn1_get_object_id_der (const unsigned char *der,
+                            int der_len, int *ret_len,
+		 	    char *str, int str_size);
 
 /* Compatibility types */
 

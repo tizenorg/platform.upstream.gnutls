@@ -47,20 +47,34 @@
 #include <read-file.h>
 
 unsigned char *lbuffer = NULL;
-int lbuffer_size = 0;
+unsigned long lbuffer_size = 0;
 
-void fix_lbuffer(unsigned size)
+static unsigned long file_size(FILE *fp)
+{
+	unsigned long size;
+	unsigned long cur = ftell(fp);
+	fseek(fp, 0, SEEK_END);
+	size = ftell(fp);
+	fseek(fp, cur, SEEK_SET);
+	return size;
+}
+
+void fix_lbuffer(unsigned long size)
 {
 	if (lbuffer_size == 0 || lbuffer == NULL) {
 		if (size == 0)
 			lbuffer_size = 64*1024;
 		else
-			lbuffer_size = MAX(64*1024,size);
+			lbuffer_size = MAX(64*1024,size+1);
 		lbuffer = malloc(lbuffer_size);
-		if (lbuffer == NULL) {
-			fprintf(stderr, "memory error");
-			exit(1);
-		}
+	} else if (size > lbuffer_size) {
+		lbuffer_size = MAX(64*1024,size+1);
+		lbuffer = realloc(lbuffer, lbuffer_size);
+	}
+
+	if (lbuffer == NULL) {
+		fprintf(stderr, "memory error");
+		exit(1);
 	}
 }
 
@@ -344,14 +358,20 @@ load_x509_private_key(int mand, common_info_st * info)
 gnutls_x509_crt_t load_cert(int mand, common_info_st * info)
 {
 	gnutls_x509_crt_t *crt;
-	size_t size;
+	gnutls_x509_crt_t ret_crt;
+	size_t size, i;
 
 	crt = load_cert_list(mand, &size, info);
+	if (crt) {
+		ret_crt = crt[0];
+		for (i=1;i<size;i++)
+			gnutls_x509_crt_deinit(crt[i]);
+		gnutls_free(crt);
+		return ret_crt;
+	}
 
-	return crt ? crt[0] : NULL;
+	return NULL;
 }
-
-#define MAX_CERTS 256
 
 /* Loads a certificate list
  */
@@ -359,14 +379,11 @@ gnutls_x509_crt_t *load_cert_list(int mand, size_t * crt_size,
 				  common_info_st * info)
 {
 	FILE *fd;
-	static gnutls_x509_crt_t crt[MAX_CERTS];
-	char *ptr;
-	int ret, i;
+	static gnutls_x509_crt_t *crt;
+	int ret;
 	gnutls_datum_t dat;
-	size_t size;
-	int ptr_size;
-
-	fix_lbuffer(0);
+	unsigned size;
+	unsigned int crt_max;
 
 	*crt_size = 0;
 	if (info->verbose)
@@ -386,56 +403,84 @@ gnutls_x509_crt_t *load_cert_list(int mand, size_t * crt_size,
 		exit(1);
 	}
 
+	fix_lbuffer(file_size(fd));
+
 	size = fread(lbuffer, 1, lbuffer_size - 1, fd);
 	lbuffer[size] = 0;
 
 	fclose(fd);
 
-	ptr = (void *) lbuffer;
-	ptr_size = size;
+	dat.data = (void *) lbuffer;
+	dat.size = size;
 
-	for (i = 0; i < MAX_CERTS; i++) {
-		ret = gnutls_x509_crt_init(&crt[i]);
-		if (ret < 0) {
-			fprintf(stderr, "crt_init: %s\n",
-				gnutls_strerror(ret));
-			exit(1);
-		}
-
-		dat.data = (void *) ptr;
-		dat.size = ptr_size;
-
-		ret =
-		    gnutls_x509_crt_import(crt[i], &dat,
-					   info->incert_format);
-		if (ret < 0 && *crt_size > 0)
-			break;
-		if (ret < 0) {
-			fprintf(stderr, "crt_import: %s\n",
-				gnutls_strerror(ret));
-			exit(1);
-		}
-
-		ptr = strstr(ptr, "---END");
-		if (ptr == NULL)
-			break;
-		ptr++;
-
-		ptr_size = size;
-		ptr_size -=
-		    (unsigned int) ((unsigned char *) ptr -
-				    (unsigned char *) lbuffer);
-
-		if (ptr_size < 0)
-			break;
-
-		(*crt_size)++;
+	ret = gnutls_x509_crt_list_import2(&crt, &crt_max, &dat, GNUTLS_X509_FMT_PEM, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Error loading certificates: %s\n", gnutls_strerror(ret));
+		exit(1);
 	}
+
+	*crt_size = crt_max;
+
 	if (info->verbose)
 		fprintf(stderr, "Loaded %d certificates.\n",
-			(int) *crt_size);
+			(int) crt_max);
 
 	return crt;
+}
+
+/* Loads a CRL list
+ */
+gnutls_x509_crl_t *load_crl_list(int mand, size_t * crl_size,
+				  common_info_st * info)
+{
+	FILE *fd;
+	static gnutls_x509_crl_t *crl;
+	unsigned int crl_max;
+	int ret;
+	gnutls_datum_t dat;
+	size_t size;
+
+	*crl_size = 0;
+	if (info->verbose)
+		fprintf(stderr, "Loading CRL list...\n");
+
+	if (info->crl == NULL) {
+		if (mand) {
+			fprintf(stderr, "missing --load-crl\n");
+			exit(1);
+		} else
+			return NULL;
+	}
+
+	fd = fopen(info->crl, "r");
+	if (fd == NULL) {
+		fprintf(stderr, "Could not open %s\n", info->crl);
+		exit(1);
+	}
+
+	fix_lbuffer(file_size(fd));
+
+	size = fread(lbuffer, 1, lbuffer_size - 1, fd);
+	lbuffer[size] = 0;
+
+	fclose(fd);
+
+	dat.data = (void *) lbuffer;
+	dat.size = size;
+
+	ret = gnutls_x509_crl_list_import2(&crl, &crl_max, &dat, GNUTLS_X509_FMT_PEM, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Error loading CRLs: %s\n", gnutls_strerror(ret));
+		exit(1);
+	}
+
+	*crl_size = crl_max;
+
+	if (info->verbose)
+		fprintf(stderr, "Loaded %d CRLs.\n",
+			(int) *crl_size);
+
+	return crl;
 }
 
 /* Load the Certificate Request.
@@ -634,6 +679,16 @@ gnutls_pubkey_t load_public_key_or_import(int mand,
 	return pubkey;
 }
 
+static const char *bits_to_sp(gnutls_pk_algorithm_t pk, unsigned int bits)
+{
+	gnutls_sec_param_t s = gnutls_pk_bits_to_sec_param(pk, bits);
+	if (s == GNUTLS_SEC_PARAM_UNKNOWN) {
+		return gnutls_sec_param_get_name(GNUTLS_SEC_PARAM_MEDIUM);
+	}
+
+	return gnutls_sec_param_get_name(s);
+}
+
 int
 get_bits(gnutls_pk_algorithm_t key_type, int info_bits,
 	 const char *info_sec_param, int warn)
@@ -643,19 +698,17 @@ get_bits(gnutls_pk_algorithm_t key_type, int info_bits,
 	if (info_bits != 0) {
 		static int warned = 0;
 
-		if (warned == 0 && warn != 0) {
+		if (warned == 0 && warn != 0 && GNUTLS_BITS_ARE_CURVE(info_bits)==0) {
 			warned = 1;
 			fprintf(stderr,
-				"** Note: Please use the --sec-param instead of --bits\n");
+				"** Note: You may use '--sec-param %s' instead of '--bits %d'\n",
+				bits_to_sp(key_type, info_bits), info_bits);
 		}
 		bits = info_bits;
 	} else {
 		if (info_sec_param == 0) {
 			/* For ECDSA keys use 256 bits or better, as they are widely supported */
-			if (key_type == GNUTLS_PK_EC)
-				info_sec_param = "HIGH";
-			else
-				info_sec_param = "MEDIUM";
+			info_sec_param = "HIGH";
 		}
 		bits =
 		    gnutls_sec_param_to_pk_bits(key_type,
@@ -678,6 +731,8 @@ gnutls_sec_param_t str_to_sec_param(const char *str)
 		return GNUTLS_SEC_PARAM_HIGH;
 	} else if (strcasecmp(str, "ultra") == 0) {
 		return GNUTLS_SEC_PARAM_ULTRA;
+	} else if (strcasecmp(str, "future") == 0) {
+		return GNUTLS_SEC_PARAM_FUTURE;
 	} else {
 		fprintf(stderr, "Unknown security parameter string: %s\n",
 			str);
@@ -697,8 +752,9 @@ print_hex_datum(FILE * outfile, gnutls_datum_t * dat, int cprint)
 		for (j = 0; j < dat->size; j++) {
 			fprintf(outfile, "\\x%.2x",
 				(unsigned char) dat->data[j]);
-			if ((j + 1) % 15 == 0)
+			if ((j + 1) % 16 == 0) {
 				fprintf(outfile, "\"\n" SPACE "\"");
+			}
 		}
 		fprintf(outfile, "\";\n\n");
 
@@ -707,9 +763,12 @@ print_hex_datum(FILE * outfile, gnutls_datum_t * dat, int cprint)
 
 	fprintf(outfile, "\n" SPACE);
 	for (j = 0; j < dat->size; j++) {
-		fprintf(outfile, "%.2x:", (unsigned char) dat->data[j]);
-		if ((j + 1) % 15 == 0)
+		if ((j + 1) % 16 == 0) {
+			fprintf(outfile, "%.2x", (unsigned char) dat->data[j]);
 			fprintf(outfile, "\n" SPACE);
+		} else {
+			fprintf(outfile, "%.2x:", (unsigned char) dat->data[j]);
+		}
 	}
 	fprintf(outfile, "\n\n");
 }
@@ -760,6 +819,33 @@ print_dsa_pkey(FILE * outfile, gnutls_datum_t * x, gnutls_datum_t * y,
 	print_hex_datum(outfile, q, cprint);
 	print_head(outfile, "g", g->size, cprint);
 	print_hex_datum(outfile, g, cprint);
+}
+
+gnutls_ecc_curve_t str_to_curve(const char *str)
+{
+unsigned num = 0;
+const gnutls_ecc_curve_t *list, *p;
+
+	list = gnutls_ecc_curve_list();
+
+	p = list;
+	while(*p != 0) {
+		if (strcasecmp(str, gnutls_ecc_curve_get_name(*p)) == 0)
+			return *p;
+		p++;
+		num++;
+	}
+
+	fprintf(stderr, "Unsupported curve: %s\nAvailable curves:\n", str);
+	if (num == 0)
+		printf("none\n");
+	p = list;
+	while(*p != 0) {
+		fprintf(stderr, "\t- %s\n",
+		       gnutls_ecc_curve_get_name(*p));
+		p++;
+	}
+	exit(1);
 }
 
 void
@@ -1005,18 +1091,23 @@ int generate_prime(FILE * outfile, int how, common_info_st * info)
 #endif
 	}
 
-	print_dh_info(outfile, &p, &g, q_bits, info->cprint);
+	if (info->outcert_format == GNUTLS_X509_FMT_PEM)
+		print_dh_info(outfile, &p, &g, q_bits, info->cprint);
 
 	if (!info->cprint) {	/* generate a PKCS#3 structure */
 		size_t len = lbuffer_size;
 
 		ret =
 		    gnutls_dh_params_export_pkcs3(dh_params,
-						  GNUTLS_X509_FMT_PEM,
+						  info->outcert_format,
 						  lbuffer, &len);
 
 		if (ret == 0) {
-			fprintf(outfile, "\n%s", lbuffer);
+			if (info->outcert_format == GNUTLS_X509_FMT_PEM)
+				fprintf(outfile, "\n%s", lbuffer);
+			else
+				fwrite(lbuffer, 1, len, outfile);
+
 		} else {
 			fprintf(stderr, "Error: %s\n",
 				gnutls_strerror(ret));

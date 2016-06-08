@@ -32,12 +32,13 @@
 #include <gnutls_pk.h>
 #include <gnutls_mpi.h>
 #include <gnutls_ecc.h>
+#include <pin.h>
 
 /**
  * gnutls_x509_privkey_init:
- * @key: The structure to be initialized
+ * @key: A pointer to the type to be initialized
  *
- * This function will initialize an private key structure.
+ * This function will initialize a private key type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
@@ -57,9 +58,17 @@ int gnutls_x509_privkey_init(gnutls_x509_privkey_t * key)
 	return GNUTLS_E_MEMORY_ERROR;
 }
 
+void _gnutls_x509_privkey_reinit(gnutls_x509_privkey_t key)
+{
+	gnutls_pk_params_clear(&key->params);
+	gnutls_pk_params_release(&key->params);
+	asn1_delete_structure2(&key->key, ASN1_DELETE_FLAG_ZEROIZE);
+	key->key = ASN1_TYPE_EMPTY;
+}
+
 /**
  * gnutls_x509_privkey_deinit:
- * @key: The structure to be deinitialized
+ * @key: The key to be deinitialized
  *
  * This function will deinitialize a private key structure.
  **/
@@ -68,9 +77,7 @@ void gnutls_x509_privkey_deinit(gnutls_x509_privkey_t key)
 	if (!key)
 		return;
 
-	gnutls_pk_params_clear(&key->params);
-	gnutls_pk_params_release(&key->params);
-	asn1_delete_structure2(&key->key, ASN1_DELETE_FLAG_ZEROIZE);
+	_gnutls_x509_privkey_reinit(key);
 	gnutls_free(key);
 }
 
@@ -141,7 +148,7 @@ _gnutls_privkey_decode_pkcs1_rsa_key(const gnutls_datum_t * raw_key,
 	}
 
 	result =
-	    asn1_der_decoding(&pkey_asn, raw_key->data, raw_key->size,
+	    _asn1_strict_der_decode(&pkey_asn, raw_key->data, raw_key->size,
 			      NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
@@ -256,7 +263,7 @@ _gnutls_privkey_decode_ecc_key(ASN1_TYPE* pkey_asn, const gnutls_datum_t * raw_k
 	}
 
 	ret =
-	    asn1_der_decoding(pkey_asn, raw_key->data, raw_key->size,
+	    _asn1_strict_der_decode(pkey_asn, raw_key->data, raw_key->size,
 			      NULL);
 	if (ret != ASN1_SUCCESS) {
 		gnutls_assert();
@@ -291,7 +298,7 @@ _gnutls_privkey_decode_ecc_key(ASN1_TYPE* pkey_asn, const gnutls_datum_t * raw_k
 			goto error;
 		}
 
-		pkey->params.flags = _gnutls_oid_to_ecc_curve(oid);
+		pkey->params.flags = gnutls_oid_to_ecc_curve(oid);
 
 		if (pkey->params.flags == GNUTLS_ECC_CURVE_INVALID) {
 			_gnutls_debug_log("Curve %s is not supported\n", oid);
@@ -363,7 +370,7 @@ decode_dsa_key(const gnutls_datum_t * raw_key, gnutls_x509_privkey_t pkey)
 	pkey->params.algo = GNUTLS_PK_DSA;
 
 	result =
-	    asn1_der_decoding(&dsa_asn, raw_key->data, raw_key->size,
+	    _asn1_strict_der_decode(&dsa_asn, raw_key->data, raw_key->size,
 			      NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
@@ -424,10 +431,11 @@ decode_dsa_key(const gnutls_datum_t * raw_key, gnutls_x509_privkey_t pkey)
 #define PEM_KEY_DSA "DSA PRIVATE KEY"
 #define PEM_KEY_RSA "RSA PRIVATE KEY"
 #define PEM_KEY_ECC "EC PRIVATE KEY"
+#define PEM_KEY_PKCS8 "PRIVATE KEY"
 
 /**
  * gnutls_x509_privkey_import:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @data: The DER or PEM encoded certificate.
  * @format: One of DER or PEM
  *
@@ -463,45 +471,94 @@ gnutls_x509_privkey_import(gnutls_x509_privkey_t key,
 	/* If the Certificate is in PEM format then decode it
 	 */
 	if (format == GNUTLS_X509_FMT_PEM) {
-		/* Try the first header */
-		result =
-		    _gnutls_fbase64_decode(PEM_KEY_RSA, data->data,
-					   data->size, &_data);
+		unsigned left;
+		char *ptr;
+		uint8_t *begin_ptr;
 
-		if (result >= 0)
-			key->pk_algorithm = GNUTLS_PK_RSA;
+		ptr = memmem(data->data, data->size, "PRIVATE KEY-----", sizeof("PRIVATE KEY-----")-1);
 
-		if (result == GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR) {
-			/* try for the second header */
-			result =
-			    _gnutls_fbase64_decode(PEM_KEY_DSA, data->data,
-						   data->size, &_data);
+		result = GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE;
 
-			if (result >= 0)
-				key->pk_algorithm = GNUTLS_PK_DSA;
+		if (ptr != NULL) {
+			left = data->size - ((ptrdiff_t)ptr - (ptrdiff_t)data->data);
 
-			if (result ==
-			    GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR) {
-				/* try for the second header */
-				result =
-				    _gnutls_fbase64_decode(PEM_KEY_ECC,
-							   data->data,
-							   data->size,
-							   &_data);
-				if (result >= 0)
-					key->pk_algorithm = GNUTLS_PK_EC;
+			if (data->size - left > 15) {
+				ptr -= 15;
+				left += 15;
+			} else {
+				ptr = (char*)data->data;
+				left = data->size;
 			}
+
+			ptr = memmem(ptr, left, "-----BEGIN ", sizeof("-----BEGIN ")-1);
+			if (ptr != NULL) {
+				begin_ptr = (uint8_t*)ptr;
+				left = data->size - ((ptrdiff_t)begin_ptr - (ptrdiff_t)data->data);
+
+				ptr += sizeof("-----BEGIN ")-1;
+			}
+
+			if (ptr != NULL && left > sizeof(PEM_KEY_RSA)) {
+				if (memcmp(ptr, PEM_KEY_RSA, sizeof(PEM_KEY_RSA)-1) == 0) {
+					result =
+					    _gnutls_fbase64_decode(PEM_KEY_RSA, begin_ptr,
+							   	   left, &_data);
+					if (result >= 0)
+						key->pk_algorithm = GNUTLS_PK_RSA;
+				} else if (memcmp(ptr, PEM_KEY_ECC, sizeof(PEM_KEY_ECC)-1) == 0) {
+					result =
+					    _gnutls_fbase64_decode(PEM_KEY_ECC,
+								   begin_ptr,
+								   left,
+								   &_data);
+					if (result >= 0)
+						key->pk_algorithm = GNUTLS_PK_EC;
+				} else if (memcmp(ptr, PEM_KEY_DSA, sizeof(PEM_KEY_DSA)-1) == 0) {
+					result =
+					    _gnutls_fbase64_decode(PEM_KEY_DSA, begin_ptr,
+								   left, &_data);
+					if (result >= 0)
+						key->pk_algorithm = GNUTLS_PK_DSA;
+				}
+			}
+
+			if (key->pk_algorithm == GNUTLS_PK_UNKNOWN && ptr != NULL && left >= sizeof(PEM_KEY_PKCS8)) {
+				if (memcmp(ptr, PEM_KEY_PKCS8, sizeof(PEM_KEY_PKCS8)-1) == 0) {
+					result =
+					    _gnutls_fbase64_decode(PEM_KEY_PKCS8, begin_ptr,
+							   	   left, &_data);
+					if (result >= 0) {
+						/* signal for PKCS #8 keys */
+						key->pk_algorithm = -1;
+					}
+				}
+			}
+
 		}
 
 		if (result < 0) {
 			gnutls_assert();
-			goto failover;
+			return result;
 		}
 
 		need_free = 1;
 	}
 
-	if (key->pk_algorithm == GNUTLS_PK_RSA) {
+	if (key->expanded) {
+		_gnutls_x509_privkey_reinit(key);
+	}
+	key->expanded = 1;
+
+	if (key->pk_algorithm == (gnutls_pk_algorithm_t)-1) {
+		result =
+		    gnutls_x509_privkey_import_pkcs8(key, data, format,
+						     NULL,
+						     GNUTLS_PKCS_PLAIN);
+		if (result < 0) {
+			gnutls_assert();
+			key->key = NULL;
+		}
+	} else if (key->pk_algorithm == GNUTLS_PK_RSA) {
 		key->key =
 		    _gnutls_privkey_decode_pkcs1_rsa_key(&_data, key);
 		if (key->key == NULL)
@@ -514,10 +571,10 @@ gnutls_x509_privkey_import(gnutls_x509_privkey_t key,
 		result = _gnutls_privkey_decode_ecc_key(&key->key, &_data, key, 0);
 		if (result < 0) {
 			gnutls_assert();
-			goto failover;
+			key->key = NULL;
 		}
 	} else {
-		/* Try decoding with both, and accept the one that
+		/* Try decoding each of the keys, and accept the one that
 		 * succeeds.
 		 */
 		key->pk_algorithm = GNUTLS_PK_RSA;
@@ -532,9 +589,16 @@ gnutls_x509_privkey_import(gnutls_x509_privkey_t key,
 				result =
 				    _gnutls_privkey_decode_ecc_key(&key->key, &_data, key, 0);
 				if (result < 0) {
-					gnutls_assert();
-					goto failover;
+					result =
+					    gnutls_x509_privkey_import_pkcs8(key, data, format,
+									     NULL,
+									     GNUTLS_PKCS_PLAIN);
+					if (result < 0) {
+						gnutls_assert();
+						key->key = NULL;
+					}
 				}
+
 			}
 		}
 	}
@@ -542,7 +606,8 @@ gnutls_x509_privkey_import(gnutls_x509_privkey_t key,
 	if (key->key == NULL) {
 		gnutls_assert();
 		result = GNUTLS_E_ASN1_DER_ERROR;
-		goto failover;
+	} else {
+		result = 0;
 	}
 
 	if (need_free)
@@ -550,22 +615,6 @@ gnutls_x509_privkey_import(gnutls_x509_privkey_t key,
 
 	/* The key has now been decoded.
 	 */
-
-	return 0;
-
-      failover:
-	/* Try PKCS #8 */
-	if (result == GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR) {
-		_gnutls_debug_log
-		    ("Falling back to PKCS #8 key decoding\n");
-		result =
-		    gnutls_x509_privkey_import_pkcs8(key, data, format,
-						     NULL,
-						     GNUTLS_PKCS_PLAIN);
-	}
-
-	if (need_free)
-		_gnutls_free_datum(&_data);
 
 	return result;
 }
@@ -614,7 +663,7 @@ static int import_pkcs12_privkey(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_import2:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @data: The DER or PEM encoded key.
  * @format: One of DER or PEM
  * @password: A password (optional)
@@ -628,7 +677,8 @@ static int import_pkcs12_privkey(gnutls_x509_privkey_t key,
  * and the openssl format.
  *
  * If the provided key is encrypted but no password was given, then
- * %GNUTLS_E_DECRYPTION_FAILED is returned.
+ * %GNUTLS_E_DECRYPTION_FAILED is returned. Since GnuTLS 3.4.0 this
+ * function will utilize the PIN callbacks if any.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
@@ -640,9 +690,47 @@ gnutls_x509_privkey_import2(gnutls_x509_privkey_t key,
 			    const char *password, unsigned int flags)
 {
 	int ret = 0;
+	char pin[GNUTLS_PKCS11_MAX_PIN_LEN];
+	unsigned head_enc = 1;
 
-	if (password == NULL && !(flags & GNUTLS_PKCS_NULL_PASSWORD)) {
+	if (format == GNUTLS_X509_FMT_PEM) {
+		size_t left;
+		char *ptr;
+
+		ptr = memmem(data->data, data->size, "PRIVATE KEY-----", sizeof("PRIVATE KEY-----")-1);
+
+		if (ptr != NULL) {
+			left = data->size - ((ptrdiff_t)ptr - (ptrdiff_t)data->data);
+
+			if (data->size - left > 15) {
+				ptr -= 15;
+				left += 15;
+			} else {
+				ptr = (char*)data->data;
+				left = data->size;
+			}
+
+			ptr = memmem(ptr, left, "-----BEGIN ", sizeof("-----BEGIN ")-1);
+			if (ptr != NULL) {
+				ptr += sizeof("-----BEGIN ")-1;
+				left = data->size - ((ptrdiff_t)ptr - (ptrdiff_t)data->data);
+			}
+
+			if (ptr != NULL && left > sizeof(PEM_KEY_RSA)) {
+				if (memcmp(ptr, PEM_KEY_RSA, sizeof(PEM_KEY_RSA)-1) == 0 ||
+				    memcmp(ptr, PEM_KEY_ECC, sizeof(PEM_KEY_ECC)-1) == 0 ||
+				    memcmp(ptr, PEM_KEY_DSA, sizeof(PEM_KEY_DSA)-1) == 0) {
+				    	head_enc = 0;
+				}
+			}
+		}
+	}
+
+	if (head_enc == 0 || (password == NULL && !(flags & GNUTLS_PKCS_NULL_PASSWORD))) {
 		ret = gnutls_x509_privkey_import(key, data, format);
+		if (ret >= 0)
+			return ret;
+
 		if (ret < 0) {
 			gnutls_assert();
 		}
@@ -650,9 +738,24 @@ gnutls_x509_privkey_import2(gnutls_x509_privkey_t key,
 
 	if ((password != NULL || (flags & GNUTLS_PKCS_NULL_PASSWORD))
 	    || ret < 0) {
+
 		ret =
 		    gnutls_x509_privkey_import_pkcs8(key, data, format,
 						     password, flags);
+
+		if (ret == GNUTLS_E_DECRYPTION_FAILED &&
+		    password == NULL && (!(flags & GNUTLS_PKCS_PLAIN))) {
+		    /* use the callback if any */
+			ret = _gnutls_retrieve_pin(&key->pin, "key:", "", 0, pin, sizeof(pin));
+			if (ret == 0) {
+		    		password = pin;
+			}
+
+			ret =
+			    gnutls_x509_privkey_import_pkcs8(key, data, format,
+						     password, flags);
+		}
+
 		if (ret < 0) {
 			if (ret == GNUTLS_E_DECRYPTION_FAILED)
 				goto cleanup;
@@ -687,7 +790,7 @@ gnutls_x509_privkey_import2(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_import_rsa_raw:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @m: holds the modulus
  * @e: holds the public exponent
  * @d: holds the private exponent
@@ -717,7 +820,7 @@ gnutls_x509_privkey_import_rsa_raw(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_import_rsa_raw2:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @m: holds the modulus
  * @e: holds the public exponent
  * @d: holds the private exponent
@@ -853,7 +956,7 @@ gnutls_x509_privkey_import_rsa_raw2(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_import_dsa_raw:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @p: holds the p
  * @q: holds the q
  * @g: holds the g
@@ -940,7 +1043,7 @@ gnutls_x509_privkey_import_dsa_raw(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_import_ecc_raw:
- * @key: The structure to store the parsed key
+ * @key: The data to store the parsed key
  * @curve: holds the curve
  * @x: holds the x
  * @y: holds the y
@@ -1009,7 +1112,7 @@ gnutls_x509_privkey_import_ecc_raw(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_get_pk_algorithm:
- * @key: should contain a #gnutls_x509_privkey_t structure
+ * @key: should contain a #gnutls_x509_privkey_t type
  *
  * This function will return the public key algorithm of a private
  * key.
@@ -1029,7 +1132,7 @@ int gnutls_x509_privkey_get_pk_algorithm(gnutls_x509_privkey_t key)
 
 /**
  * gnutls_x509_privkey_get_pk_algorithm2:
- * @key: should contain a #gnutls_x509_privkey_t structure
+ * @key: should contain a #gnutls_x509_privkey_t type
  * @bits: The number of bits in the public key algorithm
  *
  * This function will return the public key algorithm of a private
@@ -1150,7 +1253,7 @@ gnutls_x509_privkey_export2(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_sec_param:
- * @key: a key structure
+ * @key: a key
  *
  * This function will return the security parameter appropriate with
  * this private key.
@@ -1173,7 +1276,7 @@ gnutls_sec_param_t gnutls_x509_privkey_sec_param(gnutls_x509_privkey_t key)
 
 /**
  * gnutls_x509_privkey_export_ecc_raw:
- * @key: a structure that holds the rsa parameters
+ * @key: a key
  * @curve: will hold the curve
  * @x: will hold the x coordinate
  * @y: will hold the y coordinate
@@ -1204,7 +1307,7 @@ int gnutls_x509_privkey_export_ecc_raw(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_export_rsa_raw:
- * @key: a structure that holds the rsa parameters
+ * @key: a key
  * @m: will hold the modulus
  * @e: will hold the public exponent
  * @d: will hold the private exponent
@@ -1230,7 +1333,7 @@ gnutls_x509_privkey_export_rsa_raw(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_export_rsa_raw2:
- * @key: a structure that holds the rsa parameters
+ * @key: a key
  * @m: will hold the modulus
  * @e: will hold the public exponent
  * @d: will hold the private exponent
@@ -1262,7 +1365,7 @@ gnutls_x509_privkey_export_rsa_raw2(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_export_dsa_raw:
- * @key: a structure that holds the DSA parameters
+ * @key: a key
  * @p: will hold the p
  * @q: will hold the q
  * @g: will hold the g
@@ -1291,7 +1394,7 @@ static int pct_test(gnutls_pk_algorithm_t algo, const gnutls_pk_params_st* param
 int ret;
 gnutls_datum_t sig = {NULL, 0};
 const char const_data[20] = "onetwothreefourfive";
-gnutls_datum_t ddata;
+gnutls_datum_t ddata, tmp = {NULL,0};
 char* gen_data = NULL;
 
 	if (algo == GNUTLS_PK_DSA || algo == GNUTLS_PK_EC) {
@@ -1310,19 +1413,48 @@ char* gen_data = NULL;
 
 	switch (algo) {
 	case GNUTLS_PK_RSA:
-		/* Here we don't know the purpose of the key. Assume signing
+		ret = _gnutls_pk_encrypt(algo, &sig, &ddata, params);
+		if (ret < 0) {
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
+			goto cleanup;
+		}
+
+		if (ddata.size == sig.size && memcmp(ddata.data, sig.data, sig.size) == 0) {
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
+			gnutls_assert();
+			goto cleanup;
+		}
+
+		ret = _gnutls_pk_decrypt(algo, &tmp, &sig, params);
+		if (ret < 0) {
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
+			gnutls_assert();
+			goto cleanup;
+		}
+
+		if (tmp.size != ddata.size || memcmp(tmp.data, ddata.data, tmp.size) != 0) {
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
+			gnutls_assert();
+			goto cleanup;
+		}
+
+		free(sig.data);
+		sig.data = NULL;
+
+		/* Here we don't know the purpose of the key. Check both
+		 * signing and encryption.
 		 */
 	case GNUTLS_PK_EC: /* we only do keys for ECDSA */
 	case GNUTLS_PK_DSA:
 		ret = _gnutls_pk_sign(algo, &sig, &ddata, params);
 		if (ret < 0) {
-			ret = GNUTLS_E_PK_GENERATION_ERROR;
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
 			goto cleanup;
 		}
 
 		ret = _gnutls_pk_verify(algo, &ddata, &sig, params);
 		if (ret < 0) {
-			ret = GNUTLS_E_PK_GENERATION_ERROR;
+			ret = gnutls_assert_val(GNUTLS_E_PK_GENERATION_ERROR);
 			gnutls_assert();
 			goto cleanup;
 		}
@@ -1335,15 +1467,19 @@ char* gen_data = NULL;
 
 	ret = 0;
 cleanup:
+	if (ret == GNUTLS_E_PK_GENERATION_ERROR) {
+		_gnutls_switch_lib_state(LIB_STATE_ERROR);
+	}
 	gnutls_free(gen_data);
 	gnutls_free(sig.data);
+	gnutls_free(tmp.data);
 	return ret;
 }
 #endif
 
 /**
  * gnutls_x509_privkey_generate:
- * @key: should contain a #gnutls_x509_privkey_t structure
+ * @key: a key
  * @algo: is one of the algorithms in #gnutls_pk_algorithm_t.
  * @bits: the size of the modulus
  * @flags: unused for now.  Must be 0.
@@ -1393,7 +1529,7 @@ gnutls_x509_privkey_generate(gnutls_x509_privkey_t key,
 	ret = _gnutls_pk_generate_keys(algo, bits, &key->params);
 	if (ret < 0) {
 		gnutls_assert();
-		return ret;
+		goto cleanup;
 	}
 
 #ifndef ENABLE_FIPS140
@@ -1403,7 +1539,7 @@ gnutls_x509_privkey_generate(gnutls_x509_privkey_t key,
 #endif
 	if (ret < 0) {
 		gnutls_assert();
-		return ret;
+		goto cleanup;
 	}
 
 	ret = _gnutls_asn1_encode_privkey(algo, &key->key, &key->params);
@@ -1425,7 +1561,7 @@ gnutls_x509_privkey_generate(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_verify_params:
- * @key: should contain a #gnutls_x509_privkey_t structure
+ * @key: a key
  *
  * This function will verify the private key parameters.
  *
@@ -1447,8 +1583,8 @@ int gnutls_x509_privkey_verify_params(gnutls_x509_privkey_t key)
 
 /**
  * gnutls_x509_privkey_get_key_id:
- * @key: Holds the key
- * @flags: should be 0 for now
+ * @key: a key
+ * @flags: should be one of the flags from %gnutls_keyid_flags_t
  * @output_data: will contain the key ID
  * @output_data_size: holds the size of output_data (and will be
  *   replaced by the actual size of parameters)
@@ -1480,7 +1616,7 @@ gnutls_x509_privkey_get_key_id(gnutls_x509_privkey_t key,
 
 	ret =
 	    _gnutls_get_key_id(key->pk_algorithm, &key->params,
-			       output_data, output_data_size);
+			       output_data, output_data_size, flags);
 	if (ret < 0) {
 		gnutls_assert();
 	}
@@ -1553,7 +1689,7 @@ _gnutls_x509_privkey_sign_hash2(gnutls_x509_privkey_t signer,
 
 /**
  * gnutls_x509_privkey_sign_hash:
- * @key: Holds the key
+ * @key: a key
  * @hash: holds the data to be signed
  * @signature: will contain newly allocated signature
  *
@@ -1593,7 +1729,7 @@ gnutls_x509_privkey_sign_hash(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_sign_data:
- * @key: Holds the key
+ * @key: a key
  * @digest: should be MD5 or SHA1
  * @flags: should be 0 for now
  * @data: holds the data to be signed
@@ -1615,8 +1751,6 @@ gnutls_x509_privkey_sign_hash(gnutls_x509_privkey_t key,
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
- *
- * Deprecated: Use gnutls_privkey_sign_data().
  */
 int
 gnutls_x509_privkey_sign_data(gnutls_x509_privkey_t key,
@@ -1669,7 +1803,7 @@ gnutls_x509_privkey_sign_data(gnutls_x509_privkey_t key,
 
 /**
  * gnutls_x509_privkey_fix:
- * @key: Holds the key
+ * @key: a key
  *
  * This function will recalculate the secondary parameters in a key.
  * In RSA keys, this can be the coefficient and exponent1,2.
@@ -1697,4 +1831,27 @@ int gnutls_x509_privkey_fix(gnutls_x509_privkey_t key)
 	}
 
 	return 0;
+}
+
+/**
+ * gnutls_x509_privkey_set_pin_function:
+ * @privkey: The certificate structure
+ * @fn: the callback
+ * @userdata: data associated with the callback
+ *
+ * This function will set a callback function to be used when
+ * it is required to access a protected object. This function overrides 
+ * the global function set using gnutls_pkcs11_set_pin_function().
+ *
+ * Note that this callback is used when decrypting a key.
+ *
+ * Since: 3.4.0
+ *
+ **/
+void gnutls_x509_privkey_set_pin_function(gnutls_x509_privkey_t privkey,
+				      gnutls_pin_callback_t fn,
+				      void *userdata)
+{
+	privkey->pin.cb = fn;
+	privkey->pin.data = userdata;
 }

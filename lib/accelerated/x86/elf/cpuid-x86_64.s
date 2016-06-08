@@ -56,4 +56,7 @@ gnutls_cpuid:
 	.byte	0xf3,0xc3
 .size	gnutls_cpuid,.-gnutls_cpuid
 
+
 .section .note.GNU-stack,"",%progbits
+
+

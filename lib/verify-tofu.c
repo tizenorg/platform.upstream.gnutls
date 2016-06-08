@@ -43,8 +43,6 @@ struct gnutls_tdb_int {
 
 static int raw_pubkey_to_base64(const gnutls_datum_t * raw,
 				gnutls_datum_t * b64);
-static int x509_crt_to_raw_pubkey(const gnutls_datum_t * cert,
-				  gnutls_datum_t * rpubkey);
 static int pgp_crt_to_raw_pubkey(const gnutls_datum_t * cert,
 				 gnutls_datum_t * rpubkey);
 static int verify_pubkey(const char *file, const char *host,
@@ -135,7 +133,7 @@ gnutls_verify_stored_pubkey(const char *db_name,
 		tdb = &default_tdb;
 
 	if (cert_type == GNUTLS_CRT_X509)
-		ret = x509_crt_to_raw_pubkey(cert, &pubkey);
+		ret = x509_raw_crt_to_raw_pubkey(cert, &pubkey);
 	else
 		ret = pgp_crt_to_raw_pubkey(cert, &pubkey);
 
@@ -384,71 +382,6 @@ static int raw_pubkey_to_base64(const gnutls_datum_t * raw,
 	return 0;
 }
 
-static int x509_crt_to_raw_pubkey(const gnutls_datum_t * cert,
-				  gnutls_datum_t * rpubkey)
-{
-	gnutls_x509_crt_t crt = NULL;
-	gnutls_pubkey_t pubkey = NULL;
-	size_t size;
-	int ret;
-
-	ret = gnutls_x509_crt_init(&crt);
-	if (ret < 0)
-		return gnutls_assert_val(ret);
-
-	ret = gnutls_pubkey_init(&pubkey);
-	if (ret < 0) {
-		gnutls_assert();
-		goto cleanup;
-	}
-
-	ret = gnutls_x509_crt_import(crt, cert, GNUTLS_X509_FMT_DER);
-	if (ret < 0) {
-		gnutls_assert();
-		goto cleanup;
-	}
-
-	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
-	if (ret < 0) {
-		gnutls_assert();
-		goto cleanup;
-	}
-
-	size = 0;
-	ret =
-	    gnutls_pubkey_export(pubkey, GNUTLS_X509_FMT_DER, NULL, &size);
-	if (ret < 0 && ret != GNUTLS_E_SHORT_MEMORY_BUFFER) {
-		gnutls_assert();
-		goto cleanup;
-	}
-
-	rpubkey->data = gnutls_malloc(size);
-	if (rpubkey->data == NULL)
-		if (ret < 0 && ret != GNUTLS_E_SHORT_MEMORY_BUFFER) {
-			ret = GNUTLS_E_MEMORY_ERROR;
-			gnutls_assert();
-			goto cleanup;
-		}
-
-	ret =
-	    gnutls_pubkey_export(pubkey, GNUTLS_X509_FMT_DER,
-				 rpubkey->data, &size);
-	if (ret < 0) {
-		gnutls_free(rpubkey->data);
-		gnutls_assert();
-		goto cleanup;
-	}
-
-	rpubkey->size = size;
-	ret = 0;
-
-      cleanup:
-	gnutls_x509_crt_deinit(crt);
-	gnutls_pubkey_deinit(pubkey);
-
-	return ret;
-}
-
 static int pgp_crt_to_raw_pubkey(const gnutls_datum_t * cert,
 				 gnutls_datum_t * rpubkey)
 {
@@ -489,12 +422,11 @@ static int pgp_crt_to_raw_pubkey(const gnutls_datum_t * cert,
 	}
 
 	rpubkey->data = gnutls_malloc(size);
-	if (rpubkey->data == NULL)
-		if (ret < 0 && ret != GNUTLS_E_SHORT_MEMORY_BUFFER) {
-			ret = GNUTLS_E_MEMORY_ERROR;
-			gnutls_assert();
-			goto cleanup;
-		}
+	if (rpubkey->data == NULL) {
+		ret = GNUTLS_E_MEMORY_ERROR;
+		gnutls_assert();
+		goto cleanup;
+	}
 
 	ret =
 	    gnutls_pubkey_export(pubkey, GNUTLS_X509_FMT_DER,
@@ -624,7 +556,6 @@ gnutls_store_pubkey(const char *db_name,
 		    const gnutls_datum_t * cert,
 		    time_t expiration, unsigned int flags)
 {
-	FILE *fd = NULL;
 	gnutls_datum_t pubkey = { NULL, 0 };
 	int ret;
 	char local_file[MAX_FILENAME];
@@ -655,7 +586,7 @@ gnutls_store_pubkey(const char *db_name,
 		tdb = &default_tdb;
 
 	if (cert_type == GNUTLS_CRT_X509)
-		ret = x509_crt_to_raw_pubkey(cert, &pubkey);
+		ret = x509_raw_crt_to_raw_pubkey(cert, &pubkey);
 	else
 		ret = pgp_crt_to_raw_pubkey(cert, &pubkey);
 	if (ret < 0) {
@@ -671,8 +602,6 @@ gnutls_store_pubkey(const char *db_name,
 
       cleanup:
 	gnutls_free(pubkey.data);
-	if (fd != NULL)
-		fclose(fd);
 
 	return ret;
 }
@@ -712,7 +641,6 @@ gnutls_store_commitment(const char *db_name,
 			const gnutls_datum_t * hash,
 			time_t expiration, unsigned int flags)
 {
-	FILE *fd = NULL;
 	int ret;
 	char local_file[MAX_FILENAME];
 	const mac_entry_st *me = hash_to_entry(hash_algo);
@@ -749,9 +677,6 @@ gnutls_store_commitment(const char *db_name,
 
 	ret = 0;
 
-	if (fd != NULL)
-		fclose(fd);
-
 	return ret;
 }
 
@@ -776,7 +701,7 @@ static int find_config_file(char *file, size_t max_size)
 
 /**
  * gnutls_tdb_init:
- * @tdb: The structure to be initialized
+ * @tdb: A pointer to the type to be initialized
  *
  * This function will initialize a public key trust storage structure.
  *
@@ -801,9 +726,11 @@ int gnutls_tdb_init(gnutls_tdb_t * tdb)
  * This function will associate a storage function with the
  * trust storage structure. The function is of the following form.
  *
- * gnutls_tdb_store_func(const char* db_name, const char* host,
+ * int gnutls_tdb_store_func(const char* db_name, const char* host,
  *                       const char* service, time_t expiration,
  *                       const gnutls_datum_t* pubkey);
+ *
+ * The @db_name should be used to pass any private data to this function.
  *
  **/
 void gnutls_tdb_set_store_func(gnutls_tdb_t tdb,
@@ -820,9 +747,11 @@ void gnutls_tdb_set_store_func(gnutls_tdb_t tdb,
  * This function will associate a commitment (hash) storage function with the
  * trust storage structure. The function is of the following form.
  *
- * gnutls_tdb_store_commitment_func(const char* db_name, const char* host,
+ * int gnutls_tdb_store_commitment_func(const char* db_name, const char* host,
  *                       const char* service, time_t expiration,
  *                       gnutls_digest_algorithm_t, const gnutls_datum_t* hash);
+ *
+ * The @db_name should be used to pass any private data to this function.
  *
  **/
 void gnutls_tdb_set_store_commitment_func(gnutls_tdb_t tdb,
@@ -840,8 +769,13 @@ void gnutls_tdb_set_store_commitment_func(gnutls_tdb_t tdb,
  * This function will associate a retrieval function with the
  * trust storage structure. The function is of the following form.
  *
- * gnutls_tdb_verify_func(const char* db_name, const char* host,
+ * int gnutls_tdb_verify_func(const char* db_name, const char* host,
  *                      const char* service, const gnutls_datum_t* pubkey);
+ *
+ * The verify function should return zero on a match, %GNUTLS_E_CERTIFICATE_KEY_MISMATCH
+ * if there is a mismatch and any other negative error code otherwise.
+ *
+ * The @db_name should be used to pass any private data to this function.
  *
  **/
 void gnutls_tdb_set_verify_func(gnutls_tdb_t tdb,

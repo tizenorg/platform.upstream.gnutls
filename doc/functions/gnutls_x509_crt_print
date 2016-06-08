@@ -3,11 +3,11 @@
 
 
 @deftypefun {int} {gnutls_x509_crt_print} (gnutls_x509_crt_t @var{cert}, gnutls_certificate_print_formats_t @var{format}, gnutls_datum_t * @var{out})
-@var{cert}: The structure to be printed
+@var{cert}: The data to be printed
 
 @var{format}: Indicate the format to use
 
-@var{out}: Newly allocated datum with (0) terminated string.
+@var{out}: Newly allocated datum with null terminated string.
 
 This function will pretty print a X.509 certificate, suitable for
 display to a human.

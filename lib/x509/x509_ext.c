@@ -45,7 +45,7 @@ struct gnutls_subject_alt_names_st {
 
 /**
  * gnutls_subject_alt_names_init:
- * @sans: The alternative names structure
+ * @sans: The alternative names
  *
  * This function will initialize an alternative names structure.
  *
@@ -77,7 +77,7 @@ static void subject_alt_names_deinit(gnutls_subject_alt_names_t sans)
 
 /**
  * gnutls_subject_alt_names_deinit:
- * @sans: The alternative names structure
+ * @sans: The alternative names
  *
  * This function will deinitialize an alternative names structure.
  *
@@ -91,14 +91,14 @@ void gnutls_subject_alt_names_deinit(gnutls_subject_alt_names_t sans)
 
 /**
  * gnutls_subject_alt_names_get:
- * @sans: The alternative names structure
+ * @sans: The alternative names
  * @seq: The index of the name to get
  * @san_type: Will hold the type of the name (of %gnutls_subject_alt_names_t)
  * @san: The alternative name data (should be treated as constant)
  * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME (should be treated as constant)
  *
  * This function will return a specific alternative name as stored in
- * the @sans structure. The returned values should be treated as constant
+ * the @sans type. The returned values should be treated as constant
  * and valid for the lifetime of @sans.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
@@ -163,13 +163,13 @@ int subject_alt_names_set(struct name_st **names,
 
 /**
  * gnutls_subject_alt_names_set:
- * @sans: The alternative names structure
+ * @sans: The alternative names
  * @san_type: The type of the name (of %gnutls_subject_alt_names_t)
  * @san: The alternative name data
  * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME
  *
  * This function will store the specified alternative name in
- * the @sans structure.
+ * the @sans.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0), otherwise a negative error value.
  *
@@ -184,7 +184,7 @@ int gnutls_subject_alt_names_set(gnutls_subject_alt_names_t sans,
 	gnutls_datum_t copy;
 	char *ooc;
 
-	ret = _gnutls_set_datum(&copy, san->data, san->size);
+	ret = _gnutls_set_strdatum(&copy, san->data, san->size);
 	if (ret < 0)
 		return gnutls_assert_val(ret);
 
@@ -205,13 +205,13 @@ int gnutls_subject_alt_names_set(gnutls_subject_alt_names_t sans,
 /**
  * gnutls_x509_ext_import_subject_alt_names:
  * @ext: The DER-encoded extension data
- * @sans: The alternative names structure
+ * @sans: The alternative names
  * @flags: should be zero
  *
  * This function will export the alternative names in the provided DER-encoded
- * SubjectAltName PKIX extension, to a %gnutls_subject_alt_names_t structure. The structure
- * must have been initialized.
- * 
+ * SubjectAltName PKIX extension, to a %gnutls_subject_alt_names_t type. @sans
+ * must be initialized.
+ *
  * This function will succeed even if there no subject alternative names
  * in the structure.
  *
@@ -236,7 +236,7 @@ int gnutls_x509_ext_import_subject_alt_names(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(result);
@@ -291,7 +291,7 @@ int gnutls_x509_ext_import_subject_alt_names(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_subject_alt_names:
- * @sans: The alternative names structure
+ * @sans: The alternative names
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
  * This function will convert the provided alternative names structure to a
@@ -347,18 +347,17 @@ int gnutls_x509_ext_export_subject_alt_names(gnutls_subject_alt_names_t sans,
 /**
  * gnutls_x509_ext_import_name_constraints:
  * @ext: a DER encoded extension
- * @nc: The nameconstraints intermediate structure
+ * @nc: The nameconstraints
  * @flags: zero or %GNUTLS_NAME_CONSTRAINTS_FLAG_APPEND
  *
- * This function will return an intermediate structure containing
+ * This function will return an intermediate type containing
  * the name constraints of the provided NameConstraints extension. That
- * structure can be used in combination with gnutls_x509_name_constraints_check()
+ * can be used in combination with gnutls_x509_name_constraints_check()
  * to verify whether a server's name is in accordance with the constraints.
  *
  * When the @flags is set to %GNUTLS_NAME_CONSTRAINTS_FLAG_APPEND, then if 
- * the @nc structure is empty
- * this function will behave identically as if the flag was not set.
- * Otherwise if there are elements in the @nc structure then only the
+ * the @nc type is empty this function will behave identically as if the flag was not set.
+ * Otherwise if there are elements in the @nc type then only the
  * excluded constraints will be appended to the constraints.
  *
  * Note that @nc must be initialized prior to calling this function.
@@ -382,7 +381,7 @@ int gnutls_x509_ext_import_name_constraints(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(result);
@@ -418,10 +417,10 @@ int gnutls_x509_ext_import_name_constraints(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_name_constraints:
- * @nc: The nameconstraints structure
+ * @nc: The nameconstraints
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
- * This function will convert the provided name constraints structure to a
+ * This function will convert the provided name constraints type to a
  * DER-encoded PKIX NameConstraints (2.5.29.30) extension. The output data in 
  * @ext will be allocated usin gnutls_malloc().
  *
@@ -587,7 +586,7 @@ int gnutls_x509_ext_import_subject_key_id(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(result);
@@ -663,9 +662,9 @@ struct gnutls_x509_aki_st {
 
 /**
  * gnutls_x509_aki_init:
- * @aki: The authority key ID structure
+ * @aki: The authority key ID type
  *
- * This function will initialize an authority key ID structure.
+ * This function will initialize an authority key ID.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -682,9 +681,9 @@ int gnutls_x509_aki_init(gnutls_x509_aki_t * aki)
 
 /**
  * gnutls_x509_aki_deinit:
- * @aki: The authority key identifier structure
+ * @aki: The authority key identifier type
  *
- * This function will deinitialize an authority key identifier structure.
+ * This function will deinitialize an authority key identifier.
  *
  * Since: 3.3.0
  **/
@@ -698,11 +697,11 @@ void gnutls_x509_aki_deinit(gnutls_x509_aki_t aki)
 
 /**
  * gnutls_x509_aki_get_id:
- * @aki: The authority key ID structure
+ * @aki: The authority key ID
  * @id: Will hold the identifier
  *
  * This function will return the key identifier as stored in
- * the @aki structure.
+ * the @aki type. The identifier should be treated as constant.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
  * if the index is out of bounds, otherwise a negative error value.
@@ -720,11 +719,11 @@ int gnutls_x509_aki_get_id(gnutls_x509_aki_t aki, gnutls_datum_t * id)
 
 /**
  * gnutls_x509_aki_set_id:
- * @aki: The authority key ID structure
+ * @aki: The authority key ID
  * @id: the key identifier
  *
  * This function will set the keyIdentifier to be stored in the @aki
- * structure.
+ * type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -737,14 +736,14 @@ int gnutls_x509_aki_set_id(gnutls_x509_aki_t aki, const gnutls_datum_t * id)
 
 /**
  * gnutls_x509_aki_set_cert_issuer:
- * @aki: The authority key ID structure
+ * @aki: The authority key ID
  * @san_type: the type of the name (of %gnutls_subject_alt_names_t), may be null
  * @san: The alternative name data
  * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME
  * @serial: The authorityCertSerialNumber number (may be null)
  *
  * This function will set the authorityCertIssuer name and the authorityCertSerialNumber 
- * to be stored in the @aki structure. When storing multiple names, the serial
+ * to be stored in the @aki type. When storing multiple names, the serial
  * should be set on the first call, and subsequent calls should use a %NULL serial.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
@@ -766,7 +765,7 @@ int gnutls_x509_aki_set_cert_issuer(gnutls_x509_aki_t aki,
 
 	aki->cert_issuer.names[aki->cert_issuer.size].type = san_type;
 
-	ret = _gnutls_set_datum(&t_san, san->data, san->size);
+	ret = _gnutls_set_strdatum(&t_san, san->data, san->size);
 	if (ret < 0)
 		return gnutls_assert_val(ret);
 
@@ -793,15 +792,16 @@ int gnutls_x509_aki_set_cert_issuer(gnutls_x509_aki_t aki,
 
 /**
  * gnutls_x509_aki_get_cert_issuer:
- * @aki: The authority key ID structure
+ * @aki: The authority key ID
  * @seq: The index of the name to get
- * @san_type: Will hold the type of the name (of %gnutls_subject_alt_names_t), may be null
- * @san: The alternative name data (may be null and should be treated as constant)
- * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME (should be treated as constant)
- * @serial: The authorityCertSerialNumber number (may be null)
+ * @san_type: Will hold the type of the name (of %gnutls_subject_alt_names_t)
+ * @san: The alternative name data
+ * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME
+ * @serial: The authorityCertSerialNumber number
  *
  * This function will return a specific authorityCertIssuer name as stored in
- * the @aki structure, as well as the authorityCertSerialNumber.
+ * the @aki type, as well as the authorityCertSerialNumber. All the returned
+ * values should be treated as constant, and may be set to %NULL when are not required.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
  * if the index is out of bounds, otherwise a negative error value.
@@ -810,9 +810,9 @@ int gnutls_x509_aki_set_cert_issuer(gnutls_x509_aki_t aki,
  **/
 int gnutls_x509_aki_get_cert_issuer(gnutls_x509_aki_t aki, unsigned int seq,
 				    unsigned int *san_type,
-				    gnutls_datum_t * san,
-				    gnutls_datum_t * othername_oid,
-				    gnutls_datum_t * serial)
+				    gnutls_datum_t *san,
+				    gnutls_datum_t *othername_oid,
+				    gnutls_datum_t *serial)
 {
 	if (seq >= aki->cert_issuer.size)
 		return gnutls_assert_val(GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE);
@@ -846,7 +846,7 @@ int gnutls_x509_aki_get_cert_issuer(gnutls_x509_aki_t aki, unsigned int seq,
 /**
  * gnutls_x509_ext_import_authority_key_id:
  * @ext: a DER encoded extension
- * @aki: An initialized authority key identifier structure
+ * @aki: An initialized authority key identifier type
  * @flags: should be zero
  *
  * This function will return the subject key ID stored in the provided
@@ -874,7 +874,7 @@ int gnutls_x509_ext_import_authority_key_id(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(ret);
 	}
 
-	ret = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	ret = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (ret != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(ret);
@@ -951,7 +951,7 @@ int gnutls_x509_ext_import_authority_key_id(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_authority_key_id:
- * @aki: An initialized authority key identifier structure
+ * @aki: An initialized authority key identifier
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
  * This function will convert the provided key identifier to a
@@ -1074,7 +1074,7 @@ int gnutls_x509_ext_import_key_usage(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		asn1_delete_structure(&c2);
@@ -1125,6 +1125,8 @@ int gnutls_x509_ext_export_key_usage(unsigned int usage, gnutls_datum_t * ext)
 	str[0] = usage & 0xff;
 	str[1] = usage >> 8;
 
+	/* Since KeyUsage is a BIT STRING, the input to asn1_write_value
+	 * is the number of bits to be read. */
 	result = asn1_write_value(c2, "", str, 9);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
@@ -1174,7 +1176,7 @@ int gnutls_x509_ext_import_private_key_usage_period(const gnutls_datum_t * ext,
 		goto cleanup;
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(result);
@@ -1280,7 +1282,7 @@ int gnutls_x509_ext_import_basic_constraints(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		result = _gnutls_asn2err(result);
@@ -1400,6 +1402,7 @@ int gnutls_x509_ext_export_basic_constraints(unsigned int ca, int pathlen,
  *
  * This function will return the information from a proxy certificate
  * extension. It reads the ProxyCertInfo X.509 extension (1.3.6.1.5.5.7.1.14).
+ * The @policyLanguage and @policy values must be deinitialized using gnutls_free() after use.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
@@ -1421,7 +1424,7 @@ int gnutls_x509_ext_import_proxy(const gnutls_datum_t * ext, int *pathlen,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		result = _gnutls_asn2err(result);
@@ -1467,6 +1470,7 @@ int gnutls_x509_ext_import_proxy(const gnutls_datum_t * ext, int *pathlen,
 	} else {
 		if (policy) {
 			*policy = (char *)value.data;
+			value.data = NULL;
 		}
 		if (sizeof_policy)
 			*sizeof_policy = value.size;
@@ -1577,7 +1581,7 @@ static int decode_user_notice(const void *data, size_t size,
 		goto cleanup;
 	}
 
-	ret = asn1_der_decoding(&c2, data, size, NULL);
+	ret = _asn1_strict_der_decode(&c2, data, size, NULL);
 	if (ret != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = GNUTLS_E_PARSING_ERROR;
@@ -1610,7 +1614,7 @@ static int decode_user_notice(const void *data, size_t size,
 	}
 
 	if (strcmp(choice_type, "bmpString") == 0) {	/* convert to UTF-8 */
-		ret = _gnutls_ucs2_to_utf8(td.data, td.size, &utd);
+		ret = _gnutls_ucs2_to_utf8(td.data, td.size, &utd, 1);
 		_gnutls_free_datum(&td);
 		if (ret < 0) {
 			gnutls_assert();
@@ -1641,9 +1645,9 @@ struct gnutls_x509_policies_st {
 
 /**
  * gnutls_x509_policies_init:
- * @policies: The authority key ID structure
+ * @policies: The authority key ID
  *
- * This function will initialize an authority key ID structure.
+ * This function will initialize an authority key ID type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -1660,9 +1664,9 @@ int gnutls_x509_policies_init(gnutls_x509_policies_t * policies)
 
 /**
  * gnutls_x509_policies_deinit:
- * @policies: The authority key identifier structure
+ * @policies: The authority key identifier
  *
- * This function will deinitialize an authority key identifier structure.
+ * This function will deinitialize an authority key identifier type.
  *
  * Since: 3.3.0
  **/
@@ -1677,12 +1681,12 @@ void gnutls_x509_policies_deinit(gnutls_x509_policies_t policies)
 
 /**
  * gnutls_x509_policies_get:
- * @policies: The policies structure
+ * @policies: The policies
  * @seq: The index of the name to get
  * @policy: Will hold the policy
  *
  * This function will return a specific policy as stored in
- * the @policies structure. The returned values should be treated as constant
+ * the @policies type. The returned values should be treated as constant
  * and valid for the lifetime of @policies.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
@@ -1716,12 +1720,12 @@ void _gnutls_x509_policies_erase(gnutls_x509_policies_t policies,
 
 /**
  * gnutls_x509_policies_set:
- * @policies: An initialized policies structure
+ * @policies: An initialized policies
  * @seq: The index of the name to get
  * @policy: Contains the policy to set
  *
  * This function will store the specified policy in
- * the provided @policies structure.
+ * the provided @policies.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0), otherwise a negative error value.
  *
@@ -1764,11 +1768,11 @@ int gnutls_x509_policies_set(gnutls_x509_policies_t policies,
 /**
  * gnutls_x509_ext_import_policies:
  * @ext: the DER encoded extension data
- * @policies: A pointer to an initialized policies structures.
+ * @policies: A pointer to an initialized policies.
  * @flags: should be zero
  *
  * This function will extract the certificate policy extension (2.5.29.32) 
- * and store it the provided structure.
+ * and store it the provided policies.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -1793,7 +1797,7 @@ int gnutls_x509_ext_import_policies(const gnutls_datum_t * ext,
 		goto cleanup;
 	}
 
-	ret = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	ret = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (ret != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(ret);
@@ -1850,7 +1854,7 @@ int gnutls_x509_ext_import_policies(const gnutls_datum_t * ext,
 
 				ret =
 				    _gnutls_x509_read_string(c2, tmpstr, &td,
-							     ASN1_ETYPE_IA5_STRING);
+							     ASN1_ETYPE_IA5_STRING, 0);
 				if (ret < 0) {
 					gnutls_assert();
 					goto full_cleanup;
@@ -1970,7 +1974,7 @@ static int encode_user_notice(const gnutls_datum_t * txt,
 
 /**
  * gnutls_x509_ext_export_policies:
- * @policies: A pointer to an initialized policies structure.
+ * @policies: A pointer to an initialized policies.
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
  * This function will convert the provided policies, to a certificate policy
@@ -2128,9 +2132,9 @@ struct gnutls_x509_crl_dist_points_st {
 
 /**
  * gnutls_x509_crl_dist_points_init:
- * @cdp: The CRL distribution points structure
+ * @cdp: The CRL distribution points
  *
- * This function will initialize a CRL distribution points structure.
+ * This function will initialize a CRL distribution points type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -2147,9 +2151,9 @@ int gnutls_x509_crl_dist_points_init(gnutls_x509_crl_dist_points_t * cdp)
 
 /**
  * gnutls_x509_crl_dist_points_deinit:
- * @cdp: The CRL distribution points structure
+ * @cdp: The CRL distribution points
  *
- * This function will deinitialize a CRL distribution points structure.
+ * This function will deinitialize a CRL distribution points type.
  *
  * Since: 3.3.0
  **/
@@ -2166,14 +2170,14 @@ void gnutls_x509_crl_dist_points_deinit(gnutls_x509_crl_dist_points_t cdp)
 
 /**
  * gnutls_x509_crl_dist_points_get:
- * @cdp: The CRL distribution points structure
+ * @cdp: The CRL distribution points
  * @seq: specifies the sequence number of the distribution point (0 for the first one, 1 for the second etc.)
  * @type: The name type of the corresponding name (gnutls_x509_subject_alt_name_t)
  * @san: The distribution point names (to be treated as constant)
  * @reasons: Revocation reasons. An ORed sequence of flags from %gnutls_x509_crl_reason_flags_t.
  *
  * This function retrieves the individual CRL distribution points (2.5.29.31),
- * contained in provided structure. 
+ * contained in provided type. 
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
  * if the index is out of bounds, otherwise a negative error value.
@@ -2228,13 +2232,13 @@ int crl_dist_points_set(gnutls_x509_crl_dist_points_t cdp,
 
 /**
  * gnutls_x509_crl_dist_points_set:
- * @cdp: The CRL distribution points structure
+ * @cdp: The CRL distribution points
  * @type: The type of the name (of %gnutls_subject_alt_names_t)
  * @san: The point name data
  * @reasons: Revocation reasons. An ORed sequence of flags from %gnutls_x509_crl_reason_flags_t.
  *
- * This function will store the specified CRL distibution point value
- * the @cdp structure.
+ * This function will store the specified CRL distribution point value
+ * the @cdp type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0), otherwise a negative error value.
  *
@@ -2264,11 +2268,11 @@ int gnutls_x509_crl_dist_points_set(gnutls_x509_crl_dist_points_t cdp,
 /**
  * gnutls_x509_ext_import_crl_dist_points:
  * @ext: the DER encoded extension data
- * @cdp: A pointer to an initialized CRL distribution points structure.
+ * @cdp: A pointer to an initialized CRL distribution points.
  * @flags: should be zero
  *
  * This function will extract the CRL distribution points extension (2.5.29.31) 
- * and store it into the provided structure.
+ * and store it into the provided type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -2284,7 +2288,7 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 	int len, ret;
 	uint8_t reasons[2];
 	unsigned i, type, rflags, j;
-	gnutls_datum_t san;
+	gnutls_datum_t san = {NULL, 0};
 
 	result = asn1_create_element
 	    (_gnutls_get_pkix(), "PKIX1.CRLDistributionPoints", &c2);
@@ -2293,7 +2297,7 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
@@ -2307,9 +2311,6 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 
 	i = 0;
 	do {
-		san.data = NULL;
-		san.size = 0;
-
 		snprintf(name, sizeof(name), "?%u.reasons", (unsigned)i + 1);
 
 		len = sizeof(reasons);
@@ -2334,6 +2335,9 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 
 		j = 0;
 		do {
+			san.data = NULL;
+			san.size = 0;
+
 			ret =
 			    _gnutls_parse_general_name2(c2, name, j, &san,
 							&type, 0);
@@ -2348,6 +2352,7 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 			ret = crl_dist_points_set(cdp, type, &san, rflags);
 			if (ret < 0)
 				break;
+			san.data = NULL; /* it is now in cdp */
 
 			j++;
 		} while (ret >= 0);
@@ -2369,7 +2374,7 @@ int gnutls_x509_ext_import_crl_dist_points(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_crl_dist_points:
- * @cdp: A pointer to an initialized CRL distribution points structure.
+ * @cdp: A pointer to an initialized CRL distribution points.
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
  * This function will convert the provided policies, to a certificate policy
@@ -2485,9 +2490,9 @@ struct gnutls_x509_aia_st {
 
 /**
  * gnutls_x509_aia_init:
- * @aia: The authority info access structure
+ * @aia: The authority info access
  *
- * This function will initialize a CRL distribution points structure.
+ * This function will initialize an authority info access type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -2504,9 +2509,9 @@ int gnutls_x509_aia_init(gnutls_x509_aia_t * aia)
 
 /**
  * gnutls_x509_aia_deinit:
- * @aia: The authority info access structure
+ * @aia: The authority info access
  *
- * This function will deinitialize a CRL distribution points structure.
+ * This function will deinitialize an authority info access type.
  *
  * Since: 3.3.0
  **/
@@ -2524,13 +2529,13 @@ void gnutls_x509_aia_deinit(gnutls_x509_aia_t aia)
 
 /**
  * gnutls_x509_aia_get:
- * @aia: The authority info access structure
+ * @aia: The authority info access
  * @seq: specifies the sequence number of the access descriptor (0 for the first one, 1 for the second etc.)
  * @oid: the type of available data; to be treated as constant.
  * @san_type: Will hold the type of the name of %gnutls_subject_alt_names_t (may be null).
  * @san: the access location name; to be treated as constant (may be null).
  *
- * This function reads from the Authority Information Access structure.
+ * This function reads from the Authority Information Access type.
  *
  * The @seq input parameter is used to indicate which member of the
  * sequence the caller is interested in.  The first member is 0, the
@@ -2568,14 +2573,14 @@ int gnutls_x509_aia_get(gnutls_x509_aia_t aia, unsigned int seq,
 
 /**
  * gnutls_x509_aia_set:
- * @aia: The authority info access structure
+ * @aia: The authority info access
  * @oid: the type of data.
  * @san_type: The type of the name (of %gnutls_subject_alt_names_t)
  * @san: The alternative name data
  * @othername_oid: The object identifier if @san_type is %GNUTLS_SAN_OTHERNAME
  *
  * This function will store the specified alternative name in
- * the @aia structure. 
+ * the @aia type. 
  *
  * Typically the value for @oid should be %GNUTLS_OID_AD_OCSP, or
  * %GNUTLS_OID_AD_CAISSUERS.
@@ -2675,7 +2680,7 @@ static int parse_aia(ASN1_TYPE c2, gnutls_x509_aia_t aia)
 /**
  * gnutls_x509_ext_import_aia:
  * @ext: The DER-encoded extension data
- * @aia: The authority info access structure
+ * @aia: The authority info access
  * @flags: should be zero
  *
  * This function extracts the Authority Information Access (AIA)
@@ -2706,7 +2711,7 @@ int gnutls_x509_ext_import_aia(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(ret);
 	}
 
-	ret = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	ret = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (ret != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(ret);
@@ -2727,7 +2732,7 @@ int gnutls_x509_ext_import_aia(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_aia:
- * @aia: The authority info access structure
+ * @aia: The authority info access
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
  * This function will DER encode the Authority Information Access (AIA)
@@ -2804,9 +2809,9 @@ struct gnutls_x509_key_purposes_st {
 
 /**
  * gnutls_subject_alt_names_init:
- * @p: The key purposes structure
+ * @p: The key purposes
  *
- * This function will initialize an alternative names structure.
+ * This function will initialize an alternative names type.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -2834,9 +2839,9 @@ static void key_purposes_deinit(gnutls_x509_key_purposes_t p)
 
 /**
  * gnutls_x509_key_purpose_deinit:
- * @p: The key purposes structure
+ * @p: The key purposes
  *
- * This function will deinitialize an alternative names structure.
+ * This function will deinitialize a key purposes type.
  *
  * Since: 3.3.0
  **/
@@ -2848,11 +2853,11 @@ void gnutls_x509_key_purpose_deinit(gnutls_x509_key_purposes_t p)
 
 /**
  * gnutls_x509_key_purpose_set:
- * @p: The key purposes structure
+ * @p: The key purposes
  * @oid: The object identifier of the key purpose
  *
  * This function will store the specified key purpose in the
- * purposes structure.
+ * purposes.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0), otherwise a negative error value.
  *
@@ -2875,12 +2880,12 @@ int gnutls_x509_key_purpose_set(gnutls_x509_key_purposes_t p, const char *oid)
 
 /**
  * gnutls_x509_key_purpose_get:
- * @p: The key purposes structure
+ * @p: The key purposes
  * @idx: The index of the key purpose to retrieve
  * @oid: Will hold the object identifier of the key purpose (to be treated as constant)
  *
  * This function will retrieve the specified by the index key purpose in the
- * purposes structure.
+ * purposes type. The object identifier will be a null terminated string.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE
  * if the index is out of bounds, otherwise a negative error value.
@@ -2901,12 +2906,12 @@ int gnutls_x509_key_purpose_get(gnutls_x509_key_purposes_t p, unsigned idx, gnut
 /**
  * gnutls_x509_ext_import_key_purposes:
  * @ext: The DER-encoded extension data
- * @p: The key purposes structure
+ * @p: The key purposes
  * @flags: should be zero
  *
  * This function will extract the key purposes in the provided DER-encoded
- * ExtKeyUsageSyntax PKIX extension, to a %gnutls_x509_key_purposes_t structure. 
- * The structure must be initialized.
+ * ExtKeyUsageSyntax PKIX extension, to a %gnutls_x509_key_purposes_t type. 
+ * The data must be initialized.
  * 
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
  *
@@ -2929,7 +2934,7 @@ int gnutls_x509_ext_import_key_purposes(const gnutls_datum_t * ext,
 		return _gnutls_asn2err(result);
 	}
 
-	result = asn1_der_decoding(&c2, ext->data, ext->size, NULL);
+	result = _asn1_strict_der_decode(&c2, ext->data, ext->size, NULL);
 	if (result != ASN1_SUCCESS) {
 		gnutls_assert();
 		ret = _gnutls_asn2err(result);
@@ -2975,10 +2980,10 @@ int gnutls_x509_ext_import_key_purposes(const gnutls_datum_t * ext,
 
 /**
  * gnutls_x509_ext_export_key_purposes:
- * @p: The key purposes structure
+ * @p: The key purposes
  * @ext: The DER-encoded extension data; must be freed using gnutls_free().
  *
- * This function will convert the key purposes structure to a
+ * This function will convert the key purposes type to a
  * DER-encoded PKIX ExtKeyUsageSyntax (2.5.29.37) extension. The output data in 
  * @ext will be allocated usin gnutls_malloc().
  *
@@ -3033,4 +3038,131 @@ int gnutls_x509_ext_export_key_purposes(gnutls_x509_key_purposes_t p,
  cleanup:
 	asn1_delete_structure(&c2);
 	return ret;
+}
+
+/**
+ * gnutls_ext_deinit:
+ * @ext: The extensions structure
+ *
+ * This function will deinitialize an extensions structure.
+ *
+ * Since: 3.3.8
+ **/
+void gnutls_x509_ext_deinit(gnutls_x509_ext_st *ext)
+{
+	gnutls_free(ext->oid);
+	gnutls_free(ext->data.data);
+}
+
+int _gnutls_x509_decode_ext(const gnutls_datum_t *der, gnutls_x509_ext_st *out)
+{
+	ASN1_TYPE c2 = ASN1_TYPE_EMPTY;
+	char str_critical[10];
+	char oid[MAX_OID_SIZE];
+	int result, len, ret;
+
+	memset(out, 0, sizeof(*out));
+
+	/* decode der */
+	result = asn1_create_element(_gnutls_get_pkix(), "PKIX1.Extension", &c2);
+	if (result != ASN1_SUCCESS) {
+		gnutls_assert();
+		return _gnutls_asn2err(result);
+	}
+
+	result = _asn1_strict_der_decode(&c2, der->data, der->size, NULL);
+	if (result != ASN1_SUCCESS) {
+		gnutls_assert();
+		ret = _gnutls_asn2err(result);
+		goto cleanup;
+	}
+
+	len = sizeof(oid)-1;
+	result = asn1_read_value(c2, "extnID", oid, &len);
+	if (result != ASN1_SUCCESS) {
+		gnutls_assert();
+		ret = _gnutls_asn2err(result);
+		goto cleanup;
+	}
+
+	len = sizeof(str_critical)-1;
+	result = asn1_read_value(c2, "critical", str_critical, &len);
+	if (result != ASN1_SUCCESS) {
+		gnutls_assert();
+		ret = _gnutls_asn2err(result);
+		goto cleanup;
+	}
+
+	if (str_critical[0] == 'T')
+		out->critical = 1;
+	else
+		out->critical = 0;
+
+	ret = _gnutls_x509_read_value(c2, "extnValue", &out->data);
+	if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE || ret == GNUTLS_E_ASN1_ELEMENT_NOT_FOUND) {
+		out->data.data = NULL;
+		out->data.size = 0;
+	} else if (ret < 0) {
+		gnutls_assert();
+		goto fail;
+	}
+
+	out->oid = gnutls_strdup(oid);
+	if (out->oid == NULL) {
+		ret = GNUTLS_E_MEMORY_ERROR;
+		goto fail;
+	}
+
+	ret = 0;
+	goto cleanup;
+ fail:
+ 	memset(out, 0, sizeof(*out));
+ cleanup:
+	asn1_delete_structure(&c2);
+	return ret;
+	
+}
+
+/**
+ * gnutls_x509_othername_to_virtual:
+ * @oid: The othername object identifier
+ * @othername: The othername data
+ * @virt_type: GNUTLS_SAN_OTHERNAME_XXX
+ * @virt: allocated printable data
+ *
+ * This function will parse and convert the othername data to a virtual
+ * type supported by gnutls.
+ *
+ * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a negative error value.
+ *
+ * Since: 3.3.8
+ **/
+int gnutls_x509_othername_to_virtual(const char *oid, 
+				     const gnutls_datum_t *othername,
+				     unsigned int *virt_type,
+				     gnutls_datum_t *virt)
+{
+	int ret;
+	unsigned type;
+
+	type = _san_othername_to_virtual(oid, strlen(oid));
+	if (type == GNUTLS_SAN_OTHERNAME)
+		return gnutls_assert_val(GNUTLS_E_X509_UNKNOWN_SAN);
+
+	if (virt_type)
+		*virt_type = type;
+
+	switch(type) {
+		case GNUTLS_SAN_OTHERNAME_XMPP:
+			ret = _gnutls_x509_decode_string
+				    (ASN1_ETYPE_UTF8_STRING, othername->data,
+				     othername->size, virt, 0);
+			if (ret < 0) {
+				gnutls_assert();
+				return ret;
+			}
+			return 0;
+		default:
+			return gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
+	}
 }

@@ -3,11 +3,11 @@
 
 
 @deftypefun {int} {gnutls_record_uncork} (gnutls_session_t @var{session}, unsigned int @var{flags})
-@var{session}: is a @code{gnutls_session_t}  structure.
+@var{session}: is a @code{gnutls_session_t}  type.
 
 @var{flags}: Could be zero or @code{GNUTLS_RECORD_WAIT} 
 
-This resets the effect of @code{gnutls_cork()} , and flushes any pending
+This resets the effect of @code{gnutls_record_cork()} , and flushes any pending
 data. If the @code{GNUTLS_RECORD_WAIT}  flag is specified then this
 function will block until the data is sent or a fatal error
 occurs (i.e., the function will retry on @code{GNUTLS_E_AGAIN}  and

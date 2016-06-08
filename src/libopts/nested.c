@@ -12,7 +12,7 @@
  *
  *  This file is part of AutoOpts, a companion to AutoGen.
  *  AutoOpts is free software.
- *  AutoOpts is Copyright (C) 1992-2013 by Bruce Korb - all rights reserved
+ *  AutoOpts is Copyright (C) 1992-2015 by Bruce Korb - all rights reserved
  *
  *  AutoOpts is available under any one of two licenses.  The license
  *  in use must be one of these two and the choice is under the control
@@ -53,27 +53,27 @@ static xml_xlate_t const xml_xlate[] = {
 static void
 remove_continuation(char * src);
 
-static char const*
-scan_q_str(char const* pzTxt);
+static char const *
+scan_q_str(char const * pzTxt);
 
 static tOptionValue *
 add_string(void ** pp, char const * name, size_t nm_len,
-           char const* pzValue, size_t dataLen);
+           char const * val, size_t d_len);
 
 static tOptionValue *
 add_bool(void ** pp, char const * name, size_t nm_len,
          char const * val, size_t d_len);
 
-static tOptionValue*
-add_number(void** pp, char const* pzName, size_t nm_len,
-           char const* val, size_t d_len);
+static tOptionValue *
+add_number(void ** pp, char const * name, size_t nm_len,
+           char const * val, size_t d_len);
 
-static tOptionValue*
-add_nested(void** pp, char const* pzName, size_t nm_len,
-           char* val, size_t d_len);
+static tOptionValue *
+add_nested(void ** pp, char const * name, size_t nm_len,
+           char * val, size_t d_len);
 
 static char const *
-scan_name(char const* pzName, tOptionValue* pRes);
+scan_name(char const * name, tOptionValue * res);
 
 static char const *
 unnamed_xml(char const * txt);
@@ -98,7 +98,7 @@ sort_list(tArgList * arg_list);
 static void
 remove_continuation(char * src)
 {
-    char* pzD;
+    char * pzD;
 
     do  {
         while (*src == NL)  src++;
@@ -133,8 +133,8 @@ remove_continuation(char * src)
 /**
  *  Find the end of a quoted string, skipping escaped quote characters.
  */
-static char const*
-scan_q_str(char const* pzTxt)
+static char const *
+scan_q_str(char const * pzTxt)
 {
     char q = *(pzTxt++); /* remember the type of quote */
 
@@ -169,28 +169,34 @@ scan_q_str(char const* pzTxt)
 
 /**
  *  Associate a name with either a string or no value.
+ *
+ * @param[in,out] pp        argument list to add to
+ * @param[in]     name      the name of the "suboption"
+ * @param[in]     nm_len    the length of the name
+ * @param[in]     val       the string value for the suboption
+ * @param[in]     d_len     the length of the value
+ *
+ * @returns the new value structure
  */
 static tOptionValue *
 add_string(void ** pp, char const * name, size_t nm_len,
-           char const* pzValue, size_t dataLen)
+           char const * val, size_t d_len)
 {
-    tOptionValue* pNV;
-    size_t sz = nm_len + dataLen + sizeof(*pNV);
+    tOptionValue * pNV;
+    size_t sz = nm_len + d_len + sizeof(*pNV);
 
     pNV = AGALOC(sz, "option name/str value pair");
-    if (pNV == NULL)
-        return NULL;
 
-    if (pzValue == NULL) {
+    if (val == NULL) {
         pNV->valType = OPARG_TYPE_NONE;
         pNV->pzName = pNV->v.strVal;
 
     } else {
         pNV->valType = OPARG_TYPE_STRING;
-        if (dataLen > 0) {
-            char const * src = pzValue;
+        if (d_len > 0) {
+            char const * src = val;
             char * pzDst = pNV->v.strVal;
-            int    ct    = (int)dataLen;
+            int    ct    = (int)d_len;
             do  {
                 int ch = *(src++) & 0xFF;
                 if (ch == NUL) goto data_copy_done;
@@ -205,7 +211,7 @@ add_string(void ** pp, char const * name, size_t nm_len,
             pNV->v.strVal[0] = NUL;
         }
 
-        pNV->pzName = pNV->v.strVal + dataLen + 1;
+        pNV->pzName = pNV->v.strVal + d_len + 1;
     }
 
     memcpy(pNV->pzName, name, nm_len);
@@ -215,23 +221,28 @@ add_string(void ** pp, char const * name, size_t nm_len,
 }
 
 /**
- *  Associate a name with either a string or no value.
+ *  Associate a name with a boolean value
+ *
+ * @param[in,out] pp        argument list to add to
+ * @param[in]     name      the name of the "suboption"
+ * @param[in]     nm_len    the length of the name
+ * @param[in]     val       the boolean value for the suboption
+ * @param[in]     d_len     the length of the value
+ *
+ * @returns the new value structure
  */
 static tOptionValue *
 add_bool(void ** pp, char const * name, size_t nm_len,
          char const * val, size_t d_len)
 {
-    tOptionValue * new_val;
+    size_t sz = nm_len + sizeof(tOptionValue) + 1;
+    tOptionValue * new_val = AGALOC(sz, "bool val");
 
-    {
-        size_t sz = nm_len + sizeof(tOptionValue) + 1;
-        new_val = AGALOC(sz, "name/bool value");
-    }
-
-    {
-        char * p = SPN_WHITESPACE_CHARS(val);
-        d_len -= (unsigned long)(p - val);
-        val  = p;
+    /*
+     * Scan over whitespace is constrained by "d_len"
+     */
+    while (IS_WHITESPACE_CHAR(*val) && (d_len > 0)) {
+        d_len--; val++;
     }
 
     if (d_len == 0)
@@ -243,7 +254,7 @@ add_bool(void ** pp, char const * name, size_t nm_len,
     else new_val->v.boolVal = ! IS_FALSE_TYPE_CHAR(*val);
 
     new_val->valType = OPARG_TYPE_BOOLEAN;
-    new_val->pzName = (char*)(new_val + 1);
+    new_val->pzName = (char *)(new_val + 1);
     memcpy(new_val->pzName, name, nm_len);
     new_val->pzName[ nm_len ] = NUL;
     addArgListEntry(pp, new_val);
@@ -251,18 +262,26 @@ add_bool(void ** pp, char const * name, size_t nm_len,
 }
 
 /**
- *  Associate a name with either a string or no value.
+ *  Associate a name with strtol() value, defaulting to zero.
+ *
+ * @param[in,out] pp        argument list to add to
+ * @param[in]     name      the name of the "suboption"
+ * @param[in]     nm_len    the length of the name
+ * @param[in]     val       the numeric value for the suboption
+ * @param[in]     d_len     the length of the value
+ *
+ * @returns the new value structure
  */
-static tOptionValue*
-add_number(void** pp, char const* pzName, size_t nm_len,
-           char const* val, size_t d_len)
+static tOptionValue *
+add_number(void ** pp, char const * name, size_t nm_len,
+           char const * val, size_t d_len)
 {
-    tOptionValue* new_val;
-    size_t sz = nm_len + sizeof(*new_val) + 1;
+    size_t sz = nm_len + sizeof(tOptionValue) + 1;
+    tOptionValue * new_val = AGALOC(sz, "int val");
 
-    new_val = AGALOC(sz, "bool val");
-    if (new_val == NULL)
-        return NULL;
+    /*
+     * Scan over whitespace is constrained by "d_len"
+     */
     while (IS_WHITESPACE_CHAR(*val) && (d_len > 0)) {
         d_len--; val++;
     }
@@ -272,35 +291,41 @@ add_number(void** pp, char const* pzName, size_t nm_len,
         new_val->v.longVal = strtol(val, 0, 0);
 
     new_val->valType = OPARG_TYPE_NUMERIC;
-    new_val->pzName  = (char*)(new_val + 1);
-    memcpy(new_val->pzName, pzName, nm_len);
+    new_val->pzName  = (char *)(new_val + 1);
+    memcpy(new_val->pzName, name, nm_len);
     new_val->pzName[ nm_len ] = NUL;
     addArgListEntry(pp, new_val);
     return new_val;
 }
 
 /**
- *  Associate a name with either a string or no value.
+ *  Associate a name with a nested/hierarchical value.
+ *
+ * @param[in,out] pp        argument list to add to
+ * @param[in]     name      the name of the "suboption"
+ * @param[in]     nm_len    the length of the name
+ * @param[in]     val       the nested values for the suboption
+ * @param[in]     d_len     the length of the value
+ *
+ * @returns the new value structure
  */
-static tOptionValue*
-add_nested(void** pp, char const* pzName, size_t nm_len,
-           char* val, size_t d_len)
+static tOptionValue *
+add_nested(void ** pp, char const * name, size_t nm_len,
+           char * val, size_t d_len)
 {
-    tOptionValue* new_val;
+    tOptionValue * new_val;
 
     if (d_len == 0) {
         size_t sz = nm_len + sizeof(*new_val) + 1;
         new_val = AGALOC(sz, "empty nest");
-        if (new_val == NULL)
-            return NULL;
         new_val->v.nestVal = NULL;
         new_val->valType = OPARG_TYPE_HIERARCHY;
-        new_val->pzName = (char*)(new_val + 1);
-        memcpy(new_val->pzName, pzName, nm_len);
+        new_val->pzName = (char *)(new_val + 1);
+        memcpy(new_val->pzName, name, nm_len);
         new_val->pzName[ nm_len ] = NUL;
 
     } else {
-        new_val = optionLoadNested(val, pzName, nm_len);
+        new_val = optionLoadNested(val, name, nm_len);
     }
 
     if (new_val != NULL)
@@ -314,22 +339,22 @@ add_nested(void** pp, char const* pzName, size_t nm_len,
  *  (if called for) and create the name/value association.
  */
 static char const *
-scan_name(char const* pzName, tOptionValue* pRes)
+scan_name(char const * name, tOptionValue * res)
 {
-    tOptionValue* new_val;
-    char const * pzScan = pzName+1; /* we know first char is a name char */
-    char const * pzVal;
-    size_t       nm_len = 1;
-    size_t       d_len = 0;
+    tOptionValue * new_val;
+    char const *   pzScan = name+1; /* we know first char is a name char */
+    char const *   pzVal;
+    size_t         nm_len = 1;
+    size_t         d_len = 0;
 
     /*
      *  Scan over characters that name a value.  These names may not end
      *  with a colon, but they may contain colons.
      */
-    pzScan = SPN_VALUE_NAME_CHARS(pzName + 1);
+    pzScan = SPN_VALUE_NAME_CHARS(name + 1);
     if (pzScan[-1] == ':')
         pzScan--;
-    nm_len = (size_t)(pzScan - pzName);
+    nm_len = (size_t)(pzScan - name);
 
     pzScan = SPN_HORIZ_WHITE_CHARS(pzScan);
 
@@ -349,7 +374,7 @@ scan_name(char const* pzName, tOptionValue* pRes)
         /* FALLTHROUGH */
 
     case NUL:
-        add_string(&(pRes->v.nestVal), pzName, nm_len, NULL, (size_t)0);
+        add_string(&(res->v.nestVal), name, nm_len, NULL, (size_t)0);
         break;
 
     case '"':
@@ -357,7 +382,7 @@ scan_name(char const* pzName, tOptionValue* pRes)
         pzVal = pzScan;
         pzScan = scan_q_str(pzScan);
         d_len = (size_t)(pzScan - pzVal);
-        new_val = add_string(&(pRes->v.nestVal), pzName, nm_len, pzVal,
+        new_val = add_string(&(res->v.nestVal), name, nm_len, pzVal,
                          d_len);
         if ((new_val != NULL) && (option_load_mode == OPTION_LOAD_COOKED))
             ao_string_cook(new_val->v.strVal, NULL);
@@ -389,7 +414,7 @@ scan_name(char const* pzName, tOptionValue* pRes)
             case ',':
                 d_len = (size_t)(pzScan - pzVal) - 1;
             string_done:
-                new_val = add_string(&(pRes->v.nestVal), pzName, nm_len,
+                new_val = add_string(&(res->v.nestVal), name, nm_len,
                                      pzVal, d_len);
                 if (new_val != NULL)
                     remove_continuation(new_val->v.strVal);
@@ -585,8 +610,6 @@ scan_xml(char const * xml_name, tOptionValue * res_val)
     case OPARG_TYPE_HIERARCHY:
     {
         char * pz = AGALOC(v_len+1, "h scan");
-        if (pz == NULL)
-            break;
         memcpy(pz, val_str, v_len);
         pz[v_len] = NUL;
         add_nested(&(res_val->v.nestVal), xml_name, nm_len, pz, v_len);
@@ -622,13 +645,13 @@ unload_arg_list(tArgList * arg_list)
     char const ** pnew_val = arg_list->apzArgs;
 
     while (ct-- > 0) {
-        tOptionValue* new_val = (tOptionValue*)(void*)*(pnew_val++);
+        tOptionValue * new_val = (tOptionValue *)VOIDP(*(pnew_val++));
         if (new_val->valType == OPARG_TYPE_HIERARCHY)
             unload_arg_list(new_val->v.nestVal);
         AGFREE(new_val);
     }
 
-    AGFREE((void*)arg_list);
+    AGFREE(arg_list);
 }
 
 /*=export_func  optionUnloadNested
@@ -652,7 +675,7 @@ optionUnloadNested(tOptionValue const * opt_val)
 
     unload_arg_list(opt_val->v.nestVal);
 
-    AGFREE((void*)opt_val);
+    AGFREE(opt_val);
 }
 
 /**
@@ -680,8 +703,8 @@ sort_list(tArgList * arg_list)
          *  "-1" entry.
          */
         while (strcmp(old_v->pzName, new_v->pzName) > 0) {
-            arg_list->apzArgs[iy+1] = (void*)old_v;
-            old_v = (tOptionValue*)(void*)(arg_list->apzArgs[--iy]);
+            arg_list->apzArgs[iy+1] = VOIDP(old_v);
+            old_v = (tOptionValue *)VOIDP(arg_list->apzArgs[--iy]);
             if (iy < 0)
                 break;
         }
@@ -690,7 +713,7 @@ sort_list(tArgList * arg_list)
          *  Always store the pointer.  Sometimes it is redundant,
          *  but the redundancy is cheaper than a test and branch sequence.
          */
-        arg_list->apzArgs[iy+1] = (void*)new_v;
+        arg_list->apzArgs[iy+1] = VOIDP(new_v);
     }
 }
 
@@ -702,7 +725,7 @@ sort_list(tArgList * arg_list)
  * arg:   + char const * + pzName + the name for the text +
  * arg:   + size_t       + nm_len + the length of "name"  +
  *
- * ret_type:  tOptionValue*
+ * ret_type:  tOptionValue *
  * ret_desc:  An allocated, compound value structure
  *
  * doc:
@@ -723,7 +746,7 @@ sort_list(tArgList * arg_list)
 LOCAL tOptionValue *
 optionLoadNested(char const * text, char const * name, size_t nm_len)
 {
-    tOptionValue* res_val;
+    tOptionValue * res_val;
 
     /*
      *  Make sure we have some data and we have space to put what we find.
@@ -739,7 +762,7 @@ optionLoadNested(char const * text, char const * name, size_t nm_len)
     }
     res_val = AGALOC(sizeof(*res_val) + nm_len + 1, "nest args");
     res_val->valType = OPARG_TYPE_HIERARCHY;
-    res_val->pzName  = (char*)(res_val + 1);
+    res_val->pzName  = (char *)(res_val + 1);
     memcpy(res_val->pzName, name, nm_len);
     res_val->pzName[nm_len] = NUL;
 
@@ -791,8 +814,8 @@ optionLoadNested(char const * text, char const * name, size_t nm_len)
  * private:
  *
  * what:  parse a hierarchical option argument
- * arg:   + tOptions* + opts + program options descriptor +
- * arg:   + tOptDesc* + od   + the descriptor for this arg +
+ * arg:   + tOptions * + opts + program options descriptor +
+ * arg:   + tOptDesc * + od   + the descriptor for this arg +
  *
  * doc:
  *  Nested value was found on the command line
@@ -814,7 +837,7 @@ optionNestedVal(tOptions * opts, tOptDesc * od)
         av = arg_list->apzArgs;
 
         while (--ct >= 0) {
-            void * p = (void *)*(av++);
+            void * p = VOIDP(*(av++));
             optionUnloadNested((tOptionValue const *)p);
         }
 
@@ -825,7 +848,7 @@ optionNestedVal(tOptions * opts, tOptDesc * od)
             od->optArg.argString, od->pz_Name, strlen(od->pz_Name));
 
         if (opt_val != NULL)
-            addArgListEntry(&(od->optCookie), (void*)opt_val);
+            addArgListEntry(&(od->optCookie), VOIDP(opt_val));
     }
 }
 

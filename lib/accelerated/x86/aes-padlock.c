@@ -94,7 +94,7 @@ padlock_aes_cipher_setkey(void *_ctx, const void *userkey, size_t keysize)
 			aes_set_decrypt_key(&nc, keysize, userkey);
 
 		memcpy(pce->ks.rd_key, nc.keys, sizeof(nc.keys));
-		pce->ks.rounds = nc.nrounds;
+		pce->ks.rounds = nc.rounds;
 
 		pce->cword.b.keygen = 1;
 		break;
@@ -115,6 +115,9 @@ static int aes_setiv(void *_ctx, const void *iv, size_t iv_size)
 
 	pce = ALIGN16(&ctx->expanded_key);
 
+	if (iv_size < 16)
+		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+
 	memcpy(pce->iv, iv, 16);
 
 	return 0;
@@ -129,7 +132,8 @@ padlock_aes_cbc_encrypt(void *_ctx, const void *src, size_t src_size,
 
 	pce = ALIGN16(&ctx->expanded_key);
 
-	padlock_cbc_encrypt(dst, src, pce, src_size);
+	if (src_size > 0)
+		padlock_cbc_encrypt(dst, src, pce, src_size);
 
 	return 0;
 }
@@ -144,7 +148,8 @@ padlock_aes_cbc_decrypt(void *_ctx, const void *src, size_t src_size,
 
 	pcd = ALIGN16(&ctx->expanded_key);
 
-	padlock_cbc_encrypt(dst, src, pcd, src_size);
+	if (src_size > 0)
+		padlock_cbc_encrypt(dst, src, pcd, src_size);
 
 	return 0;
 }

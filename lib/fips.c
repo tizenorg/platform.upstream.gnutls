@@ -37,6 +37,9 @@ unsigned int _gnutls_lib_mode = LIB_STATE_POWERON;
 #define FIPS_KERNEL_FILE "/proc/sys/crypto/fips_enabled"
 #define FIPS_SYSTEM_FILE "/etc/system-fips"
 
+static int _fips_mode = -1;
+static int _skip_integrity_checks = 0;
+
 /* Returns:
  * 0 - FIPS mode disabled
  * 1 - FIPS mode enabled and enforced
@@ -46,11 +49,27 @@ unsigned _gnutls_fips_mode_enabled(void)
 {
 unsigned f1p = 0, f2p;
 FILE* fd;
-static int fips_mode = -1;
+const char *p;
 
-	if (fips_mode != -1)
-		return fips_mode;
-		
+	if (_fips_mode != -1)
+		return _fips_mode;
+
+	p = getenv("GNUTLS_SKIP_FIPS_INTEGRITY_CHECKS");
+	if (p && p[0] == '1') {
+		_skip_integrity_checks = 1;
+	}
+
+	p = getenv("GNUTLS_FORCE_FIPS_MODE");
+	if (p) {
+		if (p[0] == '1')
+			_fips_mode = 1;
+		else if (p[0] == '2')
+			_fips_mode = 2;
+		else
+			_fips_mode = 0;
+		return _fips_mode;
+	}
+
 	fd = fopen(FIPS_KERNEL_FILE, "r");
 	if (fd != NULL) {
 		f1p = fgetc(fd);
@@ -64,28 +83,37 @@ static int fips_mode = -1;
 
 	if (f1p != 0 && f2p != 0) {
 		_gnutls_debug_log("FIPS140-2 mode enabled\n");
-		fips_mode = 1;
-		return fips_mode;
+		_fips_mode = 1;
+		return _fips_mode;
 	}
 
 	if (f2p != 0) {
 		/* a funny state where self tests are performed
 		 * and ignored */
 		_gnutls_debug_log("FIPS140-2 ZOMBIE mode enabled\n");
-		fips_mode = 2;
-		return fips_mode;
+		_fips_mode = 2;
+		return _fips_mode;
 	}
 
-	fips_mode = 0;
-	return fips_mode;
+	_fips_mode = 0;
+	return _fips_mode;
+}
+
+/* This _fips_mode == 2 is a strange mode where checks are being
+ * performed, but its output is ignored. */
+void _gnutls_fips_mode_reset_zombie(void)
+{
+	if (_fips_mode == 2) {
+		_fips_mode = 0;
+	}
 }
 
 #define GNUTLS_LIBRARY_NAME "libgnutls.so.28"
-#define TASN1_LIBRARY_NAME "libtasn1.so.6"
 #define NETTLE_LIBRARY_NAME "libnettle.so.4"
 #define HOGWEED_LIBRARY_NAME "libhogweed.so.2"
+#define GMP_LIBRARY_NAME "libgmp.so.10"
 
-static const char fips_key[] = "I'd rather be skiing";
+static const char fips_key[] = "orboDeJITITejsirpADONivirpUkvarP";
 
 #define HMAC_SUFFIX ".hmac"
 #define HMAC_SIZE 32
@@ -126,13 +154,23 @@ static void get_hmac_file(char *mac_file, size_t mac_file_size, const char* orig
 char* p;
 
 	p = strrchr(orig, '/');
-
 	if (p==NULL) {
 		snprintf(mac_file, mac_file_size, ".%s"HMAC_SUFFIX, orig);
 		return;
 	}
-
 	snprintf(mac_file, mac_file_size, "%.*s/.%s"HMAC_SUFFIX, (int)(p-orig), orig, p+1);
+}
+
+static void get_hmac_file2(char *mac_file, size_t mac_file_size, const char* orig)
+{
+char* p;
+
+	p = strrchr(orig, '/');
+	if (p==NULL) {
+		snprintf(mac_file, mac_file_size, "fipscheck/%s"HMAC_SUFFIX, orig);
+		return;
+	}
+	snprintf(mac_file, mac_file_size, "%.*s/fipscheck/%s"HMAC_SUFFIX, (int)(p-orig), orig, p+1);
 }
 
 /* Run an HMAC using the key above on the library binary data. 
@@ -175,11 +213,15 @@ static unsigned check_binary_integrity(const char* libname, const char* symbol)
 
 	/* now open the .hmac file and compare */
 	get_hmac_file(mac_file, sizeof(mac_file), file);
-	
+
 	ret = gnutls_load_file(mac_file, &data);
 	if (ret < 0) {
-		_gnutls_debug_log("Could not open %s"HMAC_SUFFIX" for MAC testing: %s\n", file, gnutls_strerror(ret));
-		return gnutls_assert_val(0);
+		get_hmac_file2(mac_file, sizeof(mac_file), file);
+		ret = gnutls_load_file(mac_file, &data);
+		if (ret < 0) {
+			_gnutls_debug_log("Could not open %s for MAC testing: %s\n", mac_file, gnutls_strerror(ret));
+			return gnutls_assert_val(0);
+		}
 	}
 
 	hmac_size = sizeof(hmac);
@@ -196,12 +238,39 @@ static unsigned check_binary_integrity(const char* libname, const char* symbol)
 		_gnutls_debug_log("Calculated MAC for %s does not match\n", libname);
 		return gnutls_assert_val(0);
 	}
-	_gnutls_debug_log("Successfully verified library MAC for %s\n", libname);
+	_gnutls_debug_log("Successfully verified MAC for %s (%s)\n", mac_file, libname);
 	
 	return 1;
 }
 
-int _gnutls_fips_perform_self_checks(void)
+int _gnutls_fips_perform_self_checks1(void)
+{
+	int ret;
+
+	_gnutls_switch_lib_state(LIB_STATE_SELFTEST);
+
+	/* Tests the FIPS algorithms used by nettle internally.
+	 * In our case we test AES-CBC since nettle's AES is used by
+	 * the DRBG-AES.
+	 */
+
+	/* ciphers - one test per cipher */
+	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_AES_128_CBC);
+	if (ret < 0) {
+		gnutls_assert();
+		goto error;
+	}
+
+	return 0;
+
+error:
+	_gnutls_switch_lib_state(LIB_STATE_ERROR);
+	_gnutls_audit_log(NULL, "FIPS140-2 self testing part1 failed\n");
+
+	return GNUTLS_E_SELF_TEST_ERROR;
+}
+
+int _gnutls_fips_perform_self_checks2(void)
 {
 	int ret;
 
@@ -209,32 +278,8 @@ int _gnutls_fips_perform_self_checks(void)
 
 	/* Tests the FIPS algorithms */
 
-	/* ciphers */
-	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_AES_128_CBC);
-	if (ret < 0) {
-		gnutls_assert();
-		goto error;
-	}
-
-	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_AES_192_CBC);
-	if (ret < 0) {
-		gnutls_assert();
-		goto error;
-	}
-
-	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_AES_256_CBC);
-	if (ret < 0) {
-		gnutls_assert();
-		goto error;
-	}
-
+	/* ciphers - one test per cipher */
 	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_3DES_CBC);
-	if (ret < 0) {
-		gnutls_assert();
-		goto error;
-	}
-
-	ret = gnutls_cipher_self_test(0, GNUTLS_CIPHER_AES_128_GCM);
 	if (ret < 0) {
 		gnutls_assert();
 		goto error;
@@ -247,12 +292,6 @@ int _gnutls_fips_perform_self_checks(void)
 	}
 
 	/* MAC (includes message digest test) */
-	ret = gnutls_mac_self_test(0, GNUTLS_MAC_MD5);
-	if (ret < 0) {
-		gnutls_assert();
-		goto error;
-	}
-
 	ret = gnutls_mac_self_test(0, GNUTLS_MAC_SHA1);
 	if (ret < 0) {
 		gnutls_assert();
@@ -319,35 +358,37 @@ int _gnutls_fips_perform_self_checks(void)
 		goto error;
 	}
 
-	ret = check_binary_integrity(GNUTLS_LIBRARY_NAME, "gnutls_global_init");
-	if (ret == 0) {
-		gnutls_assert();
-		goto error;
-	}
+	if (_skip_integrity_checks == 0) {
+		ret = check_binary_integrity(GNUTLS_LIBRARY_NAME, "gnutls_global_init");
+		if (ret == 0) {
+			gnutls_assert();
+			goto error;
+		}
 
-	ret = check_binary_integrity(TASN1_LIBRARY_NAME, "asn1_check_version");
-	if (ret == 0) {
-		gnutls_assert();
-		goto error;
-	}
+		ret = check_binary_integrity(NETTLE_LIBRARY_NAME, "nettle_aes_set_encrypt_key");
+		if (ret == 0) {
+			gnutls_assert();
+			goto error;
+		}
 
-	ret = check_binary_integrity(NETTLE_LIBRARY_NAME, "nettle_aes_set_encrypt_key");
-	if (ret == 0) {
-		gnutls_assert();
-		goto error;
-	}
+		ret = check_binary_integrity(HOGWEED_LIBRARY_NAME, "nettle_mpz_sizeinbase_256_u");
+		if (ret == 0) {
+			gnutls_assert();
+			goto error;
+		}
 
-	ret = check_binary_integrity(HOGWEED_LIBRARY_NAME, "nettle_mpz_sizeinbase_256_u");
-	if (ret == 0) {
-		gnutls_assert();
-		goto error;
+		ret = check_binary_integrity(GMP_LIBRARY_NAME, "__gmpz_init");
+		if (ret == 0) {
+			gnutls_assert();
+			goto error;
+		}
 	}
 	
 	return 0;
 
 error:
 	_gnutls_switch_lib_state(LIB_STATE_ERROR);
-	_gnutls_audit_log(NULL, "FIPS140-2 self testing failed\n");
+	_gnutls_audit_log(NULL, "FIPS140-2 self testing part 2 failed\n");
 
 	return GNUTLS_E_SELF_TEST_ERROR;
 }

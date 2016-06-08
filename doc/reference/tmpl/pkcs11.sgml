@@ -41,48 +41,6 @@ pkcs11
 
 
 
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_LOGIN ##### -->
-<para>
-
-</para>
-
-
-
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_LOGIN_SO ##### -->
-<para>
-
-</para>
-
-
-
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_MARK_NOT_PRIVATE ##### -->
-<para>
-
-</para>
-
-
-
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_MARK_PRIVATE ##### -->
-<para>
-
-</para>
-
-
-
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_MARK_SENSITIVE ##### -->
-<para>
-
-</para>
-
-
-
-<!-- ##### MACRO GNUTLS_PKCS11_OBJ_FLAG_MARK_TRUSTED ##### -->
-<para>
-
-</para>
-
-
-
 <!-- ##### MACRO GNUTLS_PKCS11_TOKEN_HW ##### -->
 <para>
 
@@ -175,18 +133,12 @@ pkcs11
 @Returns: 
 
 
-<!-- ##### ENUM gnutls_pkcs11_obj_attr_t ##### -->
+<!-- ##### MACRO gnutls_pkcs11_obj_attr_t ##### -->
 <para>
 
 </para>
 
-@GNUTLS_PKCS11_OBJ_ATTR_CRT_ALL: 
-@GNUTLS_PKCS11_OBJ_ATTR_CRT_TRUSTED: 
-@GNUTLS_PKCS11_OBJ_ATTR_CRT_WITH_PRIVKEY: 
-@GNUTLS_PKCS11_OBJ_ATTR_PUBKEY: 
-@GNUTLS_PKCS11_OBJ_ATTR_PRIVKEY: 
-@GNUTLS_PKCS11_OBJ_ATTR_ALL: 
-@GNUTLS_PKCS11_OBJ_ATTR_CRT_TRUSTED_CA: 
+
 
 <!-- ##### FUNCTION gnutls_pkcs11_obj_deinit ##### -->
 <para>
@@ -276,7 +228,7 @@ pkcs11
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs11_obj_list_import_url ##### -->
+<!-- ##### MACRO gnutls_pkcs11_obj_list_import_url ##### -->
 <para>
 
 </para>
@@ -289,7 +241,7 @@ pkcs11
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_pkcs11_obj_list_import_url2 ##### -->
+<!-- ##### MACRO gnutls_pkcs11_obj_list_import_url2 ##### -->
 <para>
 
 </para>
@@ -317,6 +269,15 @@ pkcs11
 
 </para>
 
+@raw: 
+@type: 
+@class: 
+@flags: 
+@info: 
+@pubkey: 
+@pk_algorithm: 
+@key_usage: 
+@pin: 
 
 <!-- ##### TYPEDEF gnutls_pkcs11_obj_t ##### -->
 <para>
@@ -335,6 +296,7 @@ pkcs11
 @GNUTLS_PKCS11_OBJ_PRIVKEY: 
 @GNUTLS_PKCS11_OBJ_SECRET_KEY: 
 @GNUTLS_PKCS11_OBJ_DATA: 
+@GNUTLS_PKCS11_OBJ_X509_CRT_EXTENSION: 
 
 <!-- ##### FUNCTION gnutls_pkcs11_privkey_deinit ##### -->
 <para>
@@ -526,6 +488,7 @@ pkcs11
 @GNUTLS_PKCS11_TOKEN_SERIAL: 
 @GNUTLS_PKCS11_TOKEN_MANUFACTURER: 
 @GNUTLS_PKCS11_TOKEN_MODEL: 
+@GNUTLS_PKCS11_TOKEN_MODNAME: 
 
 <!-- ##### FUNCTION gnutls_pkcs11_token_init ##### -->
 <para>
@@ -578,14 +541,11 @@ pkcs11
 @Returns: 
 
 
-<!-- ##### FUNCTION gnutls_x509_crt_import_pkcs11_url ##### -->
+<!-- ##### MACRO gnutls_x509_crt_import_pkcs11_url ##### -->
 <para>
 
 </para>
 
-@crt: 
-@url: 
-@flags: 
 @Returns: 
 
 

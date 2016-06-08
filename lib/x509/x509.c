@@ -33,10 +33,34 @@
 #include <x509_int.h>
 #include <libtasn1.h>
 #include <gnutls_pk.h>
+#include <pkcs11_int.h>
+#include "urls.h"
+#include "system-keys.h"
+
+static int crt_reinit(gnutls_x509_crt_t crt)
+{
+	int result;
+
+	crt->raw_dn.size = 0;
+	crt->raw_issuer_dn.size = 0;
+
+	asn1_delete_structure(&crt->cert);
+
+	result = asn1_create_element(_gnutls_get_pkix(),
+				     "PKIX1.Certificate",
+				     &crt->cert);
+	if (result != ASN1_SUCCESS) {
+		result = _gnutls_asn2err(result);
+		gnutls_assert();
+		return result;
+	}
+
+	return 0;
+}
 
 /**
  * gnutls_x509_crt_init:
- * @cert: The structure to be initialized
+ * @cert: A pointer to the type to be initialized
  *
  * This function will initialize an X.509 certificate structure.
  *
@@ -73,9 +97,9 @@ int gnutls_x509_crt_init(gnutls_x509_crt_t * cert)
 }
 
 /*-
- * _gnutls_x509_crt_cpy - This function copies a gnutls_x509_crt_t structure
- * @dest: The structure where to copy
- * @src: The structure to be copied
+ * _gnutls_x509_crt_cpy - This function copies a gnutls_x509_crt_t type
+ * @dest: The data where to copy
+ * @src: The data to be copied
  *
  * This function will copy an X.509 certificate structure.
  *
@@ -128,7 +152,7 @@ int _gnutls_x509_crt_cpy(gnutls_x509_crt_t dest, gnutls_x509_crt_t src)
 
 /**
  * gnutls_x509_crt_deinit:
- * @cert: The structure to be deinitialized
+ * @cert: The data to be deinitialized
  *
  * This function will deinitialize a certificate structure.
  **/
@@ -139,14 +163,78 @@ void gnutls_x509_crt_deinit(gnutls_x509_crt_t cert)
 
 	if (cert->cert)
 		asn1_delete_structure(&cert->cert);
-	gnutls_free(cert->raw_dn.data);
-	gnutls_free(cert->raw_issuer_dn.data);
+	gnutls_free(cert->der.data);
 	gnutls_free(cert);
+}
+
+static int compare_sig_algorithm(gnutls_x509_crt_t cert)
+{
+	int ret, s2;
+	gnutls_datum_t sp1 = {NULL, 0};
+	gnutls_datum_t sp2 = {NULL, 0};
+	unsigned empty1 = 0, empty2 = 0;
+
+	ret = _gnutls_x509_get_signature_algorithm(cert->cert,
+						      "signatureAlgorithm.algorithm");
+	if (ret < 0) {
+		gnutls_assert();
+		return ret;
+	}
+
+	s2 = _gnutls_x509_get_signature_algorithm(cert->cert,
+						  "tbsCertificate.signature.algorithm");
+	if (ret != s2) {
+		_gnutls_debug_log("signatureAlgorithm.algorithm differs from tbsCertificate.signature.algorithm: %s, %s\n",
+			gnutls_sign_get_name(ret), gnutls_sign_get_name(s2));
+		gnutls_assert();
+		return GNUTLS_E_CERTIFICATE_ERROR;
+	}
+
+	/* compare the parameters */
+	ret = _gnutls_x509_read_value(cert->cert, "signatureAlgorithm.parameters", &sp1);
+	if (ret == GNUTLS_E_ASN1_ELEMENT_NOT_FOUND) {
+		empty1 = 1;
+	} else if (ret < 0) {
+		gnutls_assert();
+		return ret;
+	}
+
+	ret = _gnutls_x509_read_value(cert->cert, "signatureAlgorithm.parameters", &sp2);
+	if (ret == GNUTLS_E_ASN1_ELEMENT_NOT_FOUND) {
+		empty2 = 1;
+	} else if (ret < 0) {
+		gnutls_assert();
+		return ret;
+	}
+
+	/* handle equally empty parameters with missing parameters */
+	if (sp1.size == 2 && memcmp(sp1.data, "\x05\x00", 2) == 0) {
+		empty1 = 1;
+	 	_gnutls_free_datum(&sp1);
+	}
+
+	if (sp2.size == 2 && memcmp(sp2.data, "\x05\x00", 2) == 0) {
+		empty2 = 1;
+	 	_gnutls_free_datum(&sp2);
+	}
+
+	if (empty1 != empty2 || 
+	    sp1.size != sp2.size || safe_memcmp(sp1.data, sp2.data, sp1.size) != 0) {
+		gnutls_assert();
+		ret = GNUTLS_E_CERTIFICATE_ERROR;
+		goto cleanup;
+	}
+
+	ret = 0;
+ cleanup:
+ 	_gnutls_free_datum(&sp1);
+ 	_gnutls_free_datum(&sp2);
+ 	return ret;
 }
 
 /**
  * gnutls_x509_crt_import:
- * @cert: The structure to store the parsed certificate.
+ * @cert: The data to store the parsed certificate.
  * @data: The DER or PEM encoded certificate.
  * @format: One of DER or PEM
  *
@@ -165,16 +253,18 @@ gnutls_x509_crt_import(gnutls_x509_crt_t cert,
 		       const gnutls_datum_t * data,
 		       gnutls_x509_crt_fmt_t format)
 {
-	int result = 0, need_free = 0;
-	gnutls_datum_t _data;
+	int result = 0;
+	int version;
 
 	if (cert == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
-	_data.data = data->data;
-	_data.size = data->size;
+	if (cert->der.data) {
+		gnutls_free(cert->der.data);
+		cert->der.data = NULL;
+	}
 
 	/* If the Certificate is in PEM format then decode it
 	 */
@@ -182,51 +272,57 @@ gnutls_x509_crt_import(gnutls_x509_crt_t cert,
 		/* Try the first header */
 		result =
 		    _gnutls_fbase64_decode(PEM_X509_CERT2, data->data,
-					   data->size, &_data);
+					   data->size, &cert->der);
 
 		if (result <= 0) {
 			/* try for the second header */
 			result =
 			    _gnutls_fbase64_decode(PEM_X509_CERT,
 						   data->data, data->size,
-						   &_data);
+						   &cert->der);
 
 			if (result < 0) {
 				gnutls_assert();
 				return result;
 			}
 		}
-
-		need_free = 1;
+	} else {
+		result = _gnutls_set_datum(&cert->der, data->data, data->size);
+		if (result < 0) {
+			gnutls_assert();
+			return result;
+		}
 	}
 
 	if (cert->expanded) {
-		/* Any earlier asn1_der_decoding will modify the ASN.1
+		/* Any earlier _asn1_strict_der_decode will modify the ASN.1
 		   structure, so we need to replace it with a fresh
 		   structure. */
-		asn1_delete_structure(&cert->cert);
-		_gnutls_free_datum(&cert->raw_dn);
-		_gnutls_free_datum(&cert->raw_issuer_dn);
-
-		result = asn1_create_element(_gnutls_get_pkix(),
-					     "PKIX1.Certificate",
-					     &cert->cert);
-		if (result != ASN1_SUCCESS) {
-			result = _gnutls_asn2err(result);
+		result = crt_reinit(cert);
+		if (result < 0) {
 			gnutls_assert();
 			goto cleanup;
 		}
 	}
 
+	cert->expanded = 1;
+
 	result =
-	    asn1_der_decoding(&cert->cert, _data.data, _data.size, NULL);
+	    _asn1_strict_der_decode(&cert->cert, cert->der.data, cert->der.size, NULL);
 	if (result != ASN1_SUCCESS) {
 		result = _gnutls_asn2err(result);
 		gnutls_assert();
 		goto cleanup;
 	}
 
-	result = _gnutls_x509_get_raw_dn2(cert->cert, &_data,
+	result = compare_sig_algorithm(cert);
+	if (result < 0) {
+		gnutls_assert();
+		goto cleanup;
+	}
+
+
+	result = _gnutls_x509_get_raw_field2(cert->cert, &cert->der,
 					  "tbsCertificate.issuer.rdnSequence",
 					  &cert->raw_issuer_dn);
 	if (result < 0) {
@@ -234,7 +330,7 @@ gnutls_x509_crt_import(gnutls_x509_crt_t cert,
 		goto cleanup;
 	}
 
-	result = _gnutls_x509_get_raw_dn2(cert->cert, &_data,
+	result = _gnutls_x509_get_raw_field2(cert->cert, &cert->der,
 					  "tbsCertificate.subject.rdnSequence",
 					  &cert->raw_dn);
 	if (result < 0) {
@@ -242,28 +338,49 @@ gnutls_x509_crt_import(gnutls_x509_crt_t cert,
 		goto cleanup;
 	}
 
-	cert->expanded = 1;
+	result = _gnutls_x509_get_raw_field2(cert->cert, &cert->der,
+					  "tbsCertificate.subjectPublicKeyInfo",
+					  &cert->raw_spki);
+	if (result < 0) {
+		gnutls_assert();
+		goto cleanup;
+	}
+
+	/* enforce the rule that only version 3 certificates carry extensions */
+	result = gnutls_x509_crt_get_version(cert);
+	if (result < 0) {
+		gnutls_assert();
+		goto cleanup;
+	}
+
+	version = result;
+	if (version < 3) {
+		gnutls_datum_t exts;
+		result = _gnutls_x509_get_raw_field2(cert->cert, &cert->der,
+			"tbsCertificate.extensions", &exts);
+		if (result >= 0 && exts.size > 0) {
+			gnutls_assert();
+			_gnutls_debug_log("error: extensions present in certificate with version %d\n", version);
+			result = GNUTLS_E_X509_CERTIFICATE_ERROR;
+			goto cleanup;
+		}
+	}
 
 	/* Since we do not want to disable any extension
 	 */
 	cert->use_extensions = 1;
-	if (need_free)
-		_gnutls_free_datum(&_data);
 
 	return 0;
 
       cleanup:
-	if (need_free)
-		_gnutls_free_datum(&_data);
-	_gnutls_free_datum(&cert->raw_dn);
-	_gnutls_free_datum(&cert->raw_issuer_dn);
+	_gnutls_free_datum(&cert->der);
 	return result;
 }
 
 
 /**
  * gnutls_x509_crt_get_issuer_dn:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @buf: a pointer to a structure to hold the name (may be null)
  * @buf_size: initially holds the size of @buf
  *
@@ -294,7 +411,7 @@ gnutls_x509_crt_get_issuer_dn(gnutls_x509_crt_t cert, char *buf,
 
 /**
  * gnutls_x509_crt_get_issuer_dn2:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: a pointer to a structure to hold the name
  *
  * This function will allocate buffer and copy the name of issuer of the Certificate.
@@ -303,7 +420,7 @@ gnutls_x509_crt_get_issuer_dn(gnutls_x509_crt_t cert, char *buf,
  * encoded, depending on the certificate data.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  *
  * Since: 3.1.10
  **/
@@ -322,7 +439,7 @@ gnutls_x509_crt_get_issuer_dn2(gnutls_x509_crt_t cert, gnutls_datum_t * dn)
 
 /**
  * gnutls_x509_crt_get_issuer_dn_by_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @oid: holds an Object Identified in null terminated string
  * @indx: In case multiple same OIDs exist in the RDN, this specifies which to send. Use (0) to get the first one.
  * @raw_flag: If non-zero returns the raw DER data of the DN part.
@@ -374,7 +491,7 @@ gnutls_x509_crt_get_issuer_dn_by_oid(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_issuer_dn_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: This specifies which OID to return. Use (0) to get the first one.
  * @oid: a pointer to a buffer to hold the OID (may be null)
  * @oid_size: initially holds the size of @oid
@@ -407,7 +524,7 @@ gnutls_x509_crt_get_issuer_dn_oid(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_dn:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @buf: a pointer to a structure to hold the name (may be null)
  * @buf_size: initially holds the size of @buf
  *
@@ -438,7 +555,7 @@ gnutls_x509_crt_get_dn(gnutls_x509_crt_t cert, char *buf,
 
 /**
  * gnutls_x509_crt_get_dn2:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: a pointer to a structure to hold the name
  *
  * This function will allocate buffer and copy the name of the Certificate.
@@ -447,7 +564,7 @@ gnutls_x509_crt_get_dn(gnutls_x509_crt_t cert, char *buf,
  * encoded, depending on the certificate data.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  *
  * Since: 3.1.10
  **/
@@ -465,7 +582,7 @@ int gnutls_x509_crt_get_dn2(gnutls_x509_crt_t cert, gnutls_datum_t * dn)
 
 /**
  * gnutls_x509_crt_get_dn_by_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @oid: holds an Object Identified in null terminated string
  * @indx: In case multiple same OIDs exist in the RDN, this specifies which to send. Use (0) to get the first one.
  * @raw_flag: If non-zero returns the raw DER data of the DN part.
@@ -516,7 +633,7 @@ gnutls_x509_crt_get_dn_by_oid(gnutls_x509_crt_t cert, const char *oid,
 
 /**
  * gnutls_x509_crt_get_dn_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: This specifies which OID to return. Use (0) to get the first one.
  * @oid: a pointer to a buffer to hold the OID (may be null)
  * @oid_size: initially holds the size of @oid
@@ -549,7 +666,7 @@ gnutls_x509_crt_get_dn_oid(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_signature_algorithm:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  *
  * This function will return a value of the #gnutls_sign_algorithm_t
  * enumeration that is the signature algorithm that has been used to
@@ -566,14 +683,14 @@ int gnutls_x509_crt_get_signature_algorithm(gnutls_x509_crt_t cert)
 
 /**
  * gnutls_x509_crt_get_signature:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @sig: a pointer where the signature part will be copied (may be null).
  * @sig_size: initially holds the size of @sig
  *
  * This function will extract the signature field of a certificate.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  **/
 int
 gnutls_x509_crt_get_signature(gnutls_x509_crt_t cert,
@@ -603,7 +720,7 @@ gnutls_x509_crt_get_signature(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_version:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  *
  * This function will return the version of the specified Certificate.
  *
@@ -630,12 +747,15 @@ int gnutls_x509_crt_get_version(gnutls_x509_crt_t cert)
 		return _gnutls_asn2err(result);
 	}
 
+	if (len != 1)
+		return gnutls_assert_val(GNUTLS_E_CERTIFICATE_ERROR);
+
 	return (int) version[0] + 1;
 }
 
 /**
  * gnutls_x509_crt_get_activation_time:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  *
  * This function will return the time this Certificate was or will be
  * activated.
@@ -656,7 +776,7 @@ time_t gnutls_x509_crt_get_activation_time(gnutls_x509_crt_t cert)
 
 /**
  * gnutls_x509_crt_get_expiration_time:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  *
  * This function will return the time this Certificate was or will be
  * expired.
@@ -680,7 +800,7 @@ time_t gnutls_x509_crt_get_expiration_time(gnutls_x509_crt_t cert)
 
 /**
  * gnutls_x509_crt_get_private_key_usage_period:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @activation: The activation time
  * @expiration: The expiration time
  * @critical: the extension status
@@ -734,7 +854,7 @@ gnutls_x509_crt_get_private_key_usage_period(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_serial:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @result: The place where the serial number will be copied
  * @result_size: Holds the size of the result field.
  *
@@ -773,7 +893,7 @@ gnutls_x509_crt_get_serial(gnutls_x509_crt_t cert, void *result,
 
 /**
  * gnutls_x509_crt_get_subject_key_id:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @ret: The place where the identifier will be copied
  * @ret_size: Holds the size of the result field.
  * @critical: will be non-zero if the extension is marked as critical (may be null)
@@ -840,7 +960,7 @@ inline static int is_type_printable(int type)
 
 /**
  * gnutls_x509_crt_get_authority_key_gn_serial:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @alt: is the place where the alternative name will be copied to
  * @alt_size: holds the size of alt.
@@ -938,7 +1058,7 @@ gnutls_x509_crt_get_authority_key_gn_serial(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_authority_key_id:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @id: The place where the identifier will be copied
  * @id_size: Holds the size of the id field.
  * @critical: will be non-zero if the extension is marked as critical (may be null)
@@ -1024,7 +1144,7 @@ gnutls_x509_crt_get_authority_key_id(gnutls_x509_crt_t cert, void *id,
 
 /**
  * gnutls_x509_crt_get_pk_algorithm:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @bits: if bits is non null it will hold the size of the parameters' in bits
  *
  * This function will return the public key algorithm of an X.509
@@ -1159,28 +1279,8 @@ _gnutls_parse_general_name2(ASN1_TYPE src, const char *src_name,
 			}
 			if (len > 0) len--;
 
-			if (_san_othername_to_virtual(oid, len) == GNUTLS_SAN_OTHERNAME_XMPP) {
-				gnutls_datum_t out;
-
-				ret =
-				    _gnutls_x509_decode_string
-				    (ASN1_ETYPE_UTF8_STRING, tmp.data,
-				     tmp.size, &out);
-				if (ret < 0) {
-					gnutls_assert();
-					goto cleanup;
-				}
-
-				dname->data = out.data;
-				dname->size = out.size;
-
-				/* out is already null terminated */
-				ret = type;
-				goto cleanup;
-			} else {
-				dname->size = tmp.size;
-				dname->data = tmp.data;
-			}
+			dname->size = tmp.size;
+			dname->data = tmp.data;
 		}
 	} else if (type == GNUTLS_SAN_DN) {
 		_gnutls_str_cat(nptr, sizeof(nptr), ".directoryName");
@@ -1197,7 +1297,7 @@ _gnutls_parse_general_name2(ASN1_TYPE src, const char *src_name,
 		_gnutls_str_cat(nptr, sizeof(nptr), ".");
 		_gnutls_str_cat(nptr, sizeof(nptr), choice_type);
 
-		ret = _gnutls_x509_read_value(src, nptr, &tmp);
+		ret = _gnutls_x509_read_null_value(src, nptr, &tmp);
 		if (ret < 0) {
 			gnutls_assert();
 			return ret;
@@ -1301,7 +1401,15 @@ get_alt_name(gnutls_x509_crt_t cert, const char *extension_id,
 	}
 
 	if (othername_oid && type == GNUTLS_SAN_OTHERNAME) {
-		type = _san_othername_to_virtual((char*)ooid.data, ooid.size);
+		unsigned vtype;
+		gnutls_datum_t virt;
+		ret = gnutls_x509_othername_to_virtual((char*)ooid.data, &res, &vtype, &virt);
+		if (ret >= 0) {
+			type = vtype;
+			gnutls_free(res.data);
+			res.data = virt.data;
+			res.size = virt.size;
+		}
 	}
 
 	if (alt_type)
@@ -1333,7 +1441,7 @@ cleanup:
 
 /**
  * gnutls_x509_crt_get_subject_alt_name:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @san: is the place where the alternative name will be copied to
  * @san_size: holds the size of san.
@@ -1373,7 +1481,7 @@ gnutls_x509_crt_get_subject_alt_name(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_issuer_alt_name:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @ian: is the place where the alternative name will be copied to
  * @ian_size: holds the size of ian.
@@ -1416,7 +1524,7 @@ gnutls_x509_crt_get_issuer_alt_name(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_subject_alt_name2:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @san: is the place where the alternative name will be copied to
  * @san_size: holds the size of ret.
@@ -1451,7 +1559,7 @@ gnutls_x509_crt_get_subject_alt_name2(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_issuer_alt_name2:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @ian: is the place where the alternative name will be copied to
  * @ian_size: holds the size of ret.
@@ -1489,7 +1597,7 @@ gnutls_x509_crt_get_issuer_alt_name2(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_subject_alt_othername_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @oid: is the place where the otherName OID will be copied to
  * @oid_size: holds the size of ret.
@@ -1528,7 +1636,7 @@ gnutls_x509_crt_get_subject_alt_othername_oid(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_issuer_alt_othername_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @ret: is the place where the otherName OID will be copied to
  * @ret_size: holds the size of ret.
@@ -1569,7 +1677,7 @@ gnutls_x509_crt_get_issuer_alt_othername_oid(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_basic_constraints:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @critical: will be non-zero if the extension is marked as critical
  * @ca: pointer to output integer indicating CA status, may be NULL,
  *   value is 1 if the certificate CA flag is set, 0 otherwise.
@@ -1629,7 +1737,7 @@ gnutls_x509_crt_get_basic_constraints(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_ca_status:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @critical: will be non-zero if the extension is marked as critical
  *
  * This function will return certificates CA status, by reading the
@@ -1640,9 +1748,11 @@ gnutls_x509_crt_get_basic_constraints(gnutls_x509_crt_t cert,
  * Use gnutls_x509_crt_get_basic_constraints() if you want to read the
  * pathLenConstraint field too.
  *
- * Returns: A negative error code may be returned in case of parsing error.
- * If the certificate does not contain the basicConstraints extension
- * %GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE will be returned.
+ * Returns: If the certificate is a CA a positive value will be
+ * returned, or (0) if the certificate does not have CA flag set.  A
+ * negative error code may be returned in case of errors.  If the
+ * certificate does not contain the basicConstraints extension
+ * GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE will be returned.
  **/
 int
 gnutls_x509_crt_get_ca_status(gnutls_x509_crt_t cert,
@@ -1656,7 +1766,7 @@ gnutls_x509_crt_get_ca_status(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_key_usage:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @key_usage: where the key usage bits will be stored
  * @critical: will be non-zero if the extension is marked as critical
  *
@@ -1710,7 +1820,7 @@ gnutls_x509_crt_get_key_usage(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_proxy:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @critical: will be non-zero if the extension is marked as critical
  * @pathlen: pointer to output integer indicating path length (may be
  *   NULL), non-negative error codes indicate a present pCPathLenConstraint
@@ -1786,7 +1896,7 @@ void gnutls_x509_policy_release(struct gnutls_x509_policy_st *policy)
 
 /**
  * gnutls_x509_crt_get_policy:
- * @crt: should contain a #gnutls_x509_crt_t structure
+ * @crt: should contain a #gnutls_x509_crt_t type
  * @indx: This specifies which policy to return. Use (0) to get the first one.
  * @policy: A pointer to a policy structure.
  * @critical: will be non-zero if the extension is marked as critical
@@ -1861,7 +1971,7 @@ gnutls_x509_crt_get_policy(gnutls_x509_crt_t crt, int indx,
 
 /**
  * gnutls_x509_crt_get_extension_by_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @oid: holds an Object Identified in null terminated string
  * @indx: In case multiple same OIDs exist in the extensions, this specifies which to send. Use (0) to get the first one.
  * @buf: a pointer to a structure to hold the name (may be null)
@@ -1917,12 +2027,58 @@ gnutls_x509_crt_get_extension_by_oid(gnutls_x509_crt_t cert,
 	_gnutls_free_datum(&output);
 
 	return 0;
+}
 
+/**
+ * gnutls_x509_crt_get_extension_by_oid2:
+ * @cert: should contain a #gnutls_x509_crt_t type
+ * @oid: holds an Object Identified in null terminated string
+ * @indx: In case multiple same OIDs exist in the extensions, this specifies which to send. Use (0) to get the first one.
+ * @output: will hold the allocated extension data
+ * @critical: will be non-zero if the extension is marked as critical
+ *
+ * This function will return the extension specified by the OID in the
+ * certificate.  The extensions will be returned as binary data DER
+ * encoded, in the provided buffer.
+ *
+ * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned,
+ *   otherwise a negative error code is returned. If the certificate does not
+ *   contain the specified extension
+ *   GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE will be returned.
+ *
+ * Since: 3.3.8
+ **/
+int
+gnutls_x509_crt_get_extension_by_oid2(gnutls_x509_crt_t cert,
+				     const char *oid, int indx,
+				     gnutls_datum_t *output,
+				     unsigned int *critical)
+{
+	int ret;
+	
+	if (cert == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_INVALID_REQUEST;
+	}
+
+	if ((ret =
+	     _gnutls_x509_crt_get_extension(cert, oid, indx, output,
+					    critical)) < 0) {
+		gnutls_assert();
+		return ret;
+	}
+
+	if (output->size == 0 || output->data == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE;
+	}
+
+	return 0;
 }
 
 /**
  * gnutls_x509_crt_get_extension_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: Specifies which extension OID to send. Use (0) to get the first one.
  * @oid: a pointer to a structure to hold the OID (may be null)
  * @oid_size: initially holds the size of @oid
@@ -1961,7 +2117,7 @@ gnutls_x509_crt_get_extension_oid(gnutls_x509_crt_t cert, int indx,
 
 /**
  * gnutls_x509_crt_get_extension_info:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: Specifies which extension OID to send. Use (0) to get the first one.
  * @oid: a pointer to a structure to hold the OID
  * @oid_size: initially holds the maximum size of @oid, on return
@@ -2034,7 +2190,7 @@ gnutls_x509_crt_get_extension_info(gnutls_x509_crt_t cert, int indx,
 
 /**
  * gnutls_x509_crt_get_extension_data:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: Specifies which extension OID to send. Use (0) to get the first one.
  * @data: a pointer to a structure to hold the data (may be null)
  * @sizeof_data: initially holds the size of @data
@@ -2089,7 +2245,7 @@ gnutls_x509_crt_get_extension_data(gnutls_x509_crt_t cert, int indx,
 
 /**
  * gnutls_x509_crt_get_raw_issuer_dn:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: will hold the starting point of the DN
  *
  * This function will return a pointer to the DER encoded DN structure
@@ -2103,13 +2259,17 @@ int
 gnutls_x509_crt_get_raw_issuer_dn(gnutls_x509_crt_t cert,
 				  gnutls_datum_t * dn)
 {
-	return _gnutls_set_datum(dn, cert->raw_issuer_dn.data,
-				 cert->raw_issuer_dn.size);
+	if (cert->raw_issuer_dn.size > 0) {
+		return _gnutls_set_datum(dn, cert->raw_issuer_dn.data,
+					 cert->raw_issuer_dn.size);
+	} else {
+		return _gnutls_x509_get_raw_field(cert->cert, "tbsCertificate.issuer.rdnSequence", dn);
+	}
 }
 
 /**
  * gnutls_x509_crt_get_raw_dn:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: will hold the starting point of the DN
  *
  * This function will return a pointer to the DER encoded DN structure and
@@ -2121,21 +2281,35 @@ gnutls_x509_crt_get_raw_issuer_dn(gnutls_x509_crt_t cert,
  **/
 int gnutls_x509_crt_get_raw_dn(gnutls_x509_crt_t cert, gnutls_datum_t * dn)
 {
-	return _gnutls_set_datum(dn, cert->raw_dn.data, cert->raw_dn.size);
+	if (cert->raw_dn.size > 0) {
+		return _gnutls_set_datum(dn, cert->raw_dn.data, cert->raw_dn.size);
+	} else {
+		return _gnutls_x509_get_raw_field(cert->cert, "tbsCertificate.subject.rdnSequence", dn);
+	}
 }
 
 static int
-get_dn(gnutls_x509_crt_t cert, const char *whom, gnutls_x509_dn_t * dn)
+get_dn(gnutls_x509_crt_t cert, const char *whom, gnutls_x509_dn_t * dn, unsigned subject)
 {
-	*dn = asn1_find_node(cert->cert, whom);
-	if (!*dn)
+	gnutls_x509_dn_st *store;
+
+	if (subject)
+		store = &cert->dn;
+	else
+		store = &cert->idn;
+
+	store->asn = asn1_find_node(cert->cert, whom);
+	if (!store->asn)
 		return GNUTLS_E_ASN1_ELEMENT_NOT_FOUND;
+
+	*dn = store;
+
 	return 0;
 }
 
 /**
  * gnutls_x509_crt_get_subject:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: output variable with pointer to uint8_t DN.
  *
  * Return the Certificate's Subject DN as a %gnutls_x509_dn_t data type,
@@ -2150,12 +2324,12 @@ get_dn(gnutls_x509_crt_t cert, const char *whom, gnutls_x509_dn_t * dn)
 int
 gnutls_x509_crt_get_subject(gnutls_x509_crt_t cert, gnutls_x509_dn_t * dn)
 {
-	return get_dn(cert, "tbsCertificate.subject.rdnSequence", dn);
+	return get_dn(cert, "tbsCertificate.subject.rdnSequence", dn, 1);
 }
 
 /**
  * gnutls_x509_crt_get_issuer:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @dn: output variable with pointer to uint8_t DN
  *
  * Return the Certificate's Issuer DN as a %gnutls_x509_dn_t data type,
@@ -2170,7 +2344,7 @@ gnutls_x509_crt_get_subject(gnutls_x509_crt_t cert, gnutls_x509_dn_t * dn)
 int
 gnutls_x509_crt_get_issuer(gnutls_x509_crt_t cert, gnutls_x509_dn_t * dn)
 {
-	return get_dn(cert, "tbsCertificate.issuer.rdnSequence", dn);
+	return get_dn(cert, "tbsCertificate.issuer.rdnSequence", dn, 0);
 }
 
 /**
@@ -2217,7 +2391,7 @@ gnutls_x509_dn_get_rdn_ava(gnutls_x509_dn_t dn,
 	irdn++;			/* 0->1, 1->2 etc */
 
 	snprintf(rbuf, sizeof(rbuf), "rdnSequence.?%d.?%d", irdn, iava);
-	rdn = asn1_find_node(dn, rbuf);
+	rdn = asn1_find_node(dn->asn, rbuf);
 	if (!rdn) {
 		gnutls_assert();
 		return GNUTLS_E_ASN1_ELEMENT_NOT_FOUND;
@@ -2291,8 +2465,34 @@ gnutls_x509_dn_get_rdn_ava(gnutls_x509_dn_t dn,
 }
 
 /**
+ * gnutls_x509_dn_get_str:
+ * @dn: a pointer to DN
+ * @str: a datum that will hold the name
+ *
+ * This function will allocate buffer and copy the name in the provided DN.
+ * The name will be in the form "C=xxxx,O=yyyy,CN=zzzz" as
+ * described in RFC4514. The output string will be ASCII or UTF-8
+ * encoded, depending on the certificate data.
+ *
+ * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
+ *   negative error value.
+ *
+ * Since: 3.4.2
+ **/
+int
+gnutls_x509_dn_get_str(gnutls_x509_dn_t dn, gnutls_datum_t *str)
+{
+	if (dn == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_INVALID_REQUEST;
+	}
+
+	return _gnutls_x509_get_dn(dn->asn, "rdnSequence", str);
+}
+
+/**
  * gnutls_x509_crt_get_fingerprint:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @algo: is a digest algorithm
  * @buf: a pointer to a structure to hold the fingerprint (may be null)
  * @buf_size: initially holds the size of @buf
@@ -2419,12 +2619,18 @@ gnutls_x509_crt_export2(gnutls_x509_crt_t cert,
 
 int
 _gnutls_get_key_id(gnutls_pk_algorithm_t pk, gnutls_pk_params_st * params,
-		   unsigned char *output_data, size_t * output_data_size)
+		   unsigned char *output_data, size_t * output_data_size,
+		   unsigned flags)
 {
 	int ret = 0;
 	gnutls_datum_t der = { NULL, 0 };
-	const gnutls_digest_algorithm_t hash = GNUTLS_DIG_SHA1;
-	unsigned int digest_len =
+	gnutls_digest_algorithm_t hash = GNUTLS_DIG_SHA1;
+	unsigned int digest_len;
+
+	if ((flags & GNUTLS_KEYID_USE_SHA256) || (flags & GNUTLS_KEYID_USE_BEST_KNOWN))
+		hash = GNUTLS_DIG_SHA256;
+
+	digest_len =
 	    _gnutls_hash_get_algo_len(hash_to_entry(hash));
 
 	if (output_data == NULL || *output_data_size < digest_len) {
@@ -2455,7 +2661,7 @@ _gnutls_get_key_id(gnutls_pk_algorithm_t pk, gnutls_pk_params_st * params,
 /**
  * gnutls_x509_crt_get_key_id:
  * @crt: Holds the certificate
- * @flags: should be 0 for now
+ * @flags: should be one of the flags from %gnutls_keyid_flags_t
  * @output_data: will contain the key ID
  * @output_data_size: holds the size of output_data (and will be
  *   replaced by the actual size of parameters)
@@ -2498,7 +2704,7 @@ gnutls_x509_crt_get_key_id(gnutls_x509_crt_t crt, unsigned int flags,
 	}
 
 	ret =
-	    _gnutls_get_key_id(pk, &params, output_data, output_data_size);
+	    _gnutls_get_key_id(pk, &params, output_data, output_data_size, flags);
 
 	gnutls_pk_params_release(&params);
 
@@ -2527,7 +2733,7 @@ _gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 	uint8_t serial[128];
 	uint8_t cert_serial[128];
 	size_t serial_size, cert_serial_size;
-	int ncerts, ret, i, j;
+	int ret, j;
 	gnutls_x509_crl_iter_t iter = NULL;
 
 	if (cert == NULL) {
@@ -2563,13 +2769,8 @@ _gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 		 *   certificate serial we have.
 		 */
 
-		ncerts = gnutls_x509_crl_get_crt_count(crl_list[j]);
-		if (ncerts < 0) {
-			gnutls_assert();
-			return ncerts;
-		}
-
-		for (i = 0; i < ncerts; i++) {
+		iter = NULL;
+		do {
 			serial_size = sizeof(serial);
 			ret =
 			    gnutls_x509_crl_iter_crt_serial(crl_list[j],
@@ -2577,10 +2778,11 @@ _gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 							    serial,
 							    &serial_size,
 							    NULL);
-
-			if (ret < 0) {
+			if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE) {
+				break;
+			} else if (ret < 0) {
 				gnutls_assert();
-				return ret;
+				goto fail;
 			}
 
 			if (serial_size == cert_serial_size) {
@@ -2593,10 +2795,12 @@ _gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 						     crl_list[j],
 						     GNUTLS_CERT_REVOKED |
 						     GNUTLS_CERT_INVALID);
-					return 1;	/* revoked! */
+					ret = 1;	/* revoked! */
+					goto fail;
 				}
 			}
-		}
+		} while(1);
+
 		gnutls_x509_crl_iter_deinit(iter);
 		iter = NULL;
 
@@ -2605,13 +2809,17 @@ _gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 
 	}
 	return 0;		/* not revoked. */
+
+ fail:
+ 	gnutls_x509_crl_iter_deinit(iter);
+ 	return ret;
 }
 
 
 /**
  * gnutls_x509_crt_check_revocation:
- * @cert: should contain a #gnutls_x509_crt_t structure
- * @crl_list: should contain a list of gnutls_x509_crl_t structures
+ * @cert: should contain a #gnutls_x509_crt_t type
+ * @crl_list: should contain a list of gnutls_x509_crl_t types
  * @crl_list_length: the length of the crl_list
  *
  * This function will return check if the given certificate is
@@ -2630,60 +2838,12 @@ gnutls_x509_crt_check_revocation(gnutls_x509_crt_t cert,
 }
 
 /**
- * gnutls_x509_crt_get_verify_algorithm:
- * @crt: Holds the certificate
- * @signature: contains the signature
- * @hash: The result of the call with the hash algorithm used for signature
- *
- * This function will read the certifcate and the signed data to
- * determine the hash algorithm used to generate the signature.
- *
- * Deprecated: Use gnutls_pubkey_get_verify_algorithm() instead.
- *
- * Returns: the 0 if the hash algorithm is found. A negative error code is
- * returned on error.
- *
- * Since: 2.8.0
- **/
-int
-gnutls_x509_crt_get_verify_algorithm(gnutls_x509_crt_t crt,
-				     const gnutls_datum_t * signature,
-				     gnutls_digest_algorithm_t * hash)
-{
-	gnutls_pk_params_st issuer_params;
-	int ret;
-
-	if (crt == NULL) {
-		gnutls_assert();
-		return GNUTLS_E_INVALID_REQUEST;
-	}
-
-	ret = _gnutls_x509_crt_get_mpis(crt, &issuer_params);
-	if (ret < 0) {
-		gnutls_assert();
-		return ret;
-	}
-
-	ret = _gnutls_x509_verify_algorithm(hash,
-					    signature,
-					    gnutls_x509_crt_get_pk_algorithm
-					    (crt, NULL), &issuer_params);
-
-	/* release allocated mpis */
-	gnutls_pk_params_release(&issuer_params);
-
-	return ret;
-}
-
-
-
-/**
  * gnutls_x509_crt_get_preferred_hash_algorithm:
  * @crt: Holds the certificate
  * @hash: The result of the call with the hash algorithm used for signature
  * @mand: If non-zero it means that the algorithm MUST use this hash. May be NULL.
  *
- * This function will read the certifcate and return the appropriate digest
+ * This function will read the certificate and return the appropriate digest
  * algorithm to use for signing with this certificate. Some certificates (i.e.
  * DSA might not be able to sign without the preferred algorithm).
  *
@@ -2699,130 +2859,38 @@ gnutls_x509_crt_get_preferred_hash_algorithm(gnutls_x509_crt_t crt,
 					     gnutls_digest_algorithm_t *
 					     hash, unsigned int *mand)
 {
-	gnutls_pk_params_st issuer_params;
 	int ret;
+	gnutls_pubkey_t pubkey;
 
 	if (crt == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
-	ret = _gnutls_x509_crt_get_mpis(crt, &issuer_params);
-	if (ret < 0) {
-		gnutls_assert();
-		return ret;
-	}
-
-	ret =
-	    _gnutls_pk_get_hash_algorithm(gnutls_x509_crt_get_pk_algorithm
-					  (crt, NULL), &issuer_params,
-					  hash, mand);
-
-	/* release allocated mpis */
-	gnutls_pk_params_release(&issuer_params);
-
-	return ret;
-}
-
-/**
- * gnutls_x509_crt_verify_data:
- * @crt: Holds the certificate
- * @flags: should be 0 for now
- * @data: holds the data to be signed
- * @signature: contains the signature
- *
- * This function will verify the given signed data, using the
- * parameters from the certificate.
- *
- * Deprecated. This function cannot be easily used securely. 
- * Use gnutls_pubkey_verify_data2() instead.
- *
- * Returns: In case of a verification failure %GNUTLS_E_PK_SIG_VERIFY_FAILED 
- * is returned, and zero or positive code on success.
- **/
-int
-gnutls_x509_crt_verify_data(gnutls_x509_crt_t crt, unsigned int flags,
-			    const gnutls_datum_t * data,
-			    const gnutls_datum_t * signature)
-{
-	int result;
-
-	if (crt == NULL) {
-		gnutls_assert();
-		return GNUTLS_E_INVALID_REQUEST;
-	}
-
-	result =
-	    _gnutls_x509_verify_data(GNUTLS_DIG_UNKNOWN, data, signature,
-				     crt);
-	if (result < 0) {
-		gnutls_assert();
-		return result;
-	}
-
-	return result;
-}
-
-/**
- * gnutls_x509_crt_verify_hash:
- * @crt: Holds the certificate
- * @flags: should be 0 for now
- * @hash: holds the hash digest to be verified
- * @signature: contains the signature
- *
- * This function will verify the given signed digest, using the
- * parameters from the certificate.
- *
- * Deprecated. This function cannot be easily used securely. 
- * Use gnutls_pubkey_verify_hash2() instead.
- *
- * Returns: In case of a verification failure %GNUTLS_E_PK_SIG_VERIFY_FAILED 
- * is returned, and zero or positive code on success.
- **/
-int
-gnutls_x509_crt_verify_hash(gnutls_x509_crt_t crt, unsigned int flags,
-			    const gnutls_datum_t * hash,
-			    const gnutls_datum_t * signature)
-{
-	gnutls_pk_params_st params;
-	gnutls_digest_algorithm_t algo;
-	int ret;
-
-	if (crt == NULL) {
-		gnutls_assert();
-		return GNUTLS_E_INVALID_REQUEST;
-	}
-
-	ret = gnutls_x509_crt_get_verify_algorithm(crt, signature, &algo);
+	ret = gnutls_pubkey_init(&pubkey);
 	if (ret < 0)
 		return gnutls_assert_val(ret);
 
-	/* Read the MPI parameters from the issuer's certificate.
-	 */
-	ret = _gnutls_x509_crt_get_mpis(crt, &params);
-	if (ret < 0) {
+	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
+	if (ret < 0) {  
 		gnutls_assert();
-		return ret;
+		goto cleanup;
 	}
 
-	ret =
-	    pubkey_verify_hashed_data(gnutls_x509_crt_get_pk_algorithm
-				      (crt, NULL), hash_to_entry(algo),
-				      hash, signature, &params);
-	if (ret < 0) {
+	ret = gnutls_pubkey_get_preferred_hash_algorithm(pubkey, hash, mand);
+	if (ret < 0) {  
 		gnutls_assert();
+		goto cleanup;
 	}
 
-	/* release all allocated MPIs
-	 */
-	gnutls_pk_params_release(&params);
-
+ cleanup:
+ 	gnutls_pubkey_deinit(pubkey);
 	return ret;
 }
 
 /**
  * gnutls_x509_crt_get_crl_dist_points:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @seq: specifies the sequence number of the distribution point (0 for the first one, 1 for the second etc.)
  * @san: is the place where the distribution point will be copied to
  * @san_size: holds the size of ret.
@@ -2850,7 +2918,7 @@ gnutls_x509_crt_get_crl_dist_points(gnutls_x509_crt_t cert,
 {
 	int ret;
 	gnutls_datum_t dist_points = { NULL, 0 };
-	gnutls_x509_subject_alt_name_t type;
+	unsigned type;
 	gnutls_x509_crl_dist_points_t cdp = NULL;
 	gnutls_datum_t t_san;
 
@@ -2910,7 +2978,7 @@ gnutls_x509_crt_get_crl_dist_points(gnutls_x509_crt_t cert,
 
 /**
  * gnutls_x509_crt_get_key_purpose_oid:
- * @cert: should contain a #gnutls_x509_crt_t structure
+ * @cert: should contain a #gnutls_x509_crt_t type
  * @indx: This specifies which OID to return. Use (0) to get the first one.
  * @oid: a pointer to a buffer to hold the OID (may be null)
  * @oid_size: initially holds the size of @oid
@@ -2965,7 +3033,7 @@ gnutls_x509_crt_get_key_purpose_oid(gnutls_x509_crt_t cert,
 		gnutls_assert();
 		goto cleanup;
 	}
-	
+
 	ret = gnutls_x509_ext_import_key_purposes(&ext, p, 0);
 	if (ret < 0) {
 		gnutls_assert();
@@ -2977,7 +3045,7 @@ gnutls_x509_crt_get_key_purpose_oid(gnutls_x509_crt_t cert,
 		gnutls_assert();
 		goto cleanup;
 	}
-	
+
 	ret = _gnutls_copy_data(&out, oid, oid_size);
 	if (ret < 0) {
 		gnutls_assert();
@@ -3010,42 +3078,80 @@ gnutls_x509_crt_get_pk_rsa_raw(gnutls_x509_crt_t crt,
 			       gnutls_datum_t * m, gnutls_datum_t * e)
 {
 	int ret;
-	gnutls_pk_params_st params;
+	gnutls_pubkey_t pubkey;
 
 	if (crt == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
-	ret = gnutls_x509_crt_get_pk_algorithm(crt, NULL);
-	if (ret != GNUTLS_PK_RSA) {
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
+
+	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
+	if (ret < 0) {  
+		gnutls_assert();
+		goto cleanup;
+	}
+
+	ret = gnutls_pubkey_export_rsa_raw(pubkey, m, e);
+	if (ret < 0) {  
+		gnutls_assert();
+		goto cleanup;
+	}
+
+ cleanup:
+ 	gnutls_pubkey_deinit(pubkey);
+	return ret;
+}
+
+/**
+ * gnutls_x509_crt_get_pk_ecc_raw:
+ * @crt: Holds the certificate
+ * @curve: will hold the curve
+ * @x: will hold x
+ * @y: will hold y
+ *
+ * This function will export the ECC public key's parameters found in
+ * the given certificate.  The new parameters will be allocated using
+ * gnutls_malloc() and will be stored in the appropriate datum.
+ *
+ * Returns: %GNUTLS_E_SUCCESS on success, otherwise a negative error code.
+ *
+ * Since: 3.4.1
+ **/
+int
+gnutls_x509_crt_get_pk_ecc_raw(gnutls_x509_crt_t crt,
+			       gnutls_ecc_curve_t * curve,
+			       gnutls_datum_t * x, gnutls_datum_t * y)
+{
+	int ret;
+	gnutls_pubkey_t pubkey;
+
+	if (crt == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
-	ret = _gnutls_x509_crt_get_mpis(crt, &params);
-	if (ret < 0) {
-		gnutls_assert();
-		return ret;
-	}
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
 
-	ret = _gnutls_mpi_dprint_lz(params.params[0], m);
-	if (ret < 0) {
+	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
+	if (ret < 0) {  
 		gnutls_assert();
 		goto cleanup;
 	}
 
-	ret = _gnutls_mpi_dprint_lz(params.params[1], e);
-	if (ret < 0) {
+	ret = gnutls_pubkey_export_ecc_raw(pubkey, curve, x, y);
+	if (ret < 0) {  
 		gnutls_assert();
-		_gnutls_free_datum(m);
 		goto cleanup;
 	}
 
-	ret = 0;
-
-      cleanup:
-	gnutls_pk_params_release(&params);
+ cleanup:
+ 	gnutls_pubkey_deinit(pubkey);
 	return ret;
 }
 
@@ -3069,73 +3175,37 @@ gnutls_x509_crt_get_pk_dsa_raw(gnutls_x509_crt_t crt,
 			       gnutls_datum_t * g, gnutls_datum_t * y)
 {
 	int ret;
-	gnutls_pk_params_st params;
+	gnutls_pubkey_t pubkey;
 
 	if (crt == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
-	ret = gnutls_x509_crt_get_pk_algorithm(crt, NULL);
-	if (ret != GNUTLS_PK_DSA) {
-		gnutls_assert();
-		return GNUTLS_E_INVALID_REQUEST;
-	}
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
 
-	ret = _gnutls_x509_crt_get_mpis(crt, &params);
-	if (ret < 0) {
-		gnutls_assert();
-		return ret;
-	}
-
-
-	/* P */
-	ret = _gnutls_mpi_dprint_lz(params.params[0], p);
-	if (ret < 0) {
+	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
+	if (ret < 0) {  
 		gnutls_assert();
 		goto cleanup;
 	}
 
-	/* Q */
-	ret = _gnutls_mpi_dprint_lz(params.params[1], q);
-	if (ret < 0) {
+	ret = gnutls_pubkey_export_dsa_raw(pubkey, p, q, g, y);
+	if (ret < 0) {  
 		gnutls_assert();
-		_gnutls_free_datum(p);
 		goto cleanup;
 	}
 
-
-	/* G */
-	ret = _gnutls_mpi_dprint_lz(params.params[2], g);
-	if (ret < 0) {
-		gnutls_assert();
-		_gnutls_free_datum(p);
-		_gnutls_free_datum(q);
-		goto cleanup;
-	}
-
-
-	/* Y */
-	ret = _gnutls_mpi_dprint_lz(params.params[3], y);
-	if (ret < 0) {
-		gnutls_assert();
-		_gnutls_free_datum(p);
-		_gnutls_free_datum(g);
-		_gnutls_free_datum(q);
-		goto cleanup;
-	}
-
-	ret = 0;
-
-      cleanup:
-	gnutls_pk_params_release(&params);
+ cleanup:
+ 	gnutls_pubkey_deinit(pubkey);
 	return ret;
-
 }
 
 /**
  * gnutls_x509_crt_list_import2:
- * @certs: The structures to store the parsed certificate. Must not be initialized.
+ * @certs: Will hold the parsed certificate list.
  * @size: It will contain the size of the list.
  * @data: The PEM encoded certificate.
  * @format: One of DER or PEM.
@@ -3198,43 +3268,9 @@ gnutls_x509_crt_list_import2(gnutls_x509_crt_t ** certs,
 	return 0;
 }
 
-static int check_if_sorted(gnutls_x509_crt_t * crt, int nr)
-{
-	void *prev_dn = NULL;
-	void *dn;
-	size_t prev_dn_size = 0, dn_size;
-	int i, ret;
-
-	/* check if the X.509 list is ordered */
-	if (nr > 1) {
-		for (i = 0; i < nr; i++) {
-			if (i > 0) {
-				dn = crt[i]->raw_dn.data;
-				dn_size = crt[i]->raw_dn.size;
-
-				if (dn_size != prev_dn_size
-				    || memcmp(dn, prev_dn, dn_size) != 0) {
-					ret =
-					    gnutls_assert_val
-					    (GNUTLS_E_CERTIFICATE_LIST_UNSORTED);
-					goto cleanup;
-				}
-			}
-
-			prev_dn = crt[i]->raw_issuer_dn.data;
-			prev_dn_size = crt[i]->raw_issuer_dn.size;
-		}
-	}
-	ret = 0;
-
-cleanup:
-	return ret;
-}
-
-
 /**
  * gnutls_x509_crt_list_import:
- * @certs: The structures to store the parsed certificate. Must not be initialized.
+ * @certs: Indicates where the parsed list will be copied to. Must not be initialized.
  * @cert_max: Initially must hold the maximum number of certs. It will be updated with the number of certs available.
  * @data: The PEM encoded certificate.
  * @format: One of DER or PEM.
@@ -3266,7 +3302,7 @@ gnutls_x509_crt_list_import(gnutls_x509_crt_t * certs,
 	const char *ptr;
 	gnutls_datum_t tmp;
 	int ret, nocopy = 0;
-	unsigned int count = 0, j;
+	unsigned int count = 0, j, copied = 0;
 
 	if (format == GNUTLS_X509_FMT_DER) {
 		if (*cert_max < 1) {
@@ -3333,6 +3369,8 @@ gnutls_x509_crt_list_import(gnutls_x509_crt_t * certs,
 				gnutls_assert();
 				goto error;
 			}
+
+			copied++;
 		}
 
 		/* now we move ptr after the pem header 
@@ -3362,18 +3400,37 @@ gnutls_x509_crt_list_import(gnutls_x509_crt_t * certs,
 
 	*cert_max = count;
 
-	if (flags & GNUTLS_X509_CRT_LIST_FAIL_IF_UNSORTED) {
-		ret = check_if_sorted(certs, *cert_max);
-		if (ret < 0) {
-			gnutls_assert();
-			goto error;
-		}
-	}
+	if (nocopy == 0) {
+		if (flags & GNUTLS_X509_CRT_LIST_SORT && *cert_max > 1) {
+			gnutls_x509_crt_t sorted[DEFAULT_MAX_VERIFY_DEPTH];
+			gnutls_x509_crt_t *s;
 
-	if (nocopy == 0)
+			s = _gnutls_sort_clist(sorted, certs, cert_max, gnutls_x509_crt_deinit);
+			if (s == certs) {
+				gnutls_assert();
+				ret = GNUTLS_E_UNIMPLEMENTED_FEATURE;
+				goto error;
+			}
+
+			count = *cert_max;
+			if (s == sorted) {
+				memcpy(certs, s, (*cert_max)*sizeof(gnutls_x509_crt_t));
+			}
+		}
+
+		if (flags & GNUTLS_X509_CRT_LIST_FAIL_IF_UNSORTED) {
+			ret = _gnutls_check_if_sorted(certs, *cert_max);
+			if (ret < 0) {
+				gnutls_assert();
+				goto error;
+			}
+		}
+
 		return count;
-	else
-		return GNUTLS_E_SHORT_MEMORY_BUFFER;
+	} else {
+		count = copied;
+		ret = GNUTLS_E_SHORT_MEMORY_BUFFER;
+	}
 
       error:
 	for (j = 0; j < count; j++)
@@ -3395,6 +3452,11 @@ gnutls_x509_crt_list_import(gnutls_x509_crt_t * certs,
  * full subjectUniqueID, then a GNUTLS_E_SHORT_MEMORY_BUFFER error will be
  * returned, and buf_size will be set to the actual length.
  *
+ * This function had a bug prior to 3.4.8 that prevented the setting
+ * of %NULL @buf to discover the @buf_size. To use this function safely
+ * with the older versions the @buf must be a valid buffer that can hold
+ * at least a single byte if @buf_size is zero.
+ *
  * Returns: %GNUTLS_E_SUCCESS on success, otherwise a negative error code.
  **/
 int
@@ -3408,10 +3470,11 @@ gnutls_x509_crt_get_subject_unique_id(gnutls_x509_crt_t crt, char *buf,
 	    _gnutls_x509_read_value(crt->cert,
 				    "tbsCertificate.subjectUniqueID",
 				    &datum);
+	if (result < 0)
+		return gnutls_assert_val(result);
 
 	if (datum.size > *buf_size) {	/* then we're not going to fit */
 		*buf_size = datum.size;
-		buf[0] = '\0';
 		result = GNUTLS_E_SHORT_MEMORY_BUFFER;
 	} else {
 		*buf_size = datum.size;
@@ -3437,6 +3500,11 @@ gnutls_x509_crt_get_subject_unique_id(gnutls_x509_crt_t crt, char *buf,
  * full subjectUniqueID, then a GNUTLS_E_SHORT_MEMORY_BUFFER error will be
  * returned, and buf_size will be set to the actual length.
  *
+ * This function had a bug prior to 3.4.8 that prevented the setting
+ * of %NULL @buf to discover the @buf_size. To use this function safely
+ * with the older versions the @buf must be a valid buffer that can hold
+ * at least a single byte if @buf_size is zero.
+ *
  * Returns: %GNUTLS_E_SUCCESS on success, otherwise a negative error code.
  *
  * Since: 2.12.0
@@ -3452,10 +3520,11 @@ gnutls_x509_crt_get_issuer_unique_id(gnutls_x509_crt_t crt, char *buf,
 	    _gnutls_x509_read_value(crt->cert,
 				    "tbsCertificate.issuerUniqueID",
 				    &datum);
+	if (result < 0)
+		return gnutls_assert_val(result);
 
 	if (datum.size > *buf_size) {	/* then we're not going to fit */
 		*buf_size = datum.size;
-		buf[0] = '\0';
 		result = GNUTLS_E_SHORT_MEMORY_BUFFER;
 	} else {
 		*buf_size = datum.size;
@@ -3570,7 +3639,7 @@ legacy_parse_aia(ASN1_TYPE src,
  * @seq: specifies the sequence number of the access descriptor (0 for the first one, 1 for the second etc.)
  * @what: what data to get, a #gnutls_info_access_what_t type.
  * @data: output data to be freed with gnutls_free().
- * @critical: pointer to output integer that is set to non-0 if the extension is marked as critical (may be %NULL)
+ * @critical: pointer to output integer that is set to non-zero if the extension is marked as critical (may be %NULL)
  *
  * Note that a simpler API to access the authority info data is provided
  * by gnutls_x509_aia_get() and gnutls_x509_ext_import_aia().
@@ -3596,17 +3665,20 @@ legacy_parse_aia(ASN1_TYPE src,
  *
  * If @what is %GNUTLS_IA_URI, @data will hold the accessLocation URI
  * data.  Requesting this @what value leads to an error if the
- * accessLocation is not of the "uniformResourceIdentifier" type.
+ * accessLocation is not of the "uniformResourceIdentifier" type. 
  *
  * If @what is %GNUTLS_IA_OCSP_URI, @data will hold the OCSP URI.
  * Requesting this @what value leads to an error if the accessMethod
  * is not 1.3.6.1.5.5.7.48.1 aka OSCP, or if accessLocation is not of
- * the "uniformResourceIdentifier" type.
+ * the "uniformResourceIdentifier" type. In that case %GNUTLS_E_UNKNOWN_ALGORITHM
+ * will be returned, and @seq should be increased and this function
+ * called again.
  *
  * If @what is %GNUTLS_IA_CAISSUERS_URI, @data will hold the caIssuers
  * URI.  Requesting this @what value leads to an error if the
  * accessMethod is not 1.3.6.1.5.5.7.48.2 aka caIssuers, or if
  * accessLocation is not of the "uniformResourceIdentifier" type.
+ * In that case handle as in %GNUTLS_IA_OCSP_URI.
  *
  * More @what values may be allocated in the future as needed.
  *
@@ -3664,7 +3736,7 @@ gnutls_x509_crt_get_authority_info_access(gnutls_x509_crt_t crt,
 		return _gnutls_asn2err(ret);
 	}
 
-	ret = asn1_der_decoding(&c2, aia.data, aia.size, NULL);
+	ret = _asn1_strict_der_decode(&c2, aia.data, aia.size, NULL);
 	/* asn1_print_structure (stdout, c2, "", ASN1_PRINT_ALL); */
 	_gnutls_free_datum(&aia);
 	if (ret != ASN1_SUCCESS) {
@@ -3693,7 +3765,7 @@ gnutls_x509_crt_get_authority_info_access(gnutls_x509_crt_t crt,
  * the global function set using gnutls_pkcs11_set_pin_function().
  *
  * Note that this callback is currently used only during the import
- * of a PKCS #11 certificate with gnutls_x509_crt_import_pkcs11_url().
+ * of a PKCS #11 certificate with gnutls_x509_crt_import_url().
  *
  * Since: 3.1.0
  *
@@ -3704,4 +3776,98 @@ void gnutls_x509_crt_set_pin_function(gnutls_x509_crt_t crt,
 {
 	crt->pin.cb = fn;
 	crt->pin.data = userdata;
+}
+
+/**
+ * gnutls_x509_crt_import_url:
+ * @crt: A certificate of type #gnutls_x509_crt_t
+ * @url: A PKCS 11 url
+ * @flags: One of GNUTLS_PKCS11_OBJ_* flags
+ *
+ * This function will import a PKCS 11 certificate directly from a token
+ * without involving the #gnutls_pkcs11_obj_t type. This function will
+ * fail if the certificate stored is not of X.509 type.
+ *
+ * Despite its name this function will attempt to import any kind of 
+ * URL to certificate. In previous versions of gnutls this function
+ * was named gnutls_x509_crt_import_pkcs11_url, and the old name is
+ * an alias to this one.
+ *
+ * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
+ *   negative error value.
+ *
+ * Since: 3.4.0
+ **/
+int
+gnutls_x509_crt_import_url(gnutls_x509_crt_t crt,
+				  const char *url, unsigned int flags)
+{
+	int ret;
+
+	if (strncmp(url, SYSTEM_URL, SYSTEM_URL_SIZE) == 0) {
+		ret = _gnutls_x509_crt_import_system_url(crt, url);
+#ifdef ENABLE_PKCS11
+	} else if (strncmp(url, PKCS11_URL, PKCS11_URL_SIZE) == 0) {
+			ret = _gnutls_x509_crt_import_pkcs11_url(crt, url, flags);
+#endif
+	} else {
+		unsigned i;
+		for (i=0;i<_gnutls_custom_urls_size;i++) {
+			if (strncmp(url, _gnutls_custom_urls[i].name, _gnutls_custom_urls[i].name_size) == 0) {
+				if (_gnutls_custom_urls[i].import_crt) {
+					ret = _gnutls_custom_urls[i].import_crt(crt, url, flags);
+					goto cleanup;
+				}
+			}
+		}
+		ret = gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
+	}
+
+ cleanup:
+	return ret;
+}
+
+/**
+ * gnutls_x509_crt_verify_data2:
+ * @crt: Holds the certificate to verify with
+ * @algo: The signature algorithm used
+ * @flags: Zero or an OR list of #gnutls_certificate_verify_flags
+ * @data: holds the signed data
+ * @signature: contains the signature
+ *
+ * This function will verify the given signed data, using the
+ * parameters from the certificate.
+ *
+ * Returns: In case of a verification failure %GNUTLS_E_PK_SIG_VERIFY_FAILED 
+ * is returned, and zero or positive code on success.
+ *
+ * Since: 3.4.0
+ **/
+int
+gnutls_x509_crt_verify_data2(gnutls_x509_crt_t crt,
+			   gnutls_sign_algorithm_t algo,
+			   unsigned int flags,
+			   const gnutls_datum_t * data,
+			   const gnutls_datum_t * signature)
+{
+	int ret;
+	gnutls_pubkey_t pubkey;
+
+	if (crt == NULL) {
+		gnutls_assert();
+		return GNUTLS_E_INVALID_REQUEST;
+	}
+
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
+
+	ret = gnutls_pubkey_import_x509(pubkey, crt, 0);
+	if (ret < 0)
+		return gnutls_assert_val(ret);
+
+	ret = gnutls_pubkey_verify_data2(pubkey, algo, flags, data, signature);
+	gnutls_pubkey_deinit(pubkey);
+
+	return ret;
 }

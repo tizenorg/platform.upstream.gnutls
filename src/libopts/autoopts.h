@@ -11,7 +11,7 @@
 /*
  *  This file is part of AutoOpts, a companion to AutoGen.
  *  AutoOpts is free software.
- *  AutoOpts is Copyright (C) 1992-2013 by Bruce Korb - all rights reserved
+ *  AutoOpts is Copyright (C) 1992-2015 by Bruce Korb - all rights reserved
  *
  *  AutoOpts is available under any one of two licenses.  The license
  *  in use must be one of these two and the choice is under the control
@@ -32,6 +32,7 @@
 
 #ifndef AUTOGEN_AUTOOPTS_H
 #define AUTOGEN_AUTOOPTS_H
+#include <stdnoreturn.h>
 
 #define AO_NAME_LIMIT           127
 #define AO_NAME_SIZE            ((size_t)(AO_NAME_LIMIT + 1))
@@ -106,7 +107,7 @@
  *  Coercive cast.  Compel an address to be interpreted as the type
  *  of the first argument.  No complaints, just do it.
  */
-#define C(_t,_p)  ((_t)(void *)(_p))
+#define C(_t,_p)  ((_t)VOIDP(_p))
 #endif
 
 /* The __attribute__((__warn_unused_result__)) feature
@@ -255,10 +256,10 @@ typedef struct {
     char const * pzTime;
 } arg_types_t;
 
-#define AGALOC(c, w)          ao_malloc((size_t)c)
-#define AGREALOC(p, c, w)     ao_realloc((void*)p, (size_t)c)
-#define AGFREE(_p)            free((void *)_p)
-#define AGDUPSTR(p, s, w)     (p = ao_strdup(s))
+#define AGALOC(_c, _w)        ao_malloc((size_t)_c)
+#define AGREALOC(_p, _c, _w)  ao_realloc(VOIDP(_p), (size_t)_c)
+#define AGFREE(_p)            free(VOIDP(_p))
+#define AGDUPSTR(_p, _s, _w)  (_p = ao_strdup(_s))
 
 static void *
 ao_malloc(size_t sz);
@@ -266,10 +267,10 @@ ao_malloc(size_t sz);
 static void *
 ao_realloc(void *p, size_t sz);
 
-#define ao_free(_p) free((void *)_p)
+#define ao_free(_p) free(VOIDP(_p))
 
 static char *
-ao_strdup(char const *str);
+ao_strdup(char const * str);
 
 /**
  *  DO option handling?
@@ -368,7 +369,7 @@ ao_strdup(char const *str);
 #endif
 
 #ifndef MAP_FAILED
-#  define  MAP_FAILED           ((void*)-1)
+#  define  MAP_FAILED           VOIDP(-1)
 #endif
 
 #ifndef  _SC_PAGESIZE
@@ -378,9 +379,19 @@ ao_strdup(char const *str);
 #endif
 
 #ifndef HAVE_STRCHR
-extern char* strchr(char const *s, int c);
-extern char* strrchr(char const *s, int c);
+extern char * strchr(char const * s, int c);
+extern char * strrchr(char const * s, int c);
 #endif
+
+/**
+ * INQUERY_CALL() tests whether the option handling function has been
+ * called by an inquery (help text needed, or option being reset),
+ * or called by a set-the-option operation.
+ */
+#define INQUERY_CALL(_o, _d) (                  \
+    ((_o) <= OPTPROC_EMIT_LIMIT)                \
+    || ((_d) == NULL)                           \
+    || (((_d)->fOptState & OPTST_RESET) != 0) )
 
 /**
  *  Define and initialize all the user visible strings.

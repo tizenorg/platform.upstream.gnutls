@@ -1,5 +1,5 @@
 ;;; GnuTLS --- Guile bindings for GnuTLS.
-;;; Copyright (C) 2007-2012 Free Software Foundation, Inc.
+;;; Copyright (C) 2007-2012, 2014, 2015 Free Software Foundation, Inc.
 ;;;
 ;;; GnuTLS is free software; you can redistribute it and/or
 ;;; modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@
            session-peer-certificate-chain session-our-certificate-chain
            set-session-transport-fd! set-session-transport-port!
            set-session-credentials! set-server-session-certificate-request!
+           set-session-server-name!
 
            ;; anonymous credentials
            anonymous-client-credentials? anonymous-server-credentials?
@@ -43,7 +44,6 @@
            ;; certificate credentials
            certificate-credentials? make-certificate-credentials
            set-certificate-credentials-dh-parameters!
-           set-certificate-credentials-rsa-export-parameters!
            set-certificate-credentials-x509-key-files!
            set-certificate-credentials-x509-trust-file!
            set-certificate-credentials-x509-crl-file!
@@ -72,22 +72,12 @@
 
            ;; priorities
            set-session-priorities!
-
-           ;; priority functions (deprecated)
-           set-session-cipher-priority! set-session-mac-priority!
-           set-session-compression-method-priority!
-           set-session-kx-priority! set-session-protocol-priority!
-           set-session-certificate-type-priority!
-           set-session-default-priority! set-session-default-export-priority!
+           set-session-default-priority!
 
            ;; DH
            set-session-dh-prime-bits!
            make-dh-parameters dh-parameters?
            pkcs3-import-dh-parameters pkcs3-export-dh-parameters
-
-           ;; RSA
-           make-rsa-parameters rsa-parameters?
-           pkcs1-import-rsa-parameters pkcs1-export-rsa-parameters
 
            ;; X.509
            x509-certificate? x509-private-key?
@@ -120,7 +110,7 @@
            x509-subject-alternative-name->string pk-algorithm->string
            sign-algorithm->string psk-key-format->string key-usage->string
            certificate-verify->string error->string
-           cipher-suite->string
+           cipher-suite->string server-name-type->string
 
            ;; enum values
            cipher/null
@@ -257,6 +247,7 @@
            certificate-verify/allow-any-x509-v1-ca-certificate
            certificate-verify/allow-sign-rsa-md2
            certificate-verify/allow-sign-rsa-md5
+           server-name-type/dns
 
            ;; FIXME: Automate this:
            ;; grep '^#define GNUTLS_E_' ../../lib/includes/gnutls/gnutls.h.in | \
@@ -421,12 +412,13 @@
            openpgp-certificate-format/raw
            openpgp-certificate-format/base64))
 
-(define %libdir
-  (or (getenv "GNUTLS_GUILE_EXTENSION_DIR")
-      "@guileextensiondir@"))
+(eval-when (expand load eval)
+  (define %libdir
+    (or (getenv "GNUTLS_GUILE_EXTENSION_DIR")
+        "@guileextensiondir@"))
 
-(load-extension (string-append %libdir "/guile-gnutls-v-2")
-                "scm_init_gnutls")
+  (load-extension (string-append %libdir "/guile-gnutls-v-2")
+                  "scm_init_gnutls"))
 
 ;; Renaming.
 (define protocol/ssl-3 protocol/ssl3)

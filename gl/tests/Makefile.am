@@ -1,6 +1,6 @@
 ## DO NOT EDIT! GENERATED AUTOMATICALLY!
 ## Process this file with automake to produce Makefile.in.
-# Copyright (C) 2002-2014 Free Software Foundation, Inc.
+# Copyright (C) 2002-2015 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -621,14 +621,6 @@ check_PROGRAMS += test-time
 EXTRA_DIST += test-time.c
 
 ## end   gnulib module time-tests
-
-## begin gnulib module u64-tests
-
-TESTS += test-u64
-check_PROGRAMS += test-u64
-EXTRA_DIST += test-u64.c
-
-## end   gnulib module u64-tests
 
 ## begin gnulib module unistd-tests
 

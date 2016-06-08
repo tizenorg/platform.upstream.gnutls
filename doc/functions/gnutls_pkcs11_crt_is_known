@@ -11,7 +11,7 @@
 
 This function will check whether the provided certificate is stored
 in the specified token. This is useful in combination with 
-@code{GNUTLS_PKCS11_OBJ_FLAG_RETRIEVE_TRUSTED}  or 
+@code{GNUTLS_PKCS11_OBJ_FLAG_RETRIEVE_TRUSTED}  or
 @code{GNUTLS_PKCS11_OBJ_FLAG_RETRIEVE_DISTRUSTED} ,
 to check whether a CA is present or a certificate is blacklisted in
 a trust PKCS @code{11}  module.

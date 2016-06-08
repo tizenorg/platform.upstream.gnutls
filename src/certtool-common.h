@@ -42,9 +42,11 @@ typedef struct common_info {
 	const char *cert;
 
 	const char *request;
+	const char *crl;
 	const char *ca;
+	const char *data_file;
 	const char *ca_privkey;
-	int bits;
+	unsigned bits;
 	const char *sec_param;
 	const char *pkcs_cipher;
 	const char *password;
@@ -53,8 +55,15 @@ typedef struct common_info {
 	unsigned int crq_extensions;
 	unsigned int v1_cert;
 
-	int cprint;
+	const char *pin;
+	const char *so_pin;
 
+	int cprint;
+	unsigned key_usage;
+
+	unsigned int batch;
+	/* when printing PKCS #11 objects, only print urls */
+	unsigned int only_urls;
 	unsigned int verbose;
 } common_info_st;
 
@@ -74,10 +83,13 @@ gnutls_datum_t *load_secret_key(int mand, common_info_st * info);
 gnutls_pubkey_t load_pubkey(int mand, common_info_st * info);
 gnutls_x509_crt_t *load_cert_list(int mand, size_t * size,
 				  common_info_st * info);
+gnutls_x509_crl_t *load_crl_list(int mand, size_t * size,
+				  common_info_st * info);
 int get_bits(gnutls_pk_algorithm_t key_type, int info_bits,
 	     const char *info_sec_param, int warn);
 
 gnutls_sec_param_t str_to_sec_param(const char *str);
+gnutls_ecc_curve_t str_to_curve(const char *str);
 
 /* prime.c */
 int generate_prime(FILE * outfile, int how, common_info_st * info);
@@ -106,8 +118,8 @@ const char *get_password(common_info_st * cinfo, unsigned int *flags,
 			 int confirm);
 
 extern unsigned char *lbuffer;
-extern int lbuffer_size;
+extern unsigned long lbuffer_size;
 
-void fix_lbuffer(unsigned);
+void fix_lbuffer(unsigned long);
 
 #endif

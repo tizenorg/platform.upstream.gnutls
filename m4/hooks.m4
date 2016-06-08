@@ -23,9 +23,9 @@ AC_DEFUN([LIBGNUTLS_EXTRA_HOOKS],
 [
   AC_MSG_CHECKING([whether to build OpenSSL compatibility layer])
   AC_ARG_ENABLE(openssl-compatibility,
-    AS_HELP_STRING([--disable-openssl-compatibility],
-                   [disable the OpenSSL compatibility support]),
-    enable_openssl=$enableval, enable_openssl=yes)
+    AS_HELP_STRING([--enable-openssl-compatibility],
+                   [enable the OpenSSL compatibility library]),
+    enable_openssl=$enableval, enable_openssl=no)
   AC_MSG_RESULT($enable_openssl)
   AM_CONDITIONAL(ENABLE_OPENSSL, test "$enable_openssl" = "yes")
 
@@ -39,9 +39,9 @@ AC_DEFUN([LIBGNUTLS_HOOKS],
   # Interfaces changed/added/removed:   CURRENT++       REVISION=0
   # Interfaces added:                             AGE++
   # Interfaces removed:                           AGE=0 (+bump all symbol versions in .map)
-  AC_SUBST(LT_CURRENT, 66)
-  AC_SUBST(LT_REVISION, 0)
-  AC_SUBST(LT_AGE, 38)
+  AC_SUBST(LT_CURRENT, 36)
+  AC_SUBST(LT_REVISION, 3)
+  AC_SUBST(LT_AGE, 6)
 
   AC_SUBST(LT_SSL_CURRENT, 27)
   AC_SUBST(LT_SSL_REVISION, 2)
@@ -65,13 +65,13 @@ AC_DEFUN([LIBGNUTLS_HOOKS],
   DLL_VERSION=`expr ${LT_CURRENT} - ${LT_AGE}`
   AC_SUBST(DLL_VERSION)
 
-  PKG_CHECK_MODULES(NETTLE, [nettle >= 2.7], [cryptolib="nettle"], [
+  PKG_CHECK_MODULES(NETTLE, [nettle >= 3.1], [cryptolib="nettle"], [
 AC_MSG_ERROR([[
   *** 
-  *** Libnettle 2.7 was not found. 
+  *** Libnettle 3.1 was not found. 
 ]])
   ])
-  PKG_CHECK_MODULES(HOGWEED, [hogweed >= 2.7], [], [
+  PKG_CHECK_MODULES(HOGWEED, [hogweed >= 3.1], [], [
 AC_MSG_ERROR([[
   *** 
   *** Libhogweed (nettle's companion library) was not found. Note that you must compile nettle with gmp support.
@@ -103,16 +103,17 @@ AC_MSG_ERROR([[
   AC_SUBST(GMP_CFLAGS)
   AC_SUBST(GMP_LIBS)
 
+LIBTASN1_MINIMUM=4.3
   AC_ARG_WITH(included-libtasn1,
     AS_HELP_STRING([--with-included-libtasn1], [use the included libtasn1]),
       included_libtasn1=$withval,
       included_libtasn1=no)
   if test "$included_libtasn1" = "no"; then
-    PKG_CHECK_MODULES(LIBTASN1, [libtasn1 >= 3.4], [], [included_libtasn1=yes])
+    PKG_CHECK_MODULES(LIBTASN1, [libtasn1 >= $LIBTASN1_MINIMUM], [], [included_libtasn1=yes])
     if test "$included_libtasn1" = yes; then
-      AC_MSG_WARN([[
+      AC_MSG_ERROR([[
   *** 
-  *** Libtasn1 was not found. Will use the included one.
+  *** Libtasn1 $LIBTASN1_MINIMUM was not found. To use the included on use --with-included-libtasn1
   ]])
     fi
   fi
@@ -167,20 +168,6 @@ AC_MSG_ERROR([[
    AC_MSG_RESULT(yes)
   fi
   AM_CONDITIONAL(ENABLE_ALPN, test "$ac_enable_alpn" != "no")
-
-  AC_MSG_CHECKING([whether to disable RSA-EXPORT support])
-  AC_ARG_ENABLE(rsa-export,
-    AS_HELP_STRING([--disable-rsa-export],
-                   [disable the RSA-EXPORT support]),
-    ac_enable_rsa_export=$enableval, ac_enable_rsa_export=yes)
-  if test x$ac_enable_rsa_export != xno; then
-   AC_MSG_RESULT(no)
-   AC_DEFINE([ENABLE_RSA_EXPORT], 1, [enable RSA-EXPORT])
-  else
-   ac_full=0
-   AC_MSG_RESULT(yes)
-  fi
-  AM_CONDITIONAL(ENABLE_RSA_EXPORT, test "$ac_enable_rsa_export" != "no")
 
   ac_enable_heartbeat=yes
   AC_MSG_CHECKING([whether to disable TLS heartbeat support])

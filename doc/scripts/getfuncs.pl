@@ -1,6 +1,4 @@
-eval '(exit $?0)' && eval 'exec perl -wST "$0" ${1+"$@"}'
-  & eval 'exec perl -wST "$0" $argv:q'
-    if 0;
+#!/usr/bin/perl
 
 # Copyright (C) 2011-2012 Free Software Foundation, Inc.
 # Copyright (C) 2013 Nikos Mavrogiannopoulos
@@ -51,7 +49,7 @@ sub function_print {
   }
 
 #print STDERR "function: $prototype\n";
-  if ($func_name ne '' && ($func_name =~ m/gnutls_.*/ || $func_name =~ m/dane_.*/ || $func_name =~ m/xssl_.*/)) {
+  if ($func_name ne '' && ($func_name =~ m/^gnutls_.*/ || $func_name =~ m/dane_.*/ || $func_name =~ m/xssl_.*/)) {
     print $func_name . "\n";
   }
       

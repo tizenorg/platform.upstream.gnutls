@@ -48,7 +48,7 @@
  * 
  */
 int
-dsa_validate_dss_pqg(struct dsa_public_key *pub,
+dsa_validate_dss_pqg(struct dsa_params *pub,
 		     struct dss_params_validation_seeds *cert, unsigned index)
 {
 	int ret;
@@ -72,24 +72,24 @@ dsa_validate_dss_pqg(struct dsa_public_key *pub,
 }
 
 int
-_dsa_validate_dss_g(struct dsa_public_key *pub,
+_dsa_validate_dss_g(struct dsa_params *pub,
 		    unsigned domain_seed_size, const uint8_t *domain_seed, unsigned index)
 {
 	int ret;
 	unsigned p_bits, q_bits;
-	struct dsa_public_key pub2;
+	struct dsa_params pub2;
 	mpz_t r;
 
 	p_bits = mpz_sizeinbase(pub->p, 2);
 	q_bits = mpz_sizeinbase(pub->q, 2);
 
-	ret = _dsa_check_qp_sizes(q_bits, p_bits);
+	ret = _dsa_check_qp_sizes(q_bits, p_bits, 0);
 	if (ret == 0) {
 		return 0;
 	}
 
 	mpz_init(r);
-	dsa_public_key_init(&pub2);
+	dsa_params_init(&pub2);
 
 	mpz_set(pub2.p, pub->p);
 	mpz_set(pub2.q, pub->q);
@@ -132,33 +132,33 @@ _dsa_validate_dss_g(struct dsa_public_key *pub,
 	ret = 0;
 
  finish:
-	dsa_public_key_clear(&pub2);
+	dsa_params_clear(&pub2);
 	mpz_clear(r);
 
 	return ret;
 }
 
 int
-_dsa_validate_dss_pq(struct dsa_public_key *pub,
+_dsa_validate_dss_pq(struct dsa_params *pub,
 		     struct dss_params_validation_seeds *cert)
 {
 	int ret;
 	unsigned p_bits, q_bits;
-	struct dsa_public_key pub2;
+	struct dsa_params pub2;
 	struct dss_params_validation_seeds cert2;
 	mpz_t r, s;
 
 	p_bits = mpz_sizeinbase(pub->p, 2);
 	q_bits = mpz_sizeinbase(pub->q, 2);
 
-	ret = _dsa_check_qp_sizes(q_bits, p_bits);
+	ret = _dsa_check_qp_sizes(q_bits, p_bits, 0);
 	if (ret == 0) {
 		return 0;
 	}
 
 	mpz_init(r);
 	mpz_init(s);
-	dsa_public_key_init(&pub2);
+	dsa_params_init(&pub2);
 
 	nettle_mpz_set_str_256_u(s, cert->seed_length, cert->seed);
 
@@ -235,7 +235,7 @@ _dsa_validate_dss_pq(struct dsa_public_key *pub,
 	ret = 0;
 
  finish:
-	dsa_public_key_clear(&pub2);
+	dsa_params_clear(&pub2);
 	mpz_clear(r);
 	mpz_clear(s);
 
