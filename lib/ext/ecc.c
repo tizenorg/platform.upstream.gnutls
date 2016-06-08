@@ -32,10 +32,6 @@
 #include <gnutls_num.h>
 #include <algorithms.h>
 
-/* Maps record size to numbers according to the
- * extensions draft.
- */
-
 static int _gnutls_supported_ecc_recv_params(gnutls_session_t session,
 					     const uint8_t * data,
 					     size_t data_size);
@@ -224,11 +220,18 @@ _gnutls_supported_ecc_pf_recv_params(gnutls_session_t session,
 			    (GNUTLS_E_RECEIVED_ILLEGAL_EXTENSION);
 
 		len = data[0];
+		if (len < 1)
+			return
+			    gnutls_assert_val
+			    (GNUTLS_E_RECEIVED_ILLEGAL_EXTENSION);
+
 		DECR_LEN(data_size, len + 1);
 
 		for (i = 1; i <= len; i++)
-			if (data[i] == 0)	/* uncompressed */
+			if (data[i] == 0) {	/* uncompressed */
 				uncompressed = 1;
+				break;
+			}
 
 		if (uncompressed == 0)
 			return
@@ -254,13 +257,17 @@ _gnutls_supported_ecc_pf_send_params(gnutls_session_t session,
 				     gnutls_buffer_st * extdata)
 {
 	const uint8_t p[2] = { 0x01, 0x00 };	/* only support uncompressed point format */
+	int ret;
 
 	if (session->security_parameters.entity == GNUTLS_SERVER
 	    && !_gnutls_session_is_ecc(session))
 		return 0;
 
 	if (session->internals.priorities.supported_ecc.algorithms > 0) {
-		_gnutls_buffer_append_data(extdata, p, 2);
+		ret = _gnutls_buffer_append_data(extdata, p, 2);
+		if (ret < 0)
+			return gnutls_assert_val(ret);
+
 		return 2;
 	}
 	return 0;

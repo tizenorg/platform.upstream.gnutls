@@ -3,7 +3,7 @@
 
 
 @deftypefun {int} {gnutls_certificate_set_x509_trust_file} (gnutls_certificate_credentials_t            @var{cred}, const char * @var{cafile}, gnutls_x509_crt_fmt_t @var{type})
-@var{cred}: is a @code{gnutls_certificate_credentials_t}  structure.
+@var{cred}: is a @code{gnutls_certificate_credentials_t}  type.
 
 @var{cafile}: is a file containing the list of trusted CAs (DER or PEM list)
 
@@ -23,6 +23,5 @@ This function can also accept URLs. In that case it
 will import all certificates that are marked as trusted. Note
 that the supported URLs are the ones indicated by @code{gnutls_url_is_supported()} .
 
-@strong{Returns:} number of certificates processed, or a negative error code on
-error.
+@strong{Returns:} the number of certificates processed
 @end deftypefun

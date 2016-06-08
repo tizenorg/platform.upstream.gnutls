@@ -37,6 +37,15 @@
 #include <rnd-common.h>
 #include <hash-pjw-bare.h>
 
+#if defined(HAVE_LINUX_GETRANDOM)
+# include <linux/random.h>
+# define getentropy(x, size) getrandom(x, size, 0)
+# define HAVE_GETENTROPY
+#endif
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 /* gnulib wants to claim strerror even if it cannot provide it. WTF */
 #undef strerror
 
@@ -52,13 +61,13 @@ void _rnd_get_event(struct event_st *e)
 {
 	static unsigned count = 0;
 
+	memset(e, 0, sizeof(*e));
 	gettime(&e->now);
 
 #ifdef HAVE_GETRUSAGE
 	if (getrusage(ARG_RUSAGE, &e->rusage) < 0) {
 		_gnutls_debug_log("getrusage failed: %s\n",
-				  strerror(errno));
-		abort();
+			  strerror(errno));
 	}
 #endif
 
@@ -80,6 +89,7 @@ void _rnd_get_event(struct event_st *e)
 
 static HCRYPTPROV device_fd = 0;
 
+static
 int _rnd_get_system_entropy_win32(void* rnd, size_t size)
 {
 	if (!CryptGenRandom(device_fd, (DWORD) size, rnd)) {
@@ -92,6 +102,11 @@ int _rnd_get_system_entropy_win32(void* rnd, size_t size)
 }
 
 get_entropy_func _rnd_get_system_entropy = _rnd_get_system_entropy_win32;
+
+int _rnd_system_entropy_check(void)
+{
+	return 0;
+}
 
 int _rnd_system_entropy_init(void)
 {
@@ -126,7 +141,42 @@ void _rnd_system_entropy_deinit(void)
 #include <locks.h>
 #include "egd.h"
 
-static int device_fd = -1;
+static int _gnutls_urandom_fd = -1;
+static mode_t _gnutls_urandom_fd_mode = 0;
+
+
+get_entropy_func _rnd_get_system_entropy = NULL;
+
+#if defined(HAVE_GETENTROPY)
+static int _rnd_get_system_entropy_simple(void* _rnd, size_t size)
+{
+	if (getentropy(_rnd, size) < 0) {
+		gnutls_assert();
+		_gnutls_debug_log
+			("Failed to use getentropy: %s\n",
+					 strerror(errno));
+		return GNUTLS_E_RANDOM_DEVICE_ERROR;
+	}
+	return 0;
+}
+
+int _rnd_system_entropy_init(void)
+{
+	_rnd_get_system_entropy = _rnd_get_system_entropy_simple;
+	return 0;
+}
+
+int _rnd_system_entropy_check(void)
+{
+	return 0;
+}
+
+void _rnd_system_entropy_deinit(void)
+{
+	return;
+}
+
+#else /* /dev/urandom - egd approach */
 
 static int _rnd_get_system_entropy_urandom(void* _rnd, size_t size)
 {
@@ -136,7 +186,7 @@ static int _rnd_get_system_entropy_urandom(void* _rnd, size_t size)
 	for (done = 0; done < size;) {
 		int res;
 		do {
-			res = read(device_fd, rnd + done, size - done);
+			res = read(_gnutls_urandom_fd, rnd + done, size - done);
 		} while (res < 0 && errno == EINTR);
 
 		if (res <= 0) {
@@ -167,7 +217,7 @@ int _rnd_get_system_entropy_egd(void* _rnd, size_t size)
 
 	for (done = 0; done < size;) {
 		res =
-		    _rndegd_read(&device_fd, rnd + done, size - done);
+		    _rndegd_read(&_gnutls_urandom_fd, rnd + done, size - done);
 		if (res <= 0) {
 			if (res < 0) {
 				_gnutls_debug_log("Failed to read egd.\n");
@@ -183,33 +233,53 @@ int _rnd_get_system_entropy_egd(void* _rnd, size_t size)
 	return 0;
 }
 
-get_entropy_func _rnd_get_system_entropy = NULL;
+int _rnd_system_entropy_check(void)
+{
+	int ret;
+	struct stat st;
+
+	ret = fstat(_gnutls_urandom_fd, &st);
+	if (ret < 0 || st.st_mode != _gnutls_urandom_fd_mode) {
+		return _rnd_system_entropy_init();
+	}
+	return 0;
+}
 
 int _rnd_system_entropy_init(void)
 {
-int old;
-	
-	device_fd = open("/dev/urandom", O_RDONLY);
-	if (device_fd < 0) {
+	int old;
+	struct stat st;
+
+	_gnutls_urandom_fd = open("/dev/urandom", O_RDONLY);
+	if (_gnutls_urandom_fd < 0) {
 		_gnutls_debug_log("Cannot open urandom!\n");
 		goto fallback;
 	}
 
-	old = fcntl(device_fd, F_GETFD);
+	old = fcntl(_gnutls_urandom_fd, F_GETFD);
 	if (old != -1)
-		fcntl(device_fd, F_SETFD, old | FD_CLOEXEC);
+		fcntl(_gnutls_urandom_fd, F_SETFD, old | FD_CLOEXEC);
+
+	if (fstat(_gnutls_urandom_fd, &st) >= 0) {
+		_gnutls_urandom_fd_mode = st.st_mode;
+	}
 
 	_rnd_get_system_entropy = _rnd_get_system_entropy_urandom;
 
 	return 0;
 fallback:
-	device_fd = _rndegd_connect_socket();
-	if (device_fd < 0) {
+	_gnutls_urandom_fd = _rndegd_connect_socket();
+	if (_gnutls_urandom_fd < 0) {
 		_gnutls_debug_log("Cannot open egd socket!\n");
 		return
 			gnutls_assert_val
 			(GNUTLS_E_RANDOM_DEVICE_ERROR);
 	}
+
+	if (fstat(_gnutls_urandom_fd, &st) >= 0) {
+		_gnutls_urandom_fd_mode = st.st_mode;
+	}
+
 	_rnd_get_system_entropy = _rnd_get_system_entropy_egd;
 	
 	return 0;
@@ -217,10 +287,12 @@ fallback:
 
 void _rnd_system_entropy_deinit(void)
 {
-	if (device_fd >= 0) {
-		close(device_fd);
-		device_fd = -1;
+	if (_gnutls_urandom_fd >= 0) {
+		close(_gnutls_urandom_fd);
+		_gnutls_urandom_fd = -1;
 	}
 }
-#endif
+#endif /* GETENTROPY */
+
+#endif /* _WIN32 */
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Free Software Foundation, Inc.
+ * Copyright (C) 2010-2015 Free Software Foundation, Inc.
  *
  * Author: Nikos Mavrogiannopoulos
  *
@@ -35,14 +35,14 @@
 # include <windows.h>
 # include <wincrypt.h>
 # if defined(__MINGW32__) && !defined(__MINGW64__) && __MINGW32_MAJOR_VERSION <= 3 && __MINGW32_MINOR_VERSION <= 20
-typedef PCCRL_CONTEXT WINAPI(*Type_CertEnumCRLsInStore) (HCERTSTORE
+typedef PCCRL_CONTEXT WINAPI(*CertEnumCRLsInStoreFunc) (HCERTSTORE
 							 hCertStore,
 							 PCCRL_CONTEXT
 							 pPrevCrlContext);
-static Type_CertEnumCRLsInStore Loaded_CertEnumCRLsInStore;
+static CertEnumCRLsInStoreFunc pCertEnumCRLsInStore;
 static HMODULE Crypt32_dll;
 # else
-#  define Loaded_CertEnumCRLsInStore CertEnumCRLsInStore
+#  define pCertEnumCRLsInStore CertEnumCRLsInStore
 # endif
 
 #else /* _WIN32 */
@@ -110,15 +110,30 @@ int system_errno(gnutls_transport_ptr_t ptr)
 	return errno;
 }
 
+#ifdef MSG_NOSIGNAL
+ssize_t
+system_writev_nosignal(gnutls_transport_ptr_t ptr, const giovec_t * iovec,
+	      int iovec_cnt)
+{
+	struct msghdr hdr;
+
+	memset(&hdr, 0, sizeof(hdr));
+	hdr.msg_iov = (struct iovec *)iovec;
+	hdr.msg_iovlen = iovec_cnt;
+
+	return sendmsg(GNUTLS_POINTER_TO_INT(ptr), &hdr, MSG_NOSIGNAL);
+}
+#endif
+
 ssize_t
 system_writev(gnutls_transport_ptr_t ptr, const giovec_t * iovec,
 	      int iovec_cnt)
 {
 	return writev(GNUTLS_POINTER_TO_INT(ptr), (struct iovec *) iovec,
 		      iovec_cnt);
-
 }
 #endif
+
 
 ssize_t
 system_read(gnutls_transport_ptr_t ptr, void *data, size_t data_size)
@@ -126,13 +141,23 @@ system_read(gnutls_transport_ptr_t ptr, void *data, size_t data_size)
 	return recv(GNUTLS_POINTER_TO_INT(ptr), data, data_size, 0);
 }
 
-/* Wait for data to be received within a timeout period in milliseconds.
- * To catch a termination it will also try to receive 0 bytes from the
- * socket if select reports to proceed.
+/**
+ * gnutls_system_recv_timeout:
+ * @ptr: A gnutls_transport_ptr_t pointer
+ * @ms: The number of milliseconds to wait.
+ *
+ * Wait for data to be received from the provided socket (@ptr) within a
+ * timeout period in milliseconds, using select() on the provided @ptr.
+ *
+ * This function is provided as a helper for constructing custom
+ * callbacks for gnutls_transport_set_pull_timeout_function(),
+ * which can be used if you rely on socket file descriptors.
  *
  * Returns -1 on error, 0 on timeout, positive value if data are available for reading.
- */
-int system_recv_timeout(gnutls_transport_ptr_t ptr, unsigned int ms)
+ *
+ * Since: 3.4.0
+ **/
+int gnutls_system_recv_timeout(gnutls_transport_ptr_t ptr, unsigned int ms)
 {
 	fd_set rfds;
 	struct timeval tv;
@@ -142,13 +167,8 @@ int system_recv_timeout(gnutls_transport_ptr_t ptr, unsigned int ms)
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
 
-	tv.tv_sec = 0;
-	tv.tv_usec = ms * 1000;
-
-	while (tv.tv_usec >= 1000000) {
-		tv.tv_usec -= 1000000;
-		tv.tv_sec++;
-	}
+	tv.tv_sec = ms/1000;
+	tv.tv_usec = (ms % 1000) * 1000;
 
 	ret = select(fd + 1, &rfds, NULL, NULL, &tv);
 	if (ret <= 0)
@@ -277,7 +297,7 @@ mutex_deinit_func gnutls_mutex_deinit = gnutls_system_mutex_deinit;
 mutex_lock_func gnutls_mutex_lock = gnutls_system_mutex_lock;
 mutex_unlock_func gnutls_mutex_unlock = gnutls_system_mutex_unlock;
 
-int gnutls_system_global_init()
+int gnutls_system_global_init(void)
 {
 #ifdef _WIN32
 #if defined(__MINGW32__) && !defined(__MINGW64__) && __MINGW32_MAJOR_VERSION <= 3 && __MINGW32_MINOR_VERSION <= 20
@@ -287,10 +307,10 @@ int gnutls_system_global_init()
 	if (crypto == NULL)
 		return GNUTLS_E_CRYPTO_INIT_FAILED;
 
-	Loaded_CertEnumCRLsInStore =
-	    (Type_CertEnumCRLsInStore) GetProcAddress(crypto,
+	pCertEnumCRLsInStore =
+	    (CertEnumCRLsInStoreFunc) GetProcAddress(crypto,
 						      "CertEnumCRLsInStore");
-	if (Loaded_CertEnumCRLsInStore == NULL) {
+	if (pCertEnumCRLsInStore == NULL) {
 		FreeLibrary(crypto);
 		return GNUTLS_E_CRYPTO_INIT_FAILED;
 	}
@@ -301,7 +321,7 @@ int gnutls_system_global_init()
 	return 0;
 }
 
-void gnutls_system_global_deinit()
+void gnutls_system_global_deinit(void)
 {
 #ifdef _WIN32
 #if defined(__MINGW32__) && !defined(__MINGW64__) && __MINGW32_MAJOR_VERSION <= 3 && __MINGW32_MINOR_VERSION <= 20
@@ -331,7 +351,7 @@ int _gnutls_find_config_path(char *path, size_t max_size)
 		const char *home_path = getenv("HOMEPATH");
 
 		if (home_drive != NULL && home_path != NULL) {
-			snprintf(path, max_size, "%s%s/" CONFIG_PATH, home_drive, home_path);
+			snprintf(path, max_size, "%s%s\\" CONFIG_PATH, home_drive, home_path);
 		} else {
 			path[0] = 0;
 		}
@@ -428,7 +448,7 @@ int add_system_trust(gnutls_x509_trust_list_t list, unsigned int tl_flags,
 			return GNUTLS_E_FILE_ERROR;
 
 		cert = CertEnumCertificatesInStore(store, NULL);
-		crl = Loaded_CertEnumCRLsInStore(store, NULL);
+		crl = pCertEnumCRLsInStore(store, NULL);
 
 		while (cert != NULL) {
 			if (cert->dwCertEncodingType == X509_ASN_ENCODING) {
@@ -454,7 +474,7 @@ int add_system_trust(gnutls_x509_trust_list_t list, unsigned int tl_flags,
 								     tl_flags,
 								     tl_vflags);
 			}
-			crl = Loaded_CertEnumCRLsInStore(store, crl);
+			crl = pCertEnumCRLsInStore(store, crl);
 		}
 		CertCloseStore(store, 0);
 	}
@@ -468,42 +488,13 @@ int add_system_trust(gnutls_x509_trust_list_t list, unsigned int tl_flags,
 
 	return r;
 }
-#elif defined(ANDROID) || defined(__ANDROID__)
-#include <dirent.h>
-#include <unistd.h>
-static int load_dir_certs(const char *dirname,
-			  gnutls_x509_trust_list_t list,
-			  unsigned int tl_flags, unsigned int tl_vflags,
-			  unsigned type)
-{
-	DIR *dirp;
-	struct dirent *d;
-	int ret;
-	int r = 0;
-	char path[GNUTLS_PATH_MAX];
+#elif defined(ANDROID) || defined(__ANDROID__) || defined(DEFAULT_TRUST_STORE_DIR)
 
-	dirp = opendir(dirname);
-	if (dirp != NULL) {
-		do {
-			d = readdir(dirp);
-			if (d != NULL && d->d_type == DT_REG) {
-				snprintf(path, sizeof(path), "%s/%s",
-					 dirname, d->d_name);
+# include <dirent.h>
+# include <unistd.h>
 
-				ret =
-				    gnutls_x509_trust_list_add_trust_file
-				    (list, path, NULL, type, tl_flags,
-				     tl_vflags);
-				if (ret >= 0)
-					r += ret;
-			}
-		}
-		while (d != NULL);
-		closedir(dirp);
-	}
-
-	return r;
-}
+# if defined(ANDROID) || defined(__ANDROID__)
+#  define DEFAULT_TRUST_STORE_DIR "/system/etc/security/cacerts/"
 
 static int load_revoked_certs(gnutls_x509_trust_list_t list, unsigned type)
 {
@@ -535,6 +526,8 @@ static int load_revoked_certs(gnutls_x509_trust_list_t list, unsigned type)
 
 	return r;
 }
+# endif
+
 
 /* This works on android 4.x 
  */
@@ -544,21 +537,21 @@ int add_system_trust(gnutls_x509_trust_list_t list, unsigned int tl_flags,
 {
 	int r = 0, ret;
 
-	ret =
-	    load_dir_certs("/system/etc/security/cacerts/", list, tl_flags,
-			   tl_vflags, GNUTLS_X509_FMT_PEM);
+	ret = gnutls_x509_trust_list_add_trust_dir(list, DEFAULT_TRUST_STORE_DIR,
+		NULL, GNUTLS_X509_FMT_PEM, tl_flags, tl_vflags);
 	if (ret >= 0)
 		r += ret;
 
+# if defined(ANDROID) || defined(__ANDROID__)
 	ret = load_revoked_certs(list, GNUTLS_X509_FMT_DER);
 	if (ret >= 0)
 		r -= ret;
 
-	ret =
-	    load_dir_certs("/data/misc/keychain/cacerts-added/", list,
-			   tl_flags, tl_vflags, GNUTLS_X509_FMT_DER);
+	ret = gnutls_x509_trust_list_add_trust_dir(list, "/data/misc/keychain/cacerts-added/",
+		NULL, GNUTLS_X509_FMT_DER, tl_flags, tl_vflags);
 	if (ret >= 0)
 		r += ret;
+# endif
 
 	return r;
 }
@@ -575,8 +568,10 @@ int add_system_trust(gnutls_x509_trust_list_t list, unsigned int tl_flags,
  * @tl_vflags: gnutls_certificate_verify_flags if flags specifies GNUTLS_TL_VERIFY_CRL
  *
  * This function adds the system's default trusted certificate
- * authorities to the trusted list. Note that on unsupported system
+ * authorities to the trusted list. Note that on unsupported systems
  * this function returns %GNUTLS_E_UNIMPLEMENTED_FEATURE.
+ *
+ * This function implies the flag %GNUTLS_TL_NO_DUPLICATES.
  *
  * Returns: The number of added elements or a negative error code on error.
  *
@@ -587,15 +582,103 @@ gnutls_x509_trust_list_add_system_trust(gnutls_x509_trust_list_t list,
 					unsigned int tl_flags,
 					unsigned int tl_vflags)
 {
-	return add_system_trust(list, tl_flags, tl_vflags);
+	return add_system_trust(list, tl_flags|GNUTLS_TL_NO_DUPLICATES, tl_vflags);
 }
 
-#if defined(HAVE_ICONV) || defined(HAVE_LIBICONV)
+#if defined(_WIN32)
+#include <winnls.h>
+
+int _gnutls_ucs2_to_utf8(const void *data, size_t size,
+			 gnutls_datum_t * output, unsigned be)
+{
+	int ret;
+	unsigned i;
+	int len = 0, src_len;
+	char *dst = NULL;
+	char *src = NULL;
+	static unsigned flags = 0;
+	static int checked = 0;
+
+	if (checked == 0) {
+		/* Not all windows versions support MB_ERR_INVALID_CHARS */
+		ret =
+		    WideCharToMultiByte(CP_UTF8, MB_ERR_INVALID_CHARS,
+				L"hello", -1, NULL, 0, NULL, NULL);
+		if (ret > 0)
+			flags = MB_ERR_INVALID_CHARS;
+		checked = 1;
+	}
+
+	if (((uint8_t *) data)[size] == 0 && ((uint8_t *) data)[size+1] == 0) {
+		size -= 2;
+	}
+
+	src_len = wcslen(data);
+
+	src = gnutls_malloc(size+2);
+	if (src == NULL)
+		return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
+
+	/* convert to LE */
+	if (be) {
+		for (i = 0; i < size; i += 2) {
+			src[i] = ((uint8_t *) data)[1 + i];
+			src[1 + i] = ((uint8_t *) data)[i];
+		}
+	} else {
+		memcpy(src, data, size);
+	}
+	src[size] = 0;
+	src[size+1] = 0;
+
+	ret =
+	    WideCharToMultiByte(CP_UTF8, flags,
+				(void *) src, src_len, NULL, 0,
+				NULL, NULL);
+	if (ret == 0) {
+		_gnutls_debug_log("WideCharToMultiByte: %d\n", (int)GetLastError());
+		ret = gnutls_assert_val(GNUTLS_E_PARSING_ERROR);
+		goto fail;
+	}
+
+	len = ret + 1;
+	dst = gnutls_malloc(len);
+	if (dst == NULL) {
+		ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
+		goto fail;
+	}
+	dst[0] = 0;
+
+	ret =
+	    WideCharToMultiByte(CP_UTF8, flags,
+				(void *) src, src_len, dst, len-1, NULL,
+				NULL);
+	if (ret == 0) {
+		ret = gnutls_assert_val(GNUTLS_E_PARSING_ERROR);
+		goto fail;
+	}
+	dst[len - 1] = 0;
+
+	output->data = dst;
+	output->size = ret;
+
+	ret = 0;
+	goto cleanup;
+
+      fail:
+	gnutls_free(dst);
+
+      cleanup:
+	gnutls_free(src);
+	return ret;
+}
+
+#elif defined(HAVE_ICONV) || defined(HAVE_LIBICONV)
 
 #include <iconv.h>
 
 int _gnutls_ucs2_to_utf8(const void *data, size_t size,
-			 gnutls_datum_t * output)
+			 gnutls_datum_t * output, unsigned be)
 {
 	iconv_t conv;
 	int ret;
@@ -606,7 +689,11 @@ int _gnutls_ucs2_to_utf8(const void *data, size_t size,
 	if (size == 0)
 		return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
 
-	conv = iconv_open("UTF-8", "UTF-16BE");
+	if (be) {
+		conv = iconv_open("UTF-8", "UTF-16BE");
+	} else {
+		conv = iconv_open("UTF-8", "UTF-16LE");
+	}
 	if (conv == (iconv_t) - 1)
 		return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
 
@@ -642,75 +729,12 @@ int _gnutls_ucs2_to_utf8(const void *data, size_t size,
 
 	return ret;
 }
-#elif defined(_WIN32)
-#include <winnls.h>
-
-/* Can convert only english */
-int _gnutls_ucs2_to_utf8(const void *data, size_t size,
-			 gnutls_datum_t * output)
-{
-	int ret;
-	unsigned i;
-	int len = 0, src_len;
-	char *dst = NULL;
-	char *src = NULL;
-
-	src_len = size / 2;
-
-	src = gnutls_malloc(size);
-	if (src == NULL)
-		return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-
-	/* convert to LE */
-	for (i = 0; i < size; i += 2) {
-		src[i] = ((char *) data)[1 + i];
-		src[1 + i] = ((char *) data)[i];
-	}
-
-	ret =
-	    WideCharToMultiByte(CP_UTF8, MB_ERR_INVALID_CHARS,
-				(void *) src, src_len, NULL, 0, NULL,
-				NULL);
-	if (ret == 0) {
-		ret = gnutls_assert_val(GNUTLS_E_PARSING_ERROR);
-		goto fail;
-	}
-
-	len = ret + 1;
-	dst = gnutls_malloc(len);
-	if (dst == NULL) {
-		ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-		goto fail;
-	}
-
-	ret =
-	    WideCharToMultiByte(CP_UTF8, MB_ERR_INVALID_CHARS,
-				(void *) src, src_len, dst, len, NULL,
-				NULL);
-	if (ret == 0) {
-		ret = gnutls_assert_val(GNUTLS_E_PARSING_ERROR);
-		goto fail;
-	}
-
-	dst[len - 1] = 0;
-	output->data = dst;
-	output->size = ret;
-	ret = 0;
-	goto cleanup;
-
-      fail:
-	gnutls_free(dst);
-
-      cleanup:
-	gnutls_free(src);
-	return ret;
-}
 
 #else
 
 /* Can convert only english (ASCII) */
 int _gnutls_ucs2_to_utf8(const void *data, size_t size,
-			 gnutls_datum_t * output)
+			 gnutls_datum_t * output, unsigned be)
 {
 	unsigned int i, j;
 	char *dst;
@@ -726,7 +750,10 @@ int _gnutls_ucs2_to_utf8(const void *data, size_t size,
 	for (i = j = 0; i < size; i += 2, j++) {
 		if (src[i] != 0 || !c_isascii(src[i + 1]))
 			return gnutls_assert_val(GNUTLS_E_PARSING_ERROR);
-		dst[j] = src[i + 1];
+		if (be)
+			dst[j] = src[i + 1];
+		else
+			dst[j] = src[i];
 	}
 
 	output->data = (void *) dst;

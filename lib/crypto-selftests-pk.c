@@ -42,15 +42,33 @@ static const gnutls_datum_t bad_data = {
 	.size = sizeof(DATASTR) - 2
 };
 
-static const char rsa_key[] =
+static const char rsa_key2048[] =
  "-----BEGIN RSA PRIVATE KEY-----\n"
- "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\n"
+ "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\n"
  "-----END RSA PRIVATE KEY-----\n";
 
 static const char ecc_key[] =
@@ -77,7 +95,7 @@ static int test_rsa_enc(gnutls_pk_algorithm_t pk,
 	int ret;
 	gnutls_datum_t enc = { NULL, 0 };
 	gnutls_datum_t dec = { NULL, 0 };
-	gnutls_datum_t raw_rsa_key = { (void*)rsa_key, sizeof(rsa_key)-1 };
+	gnutls_datum_t raw_rsa_key = { (void*)rsa_key2048, sizeof(rsa_key2048)-1 };
 	gnutls_privkey_t key;
 	gnutls_pubkey_t pub = NULL;
 
@@ -106,6 +124,13 @@ static int test_rsa_enc(gnutls_pk_algorithm_t pk,
 	ret = gnutls_pubkey_encrypt_data(pub, 0, &signed_data, &enc);
 	if (ret < 0) {
 		gnutls_assert();
+		goto cleanup;
+	}
+
+	if (enc.size == signed_data.size && memcmp(signed_data.data, enc.data,
+		enc.size) == 0) {
+		gnutls_assert();
+		ret = GNUTLS_E_SELF_TEST_ERROR;
 		goto cleanup;
 	}
 
@@ -145,7 +170,7 @@ static int test_sig(gnutls_pk_algorithm_t pk,
 {
 	int ret;
 	gnutls_datum_t sig = { NULL, 0 };
-	gnutls_datum_t raw_rsa_key = { (void*)rsa_key, sizeof(rsa_key)-1 };
+	gnutls_datum_t raw_rsa_key = { (void*)rsa_key2048, sizeof(rsa_key2048)-1 };
 	gnutls_datum_t raw_dsa_key = { (void*)dsa_key, sizeof(dsa_key)-1 };
 	gnutls_datum_t raw_ecc_key = { (void*)ecc_key, sizeof(ecc_key)-1 };
 	gnutls_privkey_t key;
@@ -234,19 +259,9 @@ static int test_sig(gnutls_pk_algorithm_t pk,
 	return ret;
 }
 
-static const char rsa_privkey[] = "-----BEGIN RSA PRIVATE KEY-----\n"
-    "MIIBOwIBAAJBAOY5i7i6V/xreyZAXihowgsU7iZ1xXdJFLvMMCOTmXDCfgcLOuRn\n"
-    "jSokU7Lpaef7VGuE3mOqVeTdUGe15JSTcdsCAwEAAQJBAKvYDFjIjuBVAckdhqq2\n"
-    "9w/6gYCnq8tL+3PqB4ymoYOt3nG7wyj3/dS5wBqoVXDOTrxvqRuyPICzqFFInnxH\n"
-    "6zECIQD6598eMoBdHNKwxNfvISVZwmIp2a7/O7OhZPlf7JYgzQIhAOrmLmDuwnzs\n"
-    "t8up1byAFWtBXmCJy/yvlqJvfSUPnb1HAiBsAyfdAxaZfxAAgy0GR7mhk3nY1Fpu\n"
-    "jA//ec2VCu9yPQIgY4FSkDlUJftY+GtfYVSYvjCYvChjQw1WsESuLK7q0S0CIQD6\n"
-    "ReydpDFBsMxPewC/5By9yMNDbif/1j6j/8I+eqmzMA==\n"
-    "-----END RSA PRIVATE KEY-----\n";
-
-/* A precomputed RSA-SHA1 signature using the key above */
+/* A precomputed RSA-SHA1 signature using the rsa_key2048 */
 static const char rsa_sig[] =
-    "\xc8\x3a\x61\xfe\x27\x67\x23\x84\xfc\x8f\x2a\xd8\x05\x00\x83\xcd\xfd\x89\xe8\xa6\x5a\x01\x41\x4b\xaf\x5b\x37\x8e\x2e\xa9\xf0\xf3\x3e\xd2\xa9\x2f\xf1\x48\xa2\xdd\x3e\xe9\x7f\x7c\x02\xe8\x05\x4d\x2a\x3b\xeb\x74\x19\x01\x1d\x1b\x83\xc9\x45\x1b\x4b\x3c\x43\x3e";
+    "\x7a\xb3\xf8\xb0\xf9\xf0\x52\x88\x37\x17\x97\x9f\xbe\x61\xb4\xd2\x43\x78\x9f\x79\x92\xd0\xad\x08\xdb\xbd\x3c\x72\x7a\xb5\x51\x59\x63\xd6\x7d\xf1\x9c\x1e\x10\x7b\x27\xab\xf8\xd4\x9d\xcd\xc5\xf9\xae\xf7\x09\x6b\x40\x93\xc5\xe9\x1c\x0f\xb4\x82\xa1\x47\x86\x54\x63\xd2\x4d\x40\x9a\x80\xb9\x38\x45\x69\xa2\xd6\x92\xb6\x69\x7f\x3f\xf3\x5b\xa5\x1d\xac\x06\xad\xdf\x4e\xbb\xe6\xda\x68\x0d\xe5\xab\xef\xd2\xf0\xc5\xd8\xc0\xed\x80\xe2\xd4\x76\x98\xec\x44\xa2\xfc\x3f\xce\x2e\x8b\xc4\x4b\xab\xb0\x70\x24\x52\x85\x2a\x36\xcd\x9a\xb5\x05\x00\xea\x98\x7c\x72\x06\x68\xb1\x38\x44\x16\x80\x6a\x3b\x64\x72\xbb\xfd\x4b\xc9\xdd\xda\x2a\x68\xde\x7f\x6e\x48\x28\xc1\x63\x57\x2b\xde\x83\xa3\x27\x34\xd7\xa6\x87\x18\x35\x10\xff\x31\xd9\x47\xc9\x84\x35\xe1\xaa\xe2\xf7\x98\xfa\x19\xd3\xf1\x94\x25\x2a\x96\xe4\xa8\xa7\x05\x10\x93\x87\xde\x96\x85\xe5\x68\xb8\xe5\x4e\xbf\x66\x85\x91\xbd\x52\x5b\x3d\x9f\x1b\x79\xea\xe3\x8b\xef\x62\x18\x39\x7a\x50\x01\x46\x1b\xde\x8d\x37\xbc\x90\x6c\x07\xc0\x07\xed\x60\xce\x2e\x31\xd6\x8f\xe8\x75\xdb\x45\x21\xc6\xcb";
 
 /* ECDSA key and signature */
 static const char ecdsa_secp256r1_privkey[] =
@@ -303,20 +318,30 @@ static const char ecdsa_secp521r1_sig[] =
     "\x30\x81\x87\x02\x42\x01\xb8\xcb\x52\x9e\x10\xa8\x49\x3f\xe1\x9e\x14\x0a\xcf\x96\xed\x7e\xab\x7d\x0c\xe1\x9b\xa4\x97\xdf\x01\xf5\x35\x42\x5f\x5b\x28\x15\x24\x33\x6e\x59\x6c\xaf\x10\x8b\x98\x8e\xe9\x4c\x23\x0d\x76\x92\x03\xdd\x6d\x8d\x08\x47\x15\x5b\xf8\x66\x75\x75\x40\xe8\xf4\xa0\x52\x02\x41\x15\x27\x7c\x5f\xa6\x33\xa6\x29\x68\x3f\x55\x8d\x7f\x1d\x4f\x88\xc6\x61\x6e\xac\x21\xdf\x2b\x7b\xde\x76\x9a\xdc\xe6\x3b\x94\x3f\x03\x9c\xa2\xa6\xa3\x63\x39\x48\xbd\x79\x70\x21\xf2\x6b\xff\x58\x66\xf1\x58\xc2\x58\xad\x4f\x84\x14\x5d\x05\x12\x83\xd0\x87\xbd\xf3";
 
 /* DSA key and signature */
-static const char dsa_privkey[] = "-----BEGIN DSA PRIVATE KEY-----\n"
-    "MIIBuwIBAAKBgQCMBOoV479SAPxFHL6Ty9DNCZ08nlxCWkfgSjt77Lc51tEkNlrl\n"
-    "Bx8Mid4uXPL7PDQ74YWdqDWL4In2lMkOQXZ/7B8xLqjuxZqisbyqgrYbu9/yatwo\n"
-    "hNa23vkXrd6duVasjoWOSkj1fVPqy8Pl1jik3BwWyRqXBn+ajbmyDGOsDQIVALBp\n"
-    "lrRgiO4jHfH1C8gP1CheHROrAoGBAIint1PE9y23u0Is9qEf6i/4hki+5pRCZv/K\n"
-    "VG5JGDBW+hEgVj6Rx62jFP0jkTtxJdmv1SsoccFSE42tbRkWWypOLIJKZ7nIIrHY\n"
-    "vMt3Z1S0m18mYE1G/3h9PNgbY8/Ag3YqYLwVfkthnBcTpDhSSAIo/dCwNV+3AxpS\n"
-    "v5hE0L+1AoGAYMeZCjvVWODKDMJPJ/d8pURroeudhB+p7d5BMZTq+mYUCm9uVVgu\n"
-    "doLo/RiWcs1mhrOQM9cHgKO1Hwd8NNjtj4KE8FTU1irpKbobgOViLHE5sM2Tfzc5\n"
-    "Gif2fh8SlQdrhkOnZQkGDuTFx24K9/TTCDkVmB0T+xJfQ8HIshGw7kQCFHUDZ/g5\n"
-    "K0FjzkSbhgOXhhKNTFFA\n" "-----END DSA PRIVATE KEY-----\n";
+static const char dsa_privkey[] =
+ "-----BEGIN DSA PRIVATE KEY-----\n"
+ "MIIDTQIBAAKCAQEAh60B6yPMRIT7udq2kKuwnQDohvT1U0w+RJcSr23C05cM/Ovn\n"
+ "UP/8Rrj6T8K+uYhMbKgLaZiJJW9q04jaPQk0cfUphbLvRjzVHwE/0Bkb+Y1Rv7ni\n"
+ "Jot2IFMq5iuNraf889PC0WREvFCcIkSFY2Ac4WT7mCcBtfx/raGFXDUjcUrJ0HwZ\n"
+ "IOhjQDfcXUsztuyYsYA75ociEY8kyDZq/ixyr5++R1VjNf30Re8AbQlXOEGxEN5t\n"
+ "t+Tvpq8K5L3prQs2KNSzyOUmedjb/ojH4T4qe/RL9EVjjeuIGHDNUT6F197yZ91y\n"
+ "qLLTf1WjnUyZcKij5rryX0LJBBWawEZjNSHZawIdAMQlyycia4NigCdiDR+QptUn\n"
+ "2xrj9o14fXkIrXcCggEAXRZm1rbPhsjSTo6cpCVrmDzO1grv83EHiBH4MvRQQnP8\n"
+ "FpAREsBA5cYju97XvLaLhioZeMjLn08kU7TUbHRUB+ULTuVvE2dQbBpGuKiLRRt9\n"
+ "6U2T0eD3xGLoM+o8EY/kpqaWGEpZv7hzM9xuo4vy55+viAZgFWULqmltwfG/7w7V\n"
+ "NXUHNv5H4Ipw//fSDLTPqzUlNqSSswDLz6pCjWEs0rWAqNAMaOiLTz4id9pL48Oe\n"
+ "oAfpcQR9tgTEnwyXfZBnrJVclHhkHKGeXvU05IgCzpKO76Z5R+By50T0i/JV7vzM\n"
+ "l2yS9aAl/cprT6U7yI3oU/blldCVNpMcFAFb+fO8DAKCAQBVMo8xptyvQOJeSvbO\n"
+ "SSYdJ3IiI/0GdkcGWXblWg9z7mrPaWEnT7OquEm/+vYtWd3GHDtyNM+jzsN4Xgjc\n"
+ "TL3AEd2hLiozJQ1BFKw25VU08UHAYTzUxZhO4Vwtmp46Kwj8YLDQ3NHRWCBxpDQR\n"
+ "fbiFvyXP+qXap6plMfrydnUD1mae/JSOWOYgdB7tFIehstLxVXx/cAnjwgFU03Df\n"
+ "grjsad92zA1Hc9wIjbsgAQdTR5DWnFRkRt3UtayBwoyqm6QceZHsv1NAGvkQ4ion\n"
+ "bEjkHkjF9YCkR9/rspR8cLghRIXMjOpypuSbaRPeeWq0gP2UOxFL/d3iWH0ETr/L\n"
+ "kTlCAhxYGpVgtfB96qmJukyl9GOGvfkwFTgEyIDoV84M\n"
+ "-----END DSA PRIVATE KEY-----\n";
 
 static const char dsa_sig[] =
-    "\x30\x2d\x02\x15\x00\xaf\x2a\x27\xcb\x93\xed\x33\x21\x9d\x01\x5f\x44\x8c\x80\x06\xa7\xe2\x9d\x73\x8d\x02\x14\x19\xb9\xf7\x73\x26\x62\x7a\xc7\x7f\x18\x5a\x69\x83\xc1\xa0\x1f\xbd\x9b\xe2\x92";
+    "\x30\x3d\x02\x1c\x2e\x40\x14\xb3\x7a\x3f\xc0\x4f\x06\x74\x4f\xa6\x5f\xc2\x0a\x46\x35\x38\x88\xb4\x1a\xcf\x94\x02\x40\x42\x7c\x7f\x02\x1d\x00\x98\xfc\xf1\x08\x66\xf1\x86\x28\xc9\x73\x9e\x2b\x5d\xce\x57\xe8\xb5\xeb\xcf\xa3\xf6\x60\xf6\x63\x16\x0e\xc0\x42";
 
 static int test_known_sig(gnutls_pk_algorithm_t pk, unsigned bits,
 			  gnutls_digest_algorithm_t dig,
@@ -385,11 +410,12 @@ static int test_known_sig(gnutls_pk_algorithm_t pk, unsigned bits,
 			unsigned i;
 			fprintf(stderr, "\nstored[%d]: ", ssig.size);
 			for (i = 0; i < ssig.size; i++)
-				fprintf(stderr, "%.2x", ssig.data[i]);
+				fprintf(stderr, "\\x%.2x", ssig.data[i]);
 
 			fprintf(stderr, "\ngenerated[%d]: ", sig.size);
 			for (i = 0; i < sig.size; i++)
-				fprintf(stderr, "%.2x", sig.data[i]);
+				fprintf(stderr, "\\x%.2x", sig.data[i]);
+			fprintf(stderr, "\n");
 #endif
 			gnutls_assert();
 			goto cleanup;
@@ -688,14 +714,14 @@ int gnutls_pk_self_test(unsigned all, gnutls_pk_algorithm_t pk)
 			return 0;
 #endif
 	case GNUTLS_PK_RSA:
-		PK_KNOWN_TEST(GNUTLS_PK_RSA, 1, 512, GNUTLS_DIG_SHA1,
-			      rsa_privkey, rsa_sig);
-		PK_TEST(GNUTLS_PK_RSA, test_rsa_enc, 512, 0);
-		PK_TEST(GNUTLS_PK_RSA, test_sig, 512, GNUTLS_DIG_SHA1);
+		PK_KNOWN_TEST(GNUTLS_PK_RSA, 1, 2048, GNUTLS_DIG_SHA256,
+			      rsa_key2048, rsa_sig);
+		PK_TEST(GNUTLS_PK_RSA, test_rsa_enc, 2048, 0);
+		PK_TEST(GNUTLS_PK_RSA, test_sig, 3072, GNUTLS_DIG_SHA256);
 	case GNUTLS_PK_DSA:
-		PK_KNOWN_TEST(GNUTLS_PK_DSA, 0, 1024, GNUTLS_DIG_SHA1,
+		PK_KNOWN_TEST(GNUTLS_PK_DSA, 0, 2048, GNUTLS_DIG_SHA256,
 			      dsa_privkey, dsa_sig);
-		PK_TEST(GNUTLS_PK_DSA, test_sig, 1024, GNUTLS_DIG_SHA1);
+		PK_TEST(GNUTLS_PK_DSA, test_sig, 3072, GNUTLS_DIG_SHA256);
 	case GNUTLS_PK_EC:	/* Testing ECDSA */
 		/* Test ECDH */
 #ifndef AVOID_INTERNALS

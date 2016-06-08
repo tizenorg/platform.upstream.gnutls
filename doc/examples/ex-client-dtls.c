@@ -34,10 +34,11 @@ int main(void)
         gnutls_certificate_credentials_t xcred;
 
         if (gnutls_check_version("3.1.4") == NULL) {
-                fprintf(stderr, "GnuTLS 3.1.4 is required for this example\n");
+                fprintf(stderr, "GnuTLS 3.1.4 or later is required for this example\n");
                 exit(1);
         }
 
+        /* for backwards compatibility with gnutls < 3.3.0 */
         gnutls_global_init();
 
         /* X509 stuff */
@@ -74,8 +75,7 @@ int main(void)
 
         /* set the connection MTU */
         gnutls_dtls_set_mtu(session, 1000);
-        gnutls_handshake_set_timeout(session,
-                                     GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
+        /* gnutls_dtls_set_timeouts(session, 1000, 60000); */
 
         /* Perform the TLS handshake */
         do {

@@ -7,7 +7,7 @@
 
 @var{cert}: is the certificate to find issuer for
 
-@var{issuer}: Will hold the issuer if any in an allocated buffer. 
+@var{issuer}: Will hold the issuer if any in an allocated buffer.
 
 @var{fmt}: The format of the exported issuer.
 

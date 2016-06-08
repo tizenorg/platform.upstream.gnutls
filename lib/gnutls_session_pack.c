@@ -136,7 +136,7 @@ _gnutls_session_pack(gnutls_session_t session,
 		}
 		break;
 	default:
-		return GNUTLS_E_INTERNAL_ERROR;
+		return gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
 
 	}
 
@@ -155,7 +155,7 @@ _gnutls_session_pack(gnutls_session_t session,
 		goto fail;
 	}
 
-	return _gnutls_buffer_to_datum(&sb, packed_session);
+	return _gnutls_buffer_to_datum(&sb, packed_session, 0);
 
       fail:
 	_gnutls_buffer_clear(&sb);
@@ -618,7 +618,6 @@ pack_psk_auth_info(gnutls_session_t session, gnutls_buffer_st * ps)
 	/* write the real size */
 	_gnutls_write_uint32(ps->length - cur_size,
 			     ps->data + size_offset);
-
 	return 0;
 }
 
@@ -628,6 +627,7 @@ unpack_psk_auth_info(gnutls_session_t session, gnutls_buffer_st * ps)
 	size_t username_size, hint_size;
 	int ret;
 	psk_auth_info_t info;
+	unsigned pack_size;
 
 	ret =
 	    _gnutls_auth_info_set(session, GNUTLS_CRD_PSK,
@@ -640,6 +640,10 @@ unpack_psk_auth_info(gnutls_session_t session, gnutls_buffer_st * ps)
 	info = _gnutls_get_auth_info(session, GNUTLS_CRD_PSK);
 	if (info == NULL)
 		return gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
+
+	BUFFER_POP_NUM(ps, pack_size);
+	if (pack_size == 0)
+		return GNUTLS_E_INVALID_REQUEST;
 
 	BUFFER_POP_NUM(ps, username_size);
 	if (username_size > sizeof(info->username)) {
@@ -768,6 +772,10 @@ pack_security_parameters(gnutls_session_t session, gnutls_buffer_st * ps)
 			  session->security_parameters.server_sign_algo);
 	BUFFER_APPEND_NUM(ps,
 			  session->security_parameters.client_sign_algo);
+	BUFFER_APPEND_NUM(ps,
+			  session->security_parameters.ext_master_secret);
+	BUFFER_APPEND_NUM(ps,
+			  session->security_parameters.etm);
 
 	_gnutls_write_uint32(ps->length - cur_size,
 			     ps->data + size_offset);
@@ -855,6 +863,12 @@ unpack_security_parameters(gnutls_session_t session, gnutls_buffer_st * ps)
 	BUFFER_POP_NUM(ps,
 		       session->internals.resumed_security_parameters.
 		       client_sign_algo);
+	BUFFER_POP_NUM(ps,
+		       session->internals.resumed_security_parameters.
+		       ext_master_secret);
+	BUFFER_POP_NUM(ps,
+		       session->internals.resumed_security_parameters.
+		       etm);
 
 	if (session->internals.resumed_security_parameters.
 	    max_record_recv_size == 0
@@ -880,7 +894,7 @@ unpack_security_parameters(gnutls_session_t session, gnutls_buffer_st * ps)
 
 /**
  * gnutls_session_set_premaster:
- * @session: is a #gnutls_session_t structure.
+ * @session: is a #gnutls_session_t type.
  * @entity: GNUTLS_SERVER or GNUTLS_CLIENT
  * @version: the TLS protocol version
  * @kx: the key exchange method

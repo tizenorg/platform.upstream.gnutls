@@ -35,9 +35,9 @@ void sha1_block_data_order(void *c, const void *p, size_t len);
 void sha256_block_data_order(void *c, const void *p, size_t len);
 void sha512_block_data_order(void *c, const void *p, size_t len);
 
-typedef void (*update_func) (void *, unsigned, const uint8_t *);
-typedef void (*digest_func) (void *, unsigned, uint8_t *);
-typedef void (*set_key_func) (void *, unsigned, const uint8_t *);
+typedef void (*update_func) (void *, size_t, const uint8_t *);
+typedef void (*digest_func) (void *, size_t, uint8_t *);
+typedef void (*set_key_func) (void *, size_t, const uint8_t *);
 typedef void (*init_func) (void *);
 
 struct x86_hash_ctx {
@@ -113,7 +113,7 @@ void x86_sha1_update(struct sha1_ctx *ctx, size_t length,
 		sha1_block_data_order(&octx, data, t2);
 
 		for (i=0;i<t2;i++)
-			MD_INCR(ctx);
+			ctx->count++;
 		data += length;
 	}
 
@@ -166,7 +166,7 @@ void x86_sha256_update(struct sha256_ctx *ctx, size_t length,
 		sha256_block_data_order(&octx, data, t2);
 		
 		for (i=0;i<t2;i++)
-			MD_INCR(ctx);
+			ctx->count++;
 		data += length;
 	}
 
@@ -248,7 +248,7 @@ static int _ctx_init(gnutls_digest_algorithm_t algo,
 	case GNUTLS_DIG_SHA224:
 		sha224_init(&ctx->ctx.sha224);
 		ctx->update = (update_func) x86_sha256_update;
-		ctx->digest = (digest_func) sha256_digest;
+		ctx->digest = (digest_func) sha224_digest;
 		ctx->init = (init_func) sha224_init;
 		ctx->ctx_ptr = &ctx->ctx.sha224;
 		ctx->length = SHA224_DIGEST_SIZE;

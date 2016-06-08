@@ -209,30 +209,3 @@ common
 
 
 
-<!-- ##### FUNCTION get_extension ##### -->
-<para>
-
-</para>
-
-@asn: 
-@root: 
-@extension_id: 
-@indx: 
-@ret: 
-@_critical: 
-@Returns: 
-
-
-<!-- ##### FUNCTION set_extension ##### -->
-<para>
-
-</para>
-
-@asn: 
-@root: 
-@ext_id: 
-@ext_data: 
-@critical: 
-@Returns: 
-
-

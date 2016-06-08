@@ -31,9 +31,30 @@
 #include <x509_int.h>
 #include <gnutls_x509.h>
 
+static int crl_reinit(gnutls_x509_crl_t crl)
+{
+int result;
+
+	if (crl->crl)
+		asn1_delete_structure(&crl->crl);
+
+	result = asn1_create_element(_gnutls_get_pkix(),
+				 "PKIX1.CertificateList",
+				 &crl->crl);
+	if (result != ASN1_SUCCESS) {
+		gnutls_assert();
+		return _gnutls_asn2err(result);
+	}
+	crl->rcache = NULL;
+	crl->rcache_idx = 0;
+	crl->raw_issuer_dn.size = 0;
+
+	return 0;
+}
+
 /**
  * gnutls_x509_crl_init:
- * @crl: The structure to be initialized
+ * @crl: A pointer to the type to be initialized
  *
  * This function will initialize a CRL structure. CRL stands for
  * Certificate Revocation List. A revocation list usually contains
@@ -51,13 +72,11 @@ int gnutls_x509_crl_init(gnutls_x509_crl_t * crl)
 	*crl = gnutls_calloc(1, sizeof(gnutls_x509_crl_int));
 
 	if (*crl) {
-		int result = asn1_create_element(_gnutls_get_pkix(),
-						 "PKIX1.CertificateList",
-						 &(*crl)->crl);
-		if (result != ASN1_SUCCESS) {
+		int result = crl_reinit(*crl);
+		if (result < 0) {
 			gnutls_assert();
 			gnutls_free(*crl);
-			return _gnutls_asn2err(result);
+			return result;
 		}
 		return 0;	/* success */
 	}
@@ -66,7 +85,7 @@ int gnutls_x509_crl_init(gnutls_x509_crl_t * crl)
 
 /**
  * gnutls_x509_crl_deinit:
- * @crl: The structure to be deinitialized
+ * @crl: The data to be deinitialized
  *
  * This function will deinitialize a CRL structure.
  **/
@@ -77,14 +96,14 @@ void gnutls_x509_crl_deinit(gnutls_x509_crl_t crl)
 
 	if (crl->crl)
 		asn1_delete_structure(&crl->crl);
-	gnutls_free(crl->raw_issuer_dn.data);
+	gnutls_free(crl->der.data);
 
 	gnutls_free(crl);
 }
 
 /**
  * gnutls_x509_crl_import:
- * @crl: The structure to store the parsed CRL.
+ * @crl: The data to store the parsed CRL.
  * @data: The DER or PEM encoded CRL.
  * @format: One of DER or PEM
  *
@@ -101,41 +120,52 @@ gnutls_x509_crl_import(gnutls_x509_crl_t crl,
 		       const gnutls_datum_t * data,
 		       gnutls_x509_crt_fmt_t format)
 {
-	int result = 0, need_free = 0;
-	gnutls_datum_t _data;
-
-	_data.data = data->data;
-	_data.size = data->size;
+	int result = 0;
 
 	if (crl == NULL) {
 		gnutls_assert();
 		return GNUTLS_E_INVALID_REQUEST;
 	}
 
+	_gnutls_free_datum(&crl->der);
+
 	/* If the CRL is in PEM format then decode it
 	 */
 	if (format == GNUTLS_X509_FMT_PEM) {
 		result =
 		    _gnutls_fbase64_decode(PEM_CRL, data->data, data->size,
-					   &_data);
+					   &crl->der);
 
 		if (result < 0) {
 			gnutls_assert();
 			return result;
 		}
-
-		need_free = 1;
+	} else {
+		result = _gnutls_set_datum(&crl->der, data->data, data->size);
+		if (result < 0) {
+			gnutls_assert();
+			return result;
+		}
 	}
 
+	if (crl->expanded) {
+		result = crl_reinit(crl);
+		if (result < 0) {
+			gnutls_assert();
+			goto cleanup;
+		}
+	}
+	crl->expanded = 1;
+
 	result =
-	    asn1_der_decoding(&crl->crl, _data.data, _data.size, NULL);
+	    _asn1_strict_der_decode(&crl->crl, crl->der.data, crl->der.size, NULL);
 	if (result != ASN1_SUCCESS) {
 		result = _gnutls_asn2err(result);
 		gnutls_assert();
 		goto cleanup;
 	}
 
-	result = _gnutls_x509_get_raw_dn2(crl->crl, &_data,
+	result = _gnutls_x509_get_raw_field2(crl->crl, &crl->der,
 					  "tbsCertList.issuer.rdnSequence",
 					  &crl->raw_issuer_dn);
 	if (result < 0) {
@@ -143,22 +173,17 @@ gnutls_x509_crl_import(gnutls_x509_crl_t crl,
 		goto cleanup;
 	}
 
-	if (need_free)
-		_gnutls_free_datum(&_data);
-
 	return 0;
 
       cleanup:
-	if (need_free)
-		_gnutls_free_datum(&_data);
-	_gnutls_free_datum(&crl->raw_issuer_dn);
+	_gnutls_free_datum(&crl->der);
 	return result;
 }
 
 
 /**
  * gnutls_x509_crl_get_issuer_dn:
- * @crl: should contain a gnutls_x509_crl_t structure
+ * @crl: should contain a gnutls_x509_crl_t type
  * @buf: a pointer to a structure to hold the peer's name (may be null)
  * @sizeof_buf: initially holds the size of @buf
  *
@@ -190,7 +215,7 @@ gnutls_x509_crl_get_issuer_dn(const gnutls_x509_crl_t crl, char *buf,
 
 /**
  * gnutls_x509_crl_get_issuer_dn_by_oid:
- * @crl: should contain a gnutls_x509_crl_t structure
+ * @crl: should contain a gnutls_x509_crl_t type
  * @oid: holds an Object Identified in null terminated string
  * @indx: In case multiple same OIDs exist in the RDN, this specifies which to send. Use (0) to get the first one.
  * @raw_flag: If non-zero returns the raw DER data of the DN part.
@@ -240,9 +265,9 @@ gnutls_x509_crl_get_issuer_dn_by_oid(gnutls_x509_crl_t crl,
 
 /**
  * gnutls_x509_crl_get_dn_oid:
- * @crl: should contain a gnutls_x509_crl_t structure
+ * @crl: should contain a gnutls_x509_crl_t type
  * @indx: Specifies which DN OID to send. Use (0) to get the first one.
- * @oid: a pointer to a structure to hold the name (may be null)
+ * @oid: a pointer to store the OID (may be null)
  * @sizeof_oid: initially holds the size of 'oid'
  *
  * This function will extract the requested OID of the name of the CRL
@@ -270,7 +295,7 @@ gnutls_x509_crl_get_dn_oid(gnutls_x509_crl_t crl,
 
 /**
  * gnutls_x509_crl_get_issuer_dn2:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @dn: a pointer to a structure to hold the name
  *
  * This function will allocate buffer and copy the name of the CRL issuer.
@@ -279,7 +304,7 @@ gnutls_x509_crl_get_dn_oid(gnutls_x509_crl_t crl,
  * encoded, depending on the certificate data.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  *
  * Since: 3.1.10
  **/
@@ -297,7 +322,7 @@ gnutls_x509_crl_get_issuer_dn2(gnutls_x509_crl_t crl, gnutls_datum_t * dn)
 
 /**
  * gnutls_x509_crl_get_signature_algorithm:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  *
  * This function will return a value of the #gnutls_sign_algorithm_t
  * enumeration that is the signature algorithm.
@@ -328,7 +353,7 @@ int gnutls_x509_crl_get_signature_algorithm(gnutls_x509_crl_t crl)
 		return result;
 	}
 
-	result = _gnutls_x509_oid2sign_algorithm((const char *) sa.data);
+	result = gnutls_oid_to_sign((const char *) sa.data);
 
 	_gnutls_free_datum(&sa);
 
@@ -337,14 +362,14 @@ int gnutls_x509_crl_get_signature_algorithm(gnutls_x509_crl_t crl)
 
 /**
  * gnutls_x509_crl_get_signature:
- * @crl: should contain a gnutls_x509_crl_t structure
+ * @crl: should contain a gnutls_x509_crl_t type
  * @sig: a pointer where the signature part will be copied (may be null).
  * @sizeof_sig: initially holds the size of @sig
  *
  * This function will extract the signature field of a CRL.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value. 
  **/
 int
 gnutls_x509_crl_get_signature(gnutls_x509_crl_t crl,
@@ -391,7 +416,7 @@ gnutls_x509_crl_get_signature(gnutls_x509_crl_t crl,
 
 /**
  * gnutls_x509_crl_get_version:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  *
  * This function will return the version of the specified CRL.
  *
@@ -420,7 +445,7 @@ int gnutls_x509_crl_get_version(gnutls_x509_crl_t crl)
 
 /**
  * gnutls_x509_crl_get_this_update:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  *
  * This function will return the time this CRL was issued.
  *
@@ -439,7 +464,7 @@ time_t gnutls_x509_crl_get_this_update(gnutls_x509_crl_t crl)
 
 /**
  * gnutls_x509_crl_get_next_update:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  *
  * This function will return the time the next CRL will be issued.
  * This field is optional in a CRL so it might be normal to get an
@@ -460,7 +485,7 @@ time_t gnutls_x509_crl_get_next_update(gnutls_x509_crl_t crl)
 
 /**
  * gnutls_x509_crl_get_crt_count:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  *
  * This function will return the number of revoked certificates in the
  * given CRL.
@@ -492,7 +517,7 @@ int gnutls_x509_crl_get_crt_count(gnutls_x509_crl_t crl)
 
 /**
  * gnutls_x509_crl_get_crt_serial:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @indx: the index of the certificate to extract (starting from 0)
  * @serial: where the serial number will be copied
  * @serial_size: initially holds the size of serial
@@ -505,7 +530,7 @@ int gnutls_x509_crl_get_crt_count(gnutls_x509_crl_t crl)
  * of revoked certificates. In that case use gnutls_x509_crl_iter_crt_serial().
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  **/
 int
 gnutls_x509_crl_get_crt_serial(gnutls_x509_crl_t crl, int indx,
@@ -550,9 +575,9 @@ gnutls_x509_crl_get_crt_serial(gnutls_x509_crl_t crl, int indx,
 
 /**
  * gnutls_x509_crl_iter_deinit:
- * @iter: The iterator structure to be deinitialized
+ * @iter: The iterator to be deinitialized
  *
- * This function will deinitialize an iterator structure.
+ * This function will deinitialize an iterator type.
  **/
 void gnutls_x509_crl_iter_deinit(gnutls_x509_crl_iter_t iter)
 {
@@ -564,7 +589,7 @@ void gnutls_x509_crl_iter_deinit(gnutls_x509_crl_iter_t iter)
 
 /**
  * gnutls_x509_crl_iter_crt_serial:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @iter: A pointer to an iterator (initially the iterator should be %NULL)
  * @serial: where the serial number will be copied
  * @serial_size: initially holds the size of serial
@@ -581,7 +606,7 @@ void gnutls_x509_crl_iter_deinit(gnutls_x509_crl_iter_t iter)
  * After use, the iterator must be deinitialized using gnutls_x509_crl_iter_deinit().
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on error.
+ *   negative error value.
  **/
 int
 gnutls_x509_crl_iter_crt_serial(gnutls_x509_crl_t crl,
@@ -650,7 +675,7 @@ gnutls_x509_crl_iter_crt_serial(gnutls_x509_crl_t crl,
 
 /**
  * gnutls_x509_crl_get_raw_issuer_dn:
- * @crl: should contain a gnutls_x509_crl_t structure
+ * @crl: should contain a gnutls_x509_crl_t type
  * @dn: will hold the starting point of the DN
  *
  * This function will return a pointer to the DER encoded DN structure
@@ -664,8 +689,12 @@ int
 gnutls_x509_crl_get_raw_issuer_dn(gnutls_x509_crl_t crl,
 				  gnutls_datum_t * dn)
 {
-	return _gnutls_set_datum(dn, crl->raw_issuer_dn.data,
-				 crl->raw_issuer_dn.size);
+	if (crl->raw_issuer_dn.size != 0) {
+		return _gnutls_set_datum(dn, crl->raw_issuer_dn.data,
+					 crl->raw_issuer_dn.size);
+	} else {
+		return _gnutls_x509_get_raw_field(crl->crl, "tbsCertList.issuer.rdnSequence", dn);
+	}
 }
 
 /**
@@ -685,7 +714,7 @@ gnutls_x509_crl_get_raw_issuer_dn(gnutls_x509_crl_t crl,
  * of "BEGIN X509 CRL".
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on failure.
+ *   negative error value.
  **/
 int
 gnutls_x509_crl_export(gnutls_x509_crl_t crl,
@@ -715,7 +744,7 @@ gnutls_x509_crl_export(gnutls_x509_crl_t crl,
  * of "BEGIN X509 CRL".
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value. and a negative error code on failure.
+ *   negative error value.
  *
  * Since 3.1.3
  **/
@@ -732,9 +761,9 @@ gnutls_x509_crl_export2(gnutls_x509_crl_t crl,
 }
 
 /*-
- * _gnutls_x509_crl_cpy - This function copies a gnutls_x509_crl_t structure
- * @dest: The structure where to copy
- * @src: The structure to be copied
+ * _gnutls_x509_crl_cpy - This function copies a gnutls_x509_crl_t type
+ * @dest: The data where to copy
+ * @src: The data to be copied
  *
  * This function will copy an X.509 certificate structure.
  *
@@ -796,7 +825,7 @@ _get_authority_key_id(gnutls_x509_crl_t cert, ASN1_TYPE * c2,
 		return _gnutls_asn2err(ret);
 	}
 
-	ret = asn1_der_decoding(c2, id.data, id.size, NULL);
+	ret = _asn1_strict_der_decode(c2, id.data, id.size, NULL);
 	_gnutls_free_datum(&id);
 
 	if (ret != ASN1_SUCCESS) {
@@ -810,7 +839,7 @@ _get_authority_key_id(gnutls_x509_crl_t cert, ASN1_TYPE * c2,
 
 /**
  * gnutls_x509_crl_get_authority_key_gn_serial:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @seq: specifies the sequence number of the alt name (0 for the first one, 1 for the second etc.)
  * @alt: is the place where the alternative name will be copied to
  * @alt_size: holds the size of alt.
@@ -882,7 +911,7 @@ gnutls_x509_crl_get_authority_key_gn_serial(gnutls_x509_crl_t crl,
 
 /**
  * gnutls_x509_crl_get_authority_key_id:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @id: The place where the identifier will be copied
  * @id_size: Holds the size of the result field.
  * @critical: will be non-zero if the extension is marked as critical
@@ -934,7 +963,7 @@ gnutls_x509_crl_get_authority_key_id(gnutls_x509_crl_t crl, void *id,
 
 /**
  * gnutls_x509_crl_get_number:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @ret: The place where the number will be copied
  * @ret_size: Holds the size of the result field.
  * @critical: will be non-zero if the extension is marked as critical
@@ -992,9 +1021,9 @@ gnutls_x509_crl_get_number(gnutls_x509_crl_t crl, void *ret,
 
 /**
  * gnutls_x509_crl_get_extension_oid:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @indx: Specifies which extension OID to send, use (0) to get the first one.
- * @oid: a pointer to a structure to hold the OID (may be null)
+ * @oid: a pointer to store the OID (may be null)
  * @sizeof_oid: initially holds the size of @oid
  *
  * This function will return the requested extension OID in the CRL.
@@ -1031,9 +1060,9 @@ gnutls_x509_crl_get_extension_oid(gnutls_x509_crl_t crl, int indx,
 
 /**
  * gnutls_x509_crl_get_extension_info:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @indx: Specifies which extension OID to send, use (0) to get the first one.
- * @oid: a pointer to a structure to hold the OID
+ * @oid: a pointer to store the OID
  * @sizeof_oid: initially holds the maximum size of @oid, on return
  *   holds actual size of @oid.
  * @critical: output variable with critical flag, may be NULL.
@@ -1105,7 +1134,7 @@ gnutls_x509_crl_get_extension_info(gnutls_x509_crl_t crl, int indx,
 
 /**
  * gnutls_x509_crl_get_extension_data:
- * @crl: should contain a #gnutls_x509_crl_t structure
+ * @crl: should contain a #gnutls_x509_crl_t type
  * @indx: Specifies which extension OID to send. Use (0) to get the first one.
  * @data: a pointer to a structure to hold the data (may be null)
  * @sizeof_data: initially holds the size of @oid
@@ -1157,7 +1186,7 @@ gnutls_x509_crl_get_extension_data(gnutls_x509_crl_t crl, int indx,
 
 /**
  * gnutls_x509_crl_list_import2:
- * @crls: The structures to store the parsed crl list. Must not be initialized.
+ * @crls: Will contain the parsed crl list.
  * @size: It will contain the size of the list.
  * @data: The PEM encoded CRL.
  * @format: One of DER or PEM.
@@ -1219,7 +1248,7 @@ gnutls_x509_crl_list_import2(gnutls_x509_crl_t ** crls,
 
 /**
  * gnutls_x509_crl_list_import:
- * @crls: The structures to store the parsed CRLs. Must not be initialized.
+ * @crls: Indicates where the parsed CRLs will be copied to. Must not be initialized.
  * @crl_max: Initially must hold the maximum number of crls. It will be updated with the number of crls available.
  * @data: The PEM encoded CRLs
  * @format: One of DER or PEM.

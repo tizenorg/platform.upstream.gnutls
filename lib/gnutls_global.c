@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2001-2013 Free Software Foundation, Inc.
+ * Copyright (C) 2001-2016 Free Software Foundation, Inc.
+ * Copyright (C) 2015-2016 Red Hat, Inc.
  *
  * Author: Nikos Mavrogiannopoulos
  *
@@ -28,13 +29,15 @@
 #include <gnutls/pkcs11.h>
 
 #include <gnutls_extensions.h>	/* for _gnutls_ext_init */
+#include <gnutls_supplemental.h> /* for _gnutls_supplemental_deinit */
 #include <locks.h>
 #include <system.h>
 #include <accelerated/cryptodev.h>
 #include <accelerated/accelerated.h>
 #include <fips.h>
-
-#include "gettext.h"
+#include <atfork.h>
+#include <system-keys.h>
+#include <gnutls_str.h>
 
 /* Minimum library versions we accept. */
 #define GNUTLS_MIN_LIBTASN1_VERSION "0.3.4"
@@ -47,6 +50,19 @@
 #else
 # define _CONSTRUCTOR __attribute__((constructor))
 # define _DESTRUCTOR __attribute__((destructor))
+#endif
+
+#ifndef _WIN32
+int __attribute__((weak)) _gnutls_global_init_skip(void);
+int _gnutls_global_init_skip(void)
+{
+	return 0;
+}
+#else
+inline static int _gnutls_global_init_skip(void)
+{
+	return 0;
+}
 #endif
 
 /* created by asn1c */
@@ -187,9 +203,10 @@ static int _gnutls_init_ret = 0;
  * function can be called many times, but will only do something the
  * first time.
  *
- * Since GnuTLS 3.3.0 this function is only required in systems that
- * do not support library constructors and static linking. This
- * function also became thread safe.
+ * Since GnuTLS 3.3.0 this function is automatically called on library
+ * constructor. Since the same version this function is also thread safe.
+ * The automatic initialization can be avoided if the environment variable
+ * %GNUTLS_NO_EXPLICIT_INIT is set to be 1.
  *
  * A subsequent call of this function if the initial has failed will
  * return the same error code.
@@ -207,6 +224,16 @@ int gnutls_global_init(void)
 
 	_gnutls_init++;
 	if (_gnutls_init > 1) {
+		if (_gnutls_init == 2 && _gnutls_init_ret == 0) {
+			/* some applications may close the urandom fd 
+			 * before calling gnutls_global_init(). in that
+			 * case reopen it */
+			ret = _gnutls_rnd_check();
+			if (ret < 0) {
+				gnutls_assert();
+				goto out;
+			}
+		}
 		ret = _gnutls_init_ret;
 		goto out;
 	}
@@ -219,16 +246,23 @@ int gnutls_global_init(void)
 		gnutls_global_set_log_level(level);
 		if (_gnutls_log_func == NULL)
 			gnutls_global_set_log_function(default_log_func);
-		_gnutls_debug_log("Enabled GnuTLS logging...\n");
+		_gnutls_debug_log("Enabled GnuTLS "VERSION" logging...\n");
 	}
 
+#ifdef HAVE_DCGETTEXT
 	bindtextdomain(PACKAGE, LOCALEDIR);
+#endif
 
 	res = gnutls_crypto_init();
 	if (res != 0) {
 		gnutls_assert();
 		ret = GNUTLS_E_CRYPTO_INIT_FAILED;
 		goto out;
+	}
+
+	ret = _gnutls_system_key_init();
+	if (ret != 0) {
+		gnutls_assert();
 	}
 
 	/* initialize ASN.1 parser
@@ -290,27 +324,52 @@ int gnutls_global_init(void)
 		goto out;
 	}
 
-	_gnutls_register_accel_crypto();
-	_gnutls_cryptodev_init();
+#ifndef _WIN32
+	ret = _gnutls_register_fork_handler();
+	if (ret < 0) {
+		gnutls_assert();
+		goto out;
+	}
+#endif
 
 #ifdef ENABLE_FIPS140
-	/* Perform FIPS140 checks last, so that all modules
-	 * have been loaded */
 	res = _gnutls_fips_mode_enabled();
 	/* res == 1 -> fips140-2 mode enabled
 	 * res == 2 -> only self checks performed - but no failure
 	 * res == not in fips140 mode
 	 */
 	if (res != 0) {
+		_gnutls_debug_log("FIPS140-2 mode: %d\n", res);
 		_gnutls_priority_update_fips();
 
-		ret = _gnutls_fips_perform_self_checks();
+		/* first round of self checks, these are done on the
+		 * nettle algorithms which are used internally */
+		ret = _gnutls_fips_perform_self_checks1();
 		if (res != 2) {
 			if (ret < 0) {
 				gnutls_assert();
 				goto out;
 			}
 		}
+	}
+#endif
+
+	_gnutls_register_accel_crypto();
+	_gnutls_cryptodev_init();
+
+#ifdef ENABLE_FIPS140
+	/* These self tests are performed on the overriden algorithms
+	 * (e.g., AESNI overriden AES). They are after _gnutls_register_accel_crypto()
+	 * intentionally */
+	if (res != 0) {
+		ret = _gnutls_fips_perform_self_checks2();
+		if (res != 2) {
+			if (ret < 0) {
+				gnutls_assert();
+				goto out;
+			}
+		}
+		_gnutls_fips_mode_reset_zombie();
 	}
 #endif
 	_gnutls_switch_lib_state(LIB_STATE_OPERATIONAL);
@@ -335,6 +394,7 @@ static void _gnutls_global_deinit(unsigned destructor)
 			goto fail;
 		}
 
+		_gnutls_system_key_deinit();
 		gnutls_crypto_deinit();
 		_gnutls_rnd_deinit();
 		_gnutls_ext_deinit();
@@ -345,6 +405,8 @@ static void _gnutls_global_deinit(unsigned destructor)
 		gnutls_system_global_deinit();
 		_gnutls_cryptodev_deinit();
 
+		_gnutls_supplemental_deinit();
+
 #ifdef ENABLE_PKCS11
 		/* Do not try to deinitialize the PKCS #11 libraries
 		 * from the destructor. If we do and the PKCS #11 modules
@@ -353,6 +415,9 @@ static void _gnutls_global_deinit(unsigned destructor)
 		if (destructor == 0) {
 			gnutls_pkcs11_deinit();
 		}
+#endif
+#ifdef HAVE_TROUSERS
+		_gnutls_tpm_global_deinit();
 #endif
 
 		gnutls_mutex_deinit(&_gnutls_file_mutex);
@@ -403,6 +468,17 @@ const char *gnutls_check_version(const char *req_version)
 static void _CONSTRUCTOR lib_init(void)
 {
 int ret;
+const char *e;
+
+	if (_gnutls_global_init_skip() != 0)
+		return;
+
+	e = getenv("GNUTLS_NO_EXPLICIT_INIT");
+	if (e != NULL) {
+		ret = atoi(e);
+		if (ret == 1)
+			return;
+	}
 
 	ret = gnutls_global_init();
 	if (ret < 0) {
@@ -413,5 +489,17 @@ int ret;
 
 static void _DESTRUCTOR lib_deinit(void)
 {
+	const char *e;
+
+	if (_gnutls_global_init_skip() != 0)
+		return;
+
+	e = getenv("GNUTLS_NO_EXPLICIT_INIT");
+	if (e != NULL) {
+		int ret = atoi(e);
+		if (ret == 1)
+			return;
+	}
+
 	_gnutls_global_deinit(1);
 }

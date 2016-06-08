@@ -103,6 +103,36 @@ data for the given host.
 negative error value.
 @end deftypefun
 
+@subheading dane_query_to_raw_tlsa
+@anchor{dane_query_to_raw_tlsa}
+@deftypefun {int} {dane_query_to_raw_tlsa} (dane_query_t @var{q}, unsigned int * @var{data_entries}, char *** @var{dane_data}, int ** @var{dane_data_len}, int * @var{secure}, int * @var{bogus})
+@var{q}: The query result structure
+
+@var{data_entries}: Pointer set to the number of entries in the query
+
+@var{dane_data}: Pointer to contain an array of DNS rdata items, terminated with a NULL pointer;
+caller must guarantee that the referenced data remains
+valid until @code{dane_query_deinit()}  is called.
+
+@var{dane_data_len}: Pointer to contain the length n bytes of the dane_data items
+
+@var{secure}: Pointer set true if the result is validated securely, false if
+validation failed or the domain queried has no security info
+
+@var{bogus}: Pointer set true if the result was not secure due to a security failure
+
+This function will provide the DANE data from the query
+response.
+
+The pointers dane_data and dane_data_len are allocated with @code{gnutls_malloc()} 
+to contain the data from the query result structure (individual
+ @code{dane_data} items simply point to the original data and are not allocated separately).
+The returned  @code{dane_data} are only valid during the lifetime of  @code{q} .
+
+@strong{Returns:} On success, @code{DANE_E_SUCCESS}  (0) is returned, otherwise a
+negative error value.
+@end deftypefun
+
 @subheading dane_raw_tlsa
 @anchor{dane_raw_tlsa}
 @deftypefun {int} {dane_raw_tlsa} (dane_state_t @var{s}, dane_query_t * @var{r}, char *const * @var{dane_data}, const int * @var{dane_data_len}, int @var{secure}, int @var{bogus})
@@ -123,7 +153,8 @@ validation failed or the domain queried has no security info
 and the result is due to a security failure, bogus is true.
 
 This function will fill in the TLSA (DANE) structure from
-the given raw DNS record data.
+the given raw DNS record data. The  @code{dane_data} must be valid
+during the lifetime of the query.
 
 @strong{Returns:} On success, @code{DANE_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
@@ -222,14 +253,16 @@ If no information via DANE can be obtained the flag @code{DANE_VERIFY_NO_DANE_IN
 is set. If a DNSSEC signature is not available for the DANE
 record then the verify flag @code{DANE_VERIFY_NO_DNSSEC_DATA}  is set.
 
-Note that the CA constraint only applies for the directly certifying CA
-and does not account for long CA chains. Moreover this function does not
-validate the provided chain.
-
 Due to the many possible options of DANE, there is no single threat
 model countered. When notifying the user about DANE verification results
 it may be better to mention: DANE verification did not reject the certificate,
 rather than mentioning a successful DANE verication.
+
+Note that this function is designed to be run in addition to
+PKIX - certificate chain - verification. To be run independently
+the @code{DANE_VFLAG_ONLY_CHECK_EE_USAGE}  flag should be specified; 
+then the function will check whether the key of the peer matches the
+key advertized in the DANE entry.
 
 If the  @code{q} parameter is provided it will be used for caching entries.
 
@@ -262,13 +295,16 @@ If no information via DANE can be obtained the flag @code{DANE_VERIFY_NO_DANE_IN
 is set. If a DNSSEC signature is not available for the DANE
 record then the verify flag @code{DANE_VERIFY_NO_DNSSEC_DATA}  is set.
 
-Note that the CA constraint only applies for the directly certifying CA
-and does not account for long CA chains.
-
 Due to the many possible options of DANE, there is no single threat
 model countered. When notifying the user about DANE verification results
 it may be better to mention: DANE verification did not reject the certificate,
 rather than mentioning a successful DANE verication.
+
+Note that this function is designed to be run in addition to
+PKIX - certificate chain - verification. To be run independently
+the @code{DANE_VFLAG_ONLY_CHECK_EE_USAGE}  flag should be specified; 
+then the function will check whether the key of the peer matches the
+key advertized in the DANE entry.
 
 If the  @code{q} parameter is provided it will be used for caching entries.
 
@@ -300,7 +336,7 @@ CA constrains and/or the certificate available via DANE.
 See @code{dane_verify_crt()}  for more information.
 
 This will not verify the chain for validity; unless the DANE
-verification is restricted to end certificates, this has to
+verification is restricted to end certificates, this must be
 be performed separately using @code{gnutls_certificate_verify_peers3()} .
 
 @strong{Returns:} On success, @code{DANE_E_SUCCESS}  (0) is returned, otherwise a

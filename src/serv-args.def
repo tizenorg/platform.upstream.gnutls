@@ -17,7 +17,7 @@ flag = {
 flag = {
     name      = generate;
     value     = g;
-    descrip   = "Generate Diffie-Hellman and RSA-export parameters";
+    descrip   = "Generate Diffie-Hellman parameters";
     doc      = "";
 };
 
@@ -262,6 +262,14 @@ flag = {
     value     = l;
     descrip   = "Print a list of the supported algorithms and modes";
     doc      = "Print a list of the supported algorithms and modes. If a priority string is given then only the enabled ciphersuites are shown.";
+};
+
+flag = {
+    name      = provider;
+    arg-type  = file;
+    file-exists = yes;
+    descrip   = "Specify the PKCS #11 provider library";
+    doc      = "This will override the default options in /etc/gnutls/pkcs11.conf";
 };
 
 doc-section = {

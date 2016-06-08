@@ -42,6 +42,9 @@
 /* use the given CRL file */
 #undef DEFAULT_CRL_FILE
 
+/* use the given directory as default trust store */
+#undef DEFAULT_TRUST_STORE_DIR
+
 /* use the given file default trust store */
 #undef DEFAULT_TRUST_STORE_FILE
 
@@ -84,14 +87,14 @@
 /* use openpgp authentication */
 #undef ENABLE_OPENPGP
 
+/* Enable padlock acceleration */
+#undef ENABLE_PADLOCK
+
 /* Build PKCS#11 support */
 #undef ENABLE_PKCS11
 
 /* enable PSK authentication */
 #undef ENABLE_PSK
-
-/* enable RSA-EXPORT */
-#undef ENABLE_RSA_EXPORT
 
 /* Self checks are included in the library */
 #undef ENABLE_SELF_CHECKS
@@ -124,6 +127,10 @@
 /* Define to a C preprocessor expression that evaluates to 1 or 0, depending
    whether the gnulib module fscanf shall be considered present. */
 #undef GNULIB_FSCANF
+
+/* Define to 1 if printf and friends should be labeled with attribute
+   "__gnu_printf__" instead of "__printf__" */
+#undef GNULIB_PRINTF_ATTRIBUTE_FLAVOR_GNU
 
 /* Define to a C preprocessor expression that evaluates to 1 or 0, depending
    whether the gnulib module scanf shall be considered present. */
@@ -540,6 +547,9 @@
 /* Define to 1 if you have the `getdelim' function. */
 #undef HAVE_GETDELIM
 
+/* Enable the OpenBSD getentropy function */
+#undef HAVE_GETENTROPY
+
 /* Define to 1 if you have the `gethostbyname' function. */
 #undef HAVE_GETHOSTBYNAME
 
@@ -619,6 +629,9 @@
 /* Define if you have the libiconv library. */
 #undef HAVE_LIBICONV
 
+/* Build IDNA support */
+#undef HAVE_LIBIDN
+
 /* Define to 1 if you have the `intl' library (-lintl). */
 #undef HAVE_LIBINTL
 
@@ -627,6 +640,9 @@
 
 /* nettle is enabled */
 #undef HAVE_LIBNETTLE
+
+/* Define if you have the libnsl library. */
+#undef HAVE_LIBNSL
 
 /* Define if you have the libpthread library. */
 #undef HAVE_LIBPTHREAD
@@ -639,6 +655,9 @@
 
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
+
+/* Enable the Linux getrandom function */
+#undef HAVE_LINUX_GETRANDOM
 
 /* Define to 1 if you have the `localtime' function. */
 #undef HAVE_LOCALTIME
@@ -716,6 +735,9 @@
 
 /* Define to 1 if you have the `pthread_mutex_lock' function. */
 #undef HAVE_PTHREAD_MUTEX_LOCK
+
+/* Define to 1 if the system has the type `ptrdiff_t'. */
+#undef HAVE_PTRDIFF_T
 
 /* Define to 1 if you have the `putenv' function. */
 #undef HAVE_PUTENV
@@ -1613,6 +1635,9 @@
 /* Define to 1 if you have the `vasprintf' function. */
 #undef HAVE_VASPRINTF
 
+/* Have va_copy() */
+#undef HAVE_VA_COPY
+
 /* Define to 1 if you have the `vfork' function. */
 #undef HAVE_VFORK
 
@@ -1678,6 +1703,12 @@
 
 /* Define to 1 if you have the `__fsetlocking' function. */
 #undef HAVE___FSETLOCKING
+
+/* Define to 1 if you have the `__register_atfork' function. */
+#undef HAVE___REGISTER_ATFORK
+
+/* Have __va_copy() */
+#undef HAVE___VA_COPY
 
 /* Define as const if the declaration of iconv() needs const. */
 #undef ICONV_CONST
@@ -1757,8 +1788,8 @@
    'sig_atomic_t'. */
 #undef SIG_ATOMIC_T_SUFFIX
 
-/* The size of `char*', as computed by sizeof. */
-#undef SIZEOF_CHARP
+/* The size of `char *', as computed by sizeof. */
+#undef SIZEOF_CHAR_P
 
 /* The size of `int', as computed by sizeof. */
 #undef SIZEOF_INT
@@ -1817,6 +1848,9 @@
 /* Define to 1 if your <sys/time.h> declares `struct tm'. */
 #undef TM_IN_SYS_TIME
 
+/* the location of the trousers library */
+#undef TROUSERS_LIB
+
 /* The DNSSEC root key file */
 #undef UNBOUND_ROOT_KEY_FILE
 
@@ -1831,6 +1865,10 @@
 /* Enable GNU extensions on systems that have them.  */
 #ifndef _GNU_SOURCE
 # undef _GNU_SOURCE
+#endif
+/* Use GNU style printf and scanf.  */
+#ifndef __USE_MINGW_ANSI_STDIO
+# undef __USE_MINGW_ANSI_STDIO
 #endif
 /* Enable threading extensions on Solaris.  */
 #ifndef _POSIX_PTHREAD_SEMANTICS
@@ -1945,13 +1983,28 @@
    'reference to static identifier "f" in extern inline function'.
    This bug was observed with Sun C 5.12 SunOS_i386 2011/11/16.
 
-   Suppress the use of extern inline on problematic Apple configurations.
-   OS X 10.8 and earlier mishandle it; see, e.g.,
-   <http://lists.gnu.org/archive/html/bug-gnulib/2012-12/msg00023.html>.
+   Suppress extern inline (with or without __attribute__ ((__gnu_inline__)))
+   on configurations that mistakenly use 'static inline' to implement
+   functions or macros in standard C headers like <ctype.h>.  For example,
+   if isdigit is mistakenly implemented via a static inline function,
+   a program containing an extern inline function that calls isdigit
+   may not work since the C standard prohibits extern inline functions
+   from calling static functions.  This bug is known to occur on:
+
+     OS X 10.8 and earlier; see:
+     http://lists.gnu.org/archive/html/bug-gnulib/2012-12/msg00023.html
+
+     DragonFly; see
+     http://muscles.dragonflybsd.org/bulk/bleeding-edge-potential/latest-per-pkg/ah-tty-0.3.12.log
+
+     FreeBSD; see:
+     http://lists.gnu.org/archive/html/bug-gnulib/2014-07/msg00104.html
+
    OS X 10.9 has a macro __header_inline indicating the bug is fixed for C and
    for clang but remains for g++; see <http://trac.macports.org/ticket/41033>.
-   Perhaps Apple will fix this some day.  */
-#if (defined __APPLE__ \
+   Assume DragonFly and FreeBSD will be similar.  */
+#if (((defined __APPLE__ && defined __MACH__) \
+      || defined __DragonFly__ || defined __FreeBSD__) \
      && (defined __header_inline \
          ? (defined __cplusplus && defined __GNUC_STDC_INLINE__ \
             && ! defined __clang__) \
@@ -1959,19 +2012,19 @@
              && (defined __GNUC__ || defined __cplusplus)) \
             || (defined _FORTIFY_SOURCE && 0 < _FORTIFY_SOURCE \
                 && defined __GNUC__ && ! defined __cplusplus))))
-# define _GL_EXTERN_INLINE_APPLE_BUG
+# define _GL_EXTERN_INLINE_STDHEADER_BUG
 #endif
 #if ((__GNUC__ \
       ? defined __GNUC_STDC_INLINE__ && __GNUC_STDC_INLINE__ \
       : (199901L <= __STDC_VERSION__ \
          && !defined __HP_cc \
          && !(defined __SUNPRO_C && __STDC__))) \
-     && !defined _GL_EXTERN_INLINE_APPLE_BUG)
+     && !defined _GL_EXTERN_INLINE_STDHEADER_BUG)
 # define _GL_INLINE inline
 # define _GL_EXTERN_INLINE extern inline
 # define _GL_EXTERN_INLINE_IN_USE
 #elif (2 < __GNUC__ + (7 <= __GNUC_MINOR__) && !defined __STRICT_ANSI__ \
-       && !defined _GL_EXTERN_INLINE_APPLE_BUG)
+       && !defined _GL_EXTERN_INLINE_STDHEADER_BUG)
 # if defined __GNUC_GNU_INLINE__ && __GNUC_GNU_INLINE__
    /* __gnu_inline__ suppresses a GCC 4.2 diagnostic.  */
 #  define _GL_INLINE extern inline __attribute__ ((__gnu_inline__))
@@ -1985,17 +2038,19 @@
 # define _GL_EXTERN_INLINE static _GL_UNUSED
 #endif
 
-#if 4 < __GNUC__ + (6 <= __GNUC_MINOR__)
+/* In GCC 4.6 (inclusive) to 5.1 (exclusive),
+   suppress bogus "no previous prototype for 'FOO'"
+   and "no previous declaration for 'FOO'" diagnostics,
+   when FOO is an inline function in the header; see
+   <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54113> and
+   <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63877>.  */
+#if __GNUC__ == 4 && 6 <= __GNUC_MINOR__
 # if defined __GNUC_STDC_INLINE__ && __GNUC_STDC_INLINE__
 #  define _GL_INLINE_HEADER_CONST_PRAGMA
 # else
 #  define _GL_INLINE_HEADER_CONST_PRAGMA \
      _Pragma ("GCC diagnostic ignored \"-Wsuggest-attribute=const\"")
 # endif
-  /* Suppress GCC's bogus "no previous prototype for 'FOO'"
-     and "no previous declaration for 'FOO'"  diagnostics,
-     when FOO is an inline function in the header; see
-     <http://gcc.gnu.org/bugzilla/show_bug.cgi?id=54113>.  */
 # define _GL_INLINE_HEADER_BEGIN \
     _Pragma ("GCC diagnostic push") \
     _Pragma ("GCC diagnostic ignored \"-Wmissing-prototypes\"") \
@@ -2089,6 +2144,16 @@
 /* The name _UNUSED_PARAMETER_ is an earlier spelling, although the name
    is a misnomer outside of parameter lists.  */
 #define _UNUSED_PARAMETER_ _GL_UNUSED
+
+/* gcc supports the "unused" attribute on possibly unused labels, and
+   g++ has since version 4.5.  Note to support C++ as well as C,
+   _GL_UNUSED_LABEL should be used with a trailing ;  */
+#if !defined __cplusplus || __GNUC__ > 4 \
+    || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+# define _GL_UNUSED_LABEL _GL_UNUSED
+#else
+# define _GL_UNUSED_LABEL
+#endif
 
 /* The __pure__ attribute was added in gcc 2.96.  */
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 96)

@@ -21,6 +21,7 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <gnutls/x509.h>
 
 void cfg_init(void);
@@ -30,7 +31,7 @@ void read_crt_set(gnutls_x509_crt_t crt, const char *input_str,
 		  const char *oid);
 void read_crq_set(gnutls_x509_crq_t crq, const char *input_str,
 		  const char *oid);
-long read_int(const char *input_str);
+int64_t read_int(const char *input_str);
 const char *read_str(const char *input_str);
 int read_yesno(const char *input_str, int def);
 
@@ -62,6 +63,8 @@ const char *get_pkcs12_key_name(void);
 int get_tls_client_status(void);
 int get_tls_server_status(void);
 time_t get_crl_next_update(void);
+time_t get_crl_revocation_date(void);
+time_t get_crl_this_update_date(void);
 int get_time_stamp_status(void);
 int get_ocsp_sign_status(void);
 int get_code_sign_status(void);
@@ -78,6 +81,11 @@ int get_ipsec_ike_status(void);
 void get_dc_set(int type, void *crt);
 void get_ca_issuers_set(gnutls_x509_crt_t crt);
 void get_ocsp_issuer_set(gnutls_x509_crt_t crt);
+void crt_unique_ids_set(gnutls_x509_crt_t crt);
+
+int get_key_agreement_status(void);
+int get_non_repudiation_status(void);
+int get_data_encipherment_status(void);
 
 void get_cn_crq_set(gnutls_x509_crq_t crq);
 void get_uid_crq_set(gnutls_x509_crq_t crq);

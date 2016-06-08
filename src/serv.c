@@ -300,13 +300,17 @@ int ret;
 		if (!require_cert && gnutls_certificate_get_peers(session, &size) == NULL)
 			return 0;
 
-		if ((require_cert || ENABLED_OPT(VERIFY_CLIENT_CERT)) && cert_verify(session, NULL, NULL) == 0) {
-			do {
-				ret = gnutls_alert_send(session, GNUTLS_AL_FATAL, GNUTLS_A_ACCESS_DENIED);
-			} while(ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN);
+		if (require_cert || ENABLED_OPT(VERIFY_CLIENT_CERT)) {
+			if (cert_verify(session, NULL, NULL) == 0) {
+				do {
+					ret = gnutls_alert_send(session, GNUTLS_AL_FATAL, GNUTLS_A_ACCESS_DENIED);
+				} while(ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN);
 
-			j->http_state = HTTP_STATE_CLOSING;
-			return -1;
+				j->http_state = HTTP_STATE_CLOSING;
+				return -1;
+			}
+		} else {
+			printf("- Peer's certificate was NOT verified.\n");
 		}
 	}
 	return 0;
@@ -381,19 +385,23 @@ gnutls_session_t initialize_session(int dtls)
 					GNUTLS_HB_PEER_ALLOWED_TO_SEND);
 
 #ifdef ENABLE_DTLS_SRTP
-	if (HAVE_OPT(SRTP_PROFILES)) {
-		ret =
-		    gnutls_srtp_set_profile_direct(session,
-						   OPT_ARG(SRTP_PROFILES),
-						   &err);
-		if (ret == GNUTLS_E_INVALID_REQUEST)
-			fprintf(stderr, "Syntax error at: %s\n", err);
-		else
-			fprintf(stderr, "Error in profiles: %s\n",
-				gnutls_strerror(ret));
-		exit(1);
-	}
+        if (HAVE_OPT(SRTP_PROFILES)) {
+                ret =
+                    gnutls_srtp_set_profile_direct(session,
+                                                   OPT_ARG(SRTP_PROFILES),
+                                                   &err);
+                if (ret == GNUTLS_E_INVALID_REQUEST)
+                        fprintf(stderr, "Syntax error at: %s\n", err);
+                else if (ret != 0)
+                        fprintf(stderr, "Error in profiles: %s\n",
+                                gnutls_strerror(ret));
+                else fprintf(stderr,"DTLS profile set to %s\n",
+                             OPT_ARG(SRTP_PROFILES));
+
+                if (ret != 0) exit(1);
+        }
 #endif
+
 
 	return session;
 }
@@ -951,7 +959,23 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 #ifdef ENABLE_PKCS11
-	pkcs11_common();
+	if (HAVE_OPT(PROVIDER)) {
+		ret = gnutls_pkcs11_init(GNUTLS_PKCS11_FLAG_MANUAL, NULL);
+		if (ret < 0)
+			fprintf(stderr, "pkcs11_init: %s",
+				gnutls_strerror(ret));
+		else {
+			ret =
+			    gnutls_pkcs11_add_provider(OPT_ARG(PROVIDER),
+						       NULL);
+			if (ret < 0) {
+				fprintf(stderr, "pkcs11_add_provider: %s",
+					gnutls_strerror(ret));
+				exit(1);
+			}
+		}
+	}
+	pkcs11_common(NULL);
 #endif
 
 	/* Note that servers must generate parameters for
@@ -1378,9 +1402,13 @@ static void tcp_server(const char *name, int port)
 						} else {
 							j->http_state = HTTP_STATE_CLOSING;
 							if (r < 0) {
+								int ret;
 								check_alert(j->tls_session, r);
 								fprintf(stderr,
 								     "Error while receiving data\n");
+								do {
+									ret = gnutls_alert_send_appropriate(j->tls_session, r);
+								} while (ret == GNUTLS_E_AGAIN || ret == GNUTLS_E_INTERRUPTED);
 								GERR(r);
 							}
 						}

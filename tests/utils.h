@@ -23,6 +23,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <signal.h>
 #include <string.h>
 #include <stdarg.h>
 #include <gnutls/gnutls.h>
@@ -50,12 +51,16 @@ extern const char *pkcs3;
 
 extern void fail(const char *format, ...)
     __attribute__ ((format(printf, 1, 2)));
+extern void fail_ignore(const char *format, ...)
+    __attribute__ ((format(printf, 1, 2)));
 extern void success(const char *format, ...)
     __attribute__ ((format(printf, 1, 2)));
 
 extern void escapeprint(const char *str, size_t len);
 extern void hexprint(const void *str, size_t len);
 extern void binprint(const void *str, size_t len);
+
+void sec_sleep(int sec);
 
 /* This must be implemented elsewhere. */
 extern void doit(void);

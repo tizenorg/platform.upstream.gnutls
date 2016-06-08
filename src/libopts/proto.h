@@ -1,7 +1,7 @@
 /* -*- buffer-read-only: t -*- vi: set ro:
  *
  * Prototypes for autoopts
- * Generated Wed Oct 16 13:46:27 PDT 2013
+ * Generated Sat Sep 12 05:42:03 PDT 2015
  */
 #ifndef AUTOOPTS_PROTO_H_GUARD
 #define AUTOOPTS_PROTO_H_GUARD 1
@@ -65,7 +65,7 @@ static tSuccess
 opt_find_long(tOptions * opts, char const * opt_name, tOptState * state);
 
 static tSuccess
-opt_find_short(tOptions* pOpts, uint_t optValue, tOptState* pOptState);
+opt_find_short(tOptions * pOpts, uint_t optValue, tOptState * pOptState);
 
 static tSuccess
 get_opt_arg(tOptions * opts, tOptState * o_st);
@@ -98,16 +98,16 @@ load_opt_line(tOptions * opts, tOptState * opt_state, char * line,
 /*
  *  Extracted from makeshell.c
  */
-static void
+static noreturn void
 option_exits(int exit_code);
 
-static void
+static noreturn void
 ao_bug(char const * msg);
 
 static void
 fserr_warn(char const * prog, char const * op, char const * fname);
 
-static void
+static noreturn void
 fserr_exit(char const * prog, char const * op, char const * fname);
 
 /*
@@ -135,7 +135,7 @@ optionSort(tOptions * opts);
  *  Extracted from stack.c
  */
 static void
-addArgListEntry(void** ppAL, void* entry);
+addArgListEntry(void ** ppAL, void * entry);
 
 /*
  *  Extracted from usage.c

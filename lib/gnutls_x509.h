@@ -24,16 +24,14 @@
 #include <gnutls/abstract.h>
 
 int _gnutls_x509_cert_verify_peers(gnutls_session_t session,
-				   const char *hostname,
-				   const char *purpose,
+				   gnutls_typed_vdata_st * data,
+			           unsigned int elements,
 				   unsigned int *status);
 
 #define PEM_CERT_SEP2 "-----BEGIN X509 CERTIFICATE"
 #define PEM_CERT_SEP "-----BEGIN CERTIFICATE"
 
 #define PEM_CRL_SEP "-----BEGIN X509 CRL"
-
-int _gnutls_url_is_known(const char *url);
 
 int _gnutls_check_key_usage(const gnutls_pcert_st * cert,
 			    gnutls_kx_algorithm_t alg);

@@ -20,7 +20,8 @@ validation failed or the domain queried has no security info
 and the result is due to a security failure, bogus is true.
 
 This function will fill in the TLSA (DANE) structure from
-the given raw DNS record data.
+the given raw DNS record data. The  @code{dane_data} must be valid
+during the lifetime of the query.
 
 @strong{Returns:} On success, @code{DANE_E_SUCCESS}  (0) is returned, otherwise a
 negative error value.
